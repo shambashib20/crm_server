@@ -1,5 +1,6 @@
 import express from "express";
 import {
+  connectFacebookLeads,
   facebookCallback,
   facebookLogin,
   fetchLeads,
@@ -12,5 +13,6 @@ facebookRoutes.get("/login", facebookLogin);
 facebookRoutes.get("/callback", facebookCallback);
 facebookRoutes.post("/subscribe/:pageId", subscribePageLeadWebhook);
 facebookRoutes.get("/leads/:formId", fetchLeads);
+facebookRoutes.get("/connect", connectFacebookLeads);
 
 export default facebookRoutes;

@@ -11,6 +11,7 @@ import { seedSuperadminUser } from "./seeders/user.seeder";
 import mainRouter from "./routes";
 import cookieParser from "cookie-parser";
 import { seedDefaultLeadStatuses } from "./seeders/status.seeder";
+import { seedDefaultLabelStatuses } from "./seeders/label.seeder";
 
 const app: Application = express();
 app.use(cors());
@@ -55,6 +56,7 @@ app.listen(PORT, async () => {
       await seedDefaultProperty();
       await seedSuperadminUser();
       await seedDefaultLeadStatuses();
+      await seedDefaultLabelStatuses();
       console.log("✅ Database seeding completed.");
     } catch (error) {
       console.error("❌ Error during seeding:", error);

@@ -11,7 +11,7 @@ const LabelSchema = new Schema<LabelDto & Document>(
     },
     meta: { type: Schema.Types.Mixed, default: {} },
   },
-  { timestamps: false, versionKey: false }
+  { timestamps: true, versionKey: false }
 );
 
 const Label = model<LabelDto & Document>("Label", LabelSchema);

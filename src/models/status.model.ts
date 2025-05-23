@@ -16,7 +16,7 @@ const StatusSchema = new Schema<StatusDto & Document>(
     },
     meta: { type: Schema.Types.Mixed, default: {} },
   },
-  { timestamps: false, versionKey: false }
+  { timestamps: true, versionKey: false }
 );
 
 const Status = model<StatusDto & Document>("Status", StatusSchema);
