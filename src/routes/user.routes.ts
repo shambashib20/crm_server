@@ -18,4 +18,6 @@ userRouter.use(
   CreateUserController
 );
 
+userRouter.use("/all/profile-info", AuthMiddleware, GetUserDetails);
+
 export default userRouter;

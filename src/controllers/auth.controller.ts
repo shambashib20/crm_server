@@ -1,6 +1,8 @@
 import {
+  _forgotPasswordService,
   _LoginForAllUsersService,
   _loginSuperAdmin,
+  _resetPasswordService,
 } from "../services/auth.service";
 
 import SuccessResponse from "../middlewares/success.middleware";
@@ -41,4 +43,57 @@ const LoginForAllUsers = async (req: any, res: any) => {
   }
 };
 
-export { LoginSuperAdminController, LoginForAllUsers };
+const ForgotPasswordController = async (req: any, res: any) => {
+  const { emailOrPhone } = req.body;
+
+  try {
+    const message = await _forgotPasswordService(emailOrPhone);
+    return res.status(200).json(new SuccessResponse(message, 200));
+  } catch (err: any) {
+    return res.status(400).json(new SuccessResponse(err.message, 400));
+  }
+};
+
+const ResetPasswordController = async (req: any, res: any) => {
+  const { otp, newPassword } = req.body;
+
+  try {
+    const message = await _resetPasswordService(otp, newPassword);
+    return res.status(200).json(new SuccessResponse(message, 200));
+  } catch (err: any) {
+    return res.status(400).json(new SuccessResponse(err.message, 400));
+  }
+};
+const LogoutForAllUsers = async (req: any, res: any) => {
+  const accessToken = req.cookies?.access_token;
+  const refreshToken = req.cookies?.refresh_token;
+
+  if (!accessToken && !refreshToken) {
+    return res
+      .status(400)
+      .json(new SuccessResponse("User is already logged out", 400));
+  }
+  res.clearCookie("access_token", {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: true,
+  });
+
+  res.clearCookie("refresh_token", {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: true,
+  });
+
+  return res
+    .status(200)
+    .json(new SuccessResponse("Logged out successfully", 200));
+};
+
+export {
+  LoginSuperAdminController,
+  LoginForAllUsers,
+  LogoutForAllUsers,
+  ForgotPasswordController,
+  ResetPasswordController,
+};

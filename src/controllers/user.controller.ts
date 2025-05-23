@@ -58,4 +58,6 @@ const CreateUserController = async (req: any, res: any) => {
   }
 };
 
+
+
 export { GetUserDetails, CreateUserController };
