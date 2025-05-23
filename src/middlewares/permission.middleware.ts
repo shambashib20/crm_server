@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 
 import Permission from "../models/permission.model";
+import logPermissionDenied from "../utils/logPermissionDenied.util";
 
 const PermissionMiddleware = (requiredPermission: string) => {
   return async (req: any, res: any, next: NextFunction) => {
@@ -13,7 +14,6 @@ const PermissionMiddleware = (requiredPermission: string) => {
           .json({ message: "Access denied: No role found." });
       }
 
-      // User.role is populated in AuthMiddleware
       const role = user.role;
 
       const permissionIds = Array.isArray(role.permissions)
@@ -21,6 +21,12 @@ const PermissionMiddleware = (requiredPermission: string) => {
         : [];
 
       if (permissionIds.length === 0) {
+        await logPermissionDenied(
+          user,
+          req.body?.property_id,
+          "No permissions assigned",
+          requiredPermission
+        );
         return res
           .status(403)
           .json({ message: "Access denied: No permissions assigned." });
@@ -32,13 +38,19 @@ const PermissionMiddleware = (requiredPermission: string) => {
       const permissionNames = permissions.map((p) => p.name);
 
       if (!permissionNames.includes(requiredPermission)) {
+        await logPermissionDenied(
+          user,
+          req.body?.property_id,
+          "No permissions assigned",
+          requiredPermission
+        );
         return res
           .status(403)
           .json({ message: "Access denied: Permission not granted." });
       }
 
       next();
-    } catch (error: any) {  
+    } catch (error: any) {
       console.error("PermissionMiddleware error:", error);
       return res
         .status(500)

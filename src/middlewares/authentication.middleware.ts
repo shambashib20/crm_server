@@ -43,21 +43,7 @@ const AuthMiddleware = async (req: any, res: any, next: any) => {
 
     const userRole = await Role.findOne({ _id: user.role._id });
 
-    const roleName = (userRole?.name || "").toLowerCase();
-
-    property.usage_count = (property.usage_count || 0) + 1;
-
-    if (roleName !== "superadmin") {
-      if (property.usage_limits <= 0) {
-        return res
-          .status(403)
-          .json({ message: "Usage limit exceeded for this property." });
-      }
-
-      property.usage_limits -= 1;
-    }
-
-    await property.save();
+    
 
     req.user = user;
     req.property = property;
