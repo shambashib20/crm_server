@@ -44,7 +44,7 @@ const LeadSchema = new Schema<Lead & Document>(
     follow_ups: { type: [FollowUpSchema], default: [] },
     tasks: { type: [TaskSchema], default: [] },
 
-    status: { type: Schema.Types.ObjectId, ref: "LeadStatus" },
+    status: { type: Schema.Types.ObjectId, ref: "Status" },
     labels: [{ type: Schema.Types.ObjectId, ref: "Label" }],
     assigned_to: { type: Schema.Types.ObjectId, ref: "User" },
     assigned_by: { type: Schema.Types.ObjectId, ref: "User" },

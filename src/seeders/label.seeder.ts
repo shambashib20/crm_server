@@ -47,11 +47,14 @@ export async function seedDefaultLabelStatuses() {
         title: statusTitle,
         description: `${statusTitle} status`,
         property_id: existingProperty._id,
+        meta: {
+          is_active: true,
+        },
       });
 
-      console.log(`✔️ Seeded status: ${statusTitle}`);
+      console.log(`✔️ Seeded label`);
     } else {
-      console.log(`ℹ️ Status already exists: ${statusTitle}`);
+      console.log(`ℹ️ Label already exists: ${statusTitle}`);
     }
   }
 }

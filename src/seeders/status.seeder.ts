@@ -40,11 +40,16 @@ export async function seedDefaultLeadStatuses() {
         title: statusTitle,
         description: `${statusTitle} status`,
         property_id: existingProperty._id,
+        meta: {
+          is_active: true,
+        },
       });
 
-      console.log(`✔️ Seeded status: ${statusTitle}`);
+      // TODO console logs will have to be incorporated!
+
+      console.log(`✔️ Seeded status`);
     } else {
-      console.log(`ℹ️ Status already exists: ${statusTitle}`);
+      console.log(`ℹ️ Status already exists`);
     }
   }
 
