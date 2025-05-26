@@ -24,6 +24,4 @@ const FetchStatuses = async (req: any, res: any) => {
 
 
 
-
-
 export { FetchStatuses };

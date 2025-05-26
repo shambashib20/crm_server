@@ -96,9 +96,10 @@ const fetchLeads = async (req: Request, res: Response) => {
 };
 
 const connectFacebookLeads = async (req: any, res: any) => {
+  const userId = req.user._id;
   const code = req.query.code as string;
   try {
-    const result = await _masterLeadService(code);
+    const result = await _masterLeadService(userId, code);
 
     console.log(result, "r");
     return res
