@@ -9,15 +9,15 @@ import PermissionMiddleware from "../middlewares/permission.middleware";
 
 const userRouter = express.Router();
 
-userRouter.use("/profile-info", AuthMiddleware, GetUserDetails);
+userRouter.get("/profile-info", AuthMiddleware, GetUserDetails);
 
-userRouter.use(
+userRouter.post(
   "/create-user",
   AuthMiddleware,
   PermissionMiddleware("manage_staff"),
   CreateUserController
 );
 
-userRouter.use("/all/profile-info", AuthMiddleware, GetUserDetails);
+userRouter.get("/all/profile-info", AuthMiddleware, GetUserDetails);
 
 export default userRouter;

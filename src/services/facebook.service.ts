@@ -6,6 +6,7 @@ import Lead from "../models/lead.model";
 import User from "../models/user.model";
 import { LabelDto } from "../dtos/label.dto";
 import { Types } from "mongoose";
+import { LeadLogStatus } from "../dtos/lead.dto";
 
 const FB_AUTH_URL = "https://www.facebook.com/v21.0/dialog/oauth";
 const FB_TOKEN_URL = "https://graph.facebook.com/v21.0/oauth/access_token";
@@ -53,7 +54,8 @@ const _getLeadsFromForm = async (formId: string, accessToken: string) => {
 };
 
 const _masterLeadService = async (userId: Types.ObjectId, fbCode?: string) => {
-  const integration = await User.findOne({ userId });
+  const integration = await User.findOne({ _id: userId });
+  console.log(integration, "user");
   let userAccessToken = integration?.meta?.facebook?.userAccessToken;
 
   if (!userAccessToken && fbCode) {
@@ -92,7 +94,6 @@ const _masterLeadService = async (userId: Types.ObjectId, fbCode?: string) => {
     );
   }
 
- 
   if (!userAccessToken) {
     throw new Error(
       "Facebook is not connected. Please login and provide ?code=..."
@@ -176,6 +177,17 @@ const _masterLeadService = async (userId: Types.ObjectId, fbCode?: string) => {
             form_id: form.id,
             page_id: page.id,
           },
+          logs: [
+            {
+              title: "Lead created",
+              description: `Lead created by ${
+                integration?.name || "Unknown"
+              } and assigned the status of ${defaultStatus.title}`,
+              status: LeadLogStatus.INFO,
+            },
+          ],
+          assigned_to: integration?._id,
+          property_id: integration?.property_id,
         });
       }
 

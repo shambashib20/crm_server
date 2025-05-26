@@ -1,0 +1,75 @@
+import { Types } from "mongoose";
+import SuccessResponse from "../middlewares/success.middleware";
+import {
+  _fetchLeadDetails,
+  _createNewFollowUp,
+} from "../services/lead.service";
+import { Request } from "express";
+import Lead from "../models/lead.model";
+
+interface UpdateLabelRequest {
+  leadId: Types.ObjectId | string;
+  labelIds: Types.ObjectId[] | string[];
+}
+
+const FetchLeadDetails = async (req: any, res: any) => {
+  try {
+    const { leadId } = req.query;
+    const result = await _fetchLeadDetails(leadId);
+
+    return res
+      .status(200)
+      .json(
+        new SuccessResponse("Lead details fetched successfully", 200, result)
+      );
+  } catch (error: any) {
+    return res.status(500).json(new SuccessResponse(error.message, 500));
+  }
+};
+
+const NewFollowUp = async (req: any, res: any) => {
+  try {
+    const userId = req.user._id;
+    const propId = req.user.property_id;
+    const result = await _createNewFollowUp(
+      req.body.leadId,
+      propId,
+      userId,
+      req.body.nextFollowUp
+    );
+
+    if (!result) {
+      return res
+        .status(400)
+        .json(new SuccessResponse("Follow up can't be created", 400));
+    }
+    return res
+      .status(201)
+      .json(new SuccessResponse("Followup created successfully", 201, result));
+  } catch (error: any) {
+    return res.status(500).json(new SuccessResponse(error.message, 500));
+  }
+};
+
+const UpdateLabelForLead = async (
+  req: Request<{}, {}, UpdateLabelRequest>,
+  res: any
+) => {
+  try {
+    const { leadId, labelIds } = req.body;
+
+    // Validate if labelIds is a non-empty array
+    if (!Array.isArray(labelIds) || labelIds.length === 0) {
+      return res
+        .status(400)
+        .json({ message: "labelIds must be a non-empty array" });
+    }
+
+    return res
+      .status(200)
+      .json(new SuccessResponse("Followup created successfully", 201));
+  } catch (error: any) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+export { FetchLeadDetails, NewFollowUp };

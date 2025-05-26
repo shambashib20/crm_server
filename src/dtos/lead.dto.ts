@@ -1,8 +1,17 @@
 import { Types } from "mongoose";
 
+enum LeadLogStatus {
+  INFO = "INFO",
+  WARNING = "WARNING",
+  ERROR = "ERROR",
+  ACTION = "ACTION",
+  SYSTEM = "SYSTEM",
+}
+
 interface LeadLog {
   title: string;
   description: string;
+  status: LeadLogStatus;
   createdAt: Date;
   meta?: Record<string, any>;
 }
@@ -39,4 +48,4 @@ interface Lead {
   property_id: Types.ObjectId;
 }
 
-export { Lead, LeadLog, Task, FollowUp };
+export { Lead, LeadLog, Task, FollowUp, LeadLogStatus };
