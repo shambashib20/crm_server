@@ -99,7 +99,7 @@ const _loginSuperAdmin = async (
     httpOnly: true,
     maxAge: 5 * 24 * 60 * 60 * 1000,
     sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-    secure: process.env.NODE_ENV === "production", 
+    secure: process.env.NODE_ENV === "production",
   });
 
   res.cookie("refresh_token", refreshToken, {
@@ -205,9 +205,37 @@ const _resetPasswordService = async (
   return "Password reset successfully.";
 };
 
+const _updatePasswordService = async (
+  rayId: string,
+  newPassword: string
+): Promise<string> => {
+  const user = await User.findOne({
+    "meta.ray_id": rayId,
+  });
+
+  if (!user) {
+    throw new Error("Can't find the user!");
+  }
+
+  const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+  await User.findByIdAndUpdate(
+    user._id,
+    {
+      $set: {
+        password: hashedPassword,
+      },
+    },
+    { new: true }
+  );
+
+  return "Password reset successfully.";
+};
+
 export {
   _LoginForAllUsersService,
   _loginSuperAdmin,
   _forgotPasswordService,
   _resetPasswordService,
+  _updatePasswordService,
 };

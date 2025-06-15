@@ -3,6 +3,7 @@ import {
   _LoginForAllUsersService,
   _loginSuperAdmin,
   _resetPasswordService,
+  _updatePasswordService,
 } from "../services/auth.service";
 
 import SuccessResponse from "../middlewares/success.middleware";
@@ -90,10 +91,24 @@ const LogoutForAllUsers = async (req: any, res: any) => {
     .json(new SuccessResponse("Logged out successfully", 200));
 };
 
+const UpdateNewPassword = async (req: any, res: any) => {
+  const { rayId, newPassword } = req.body;
+
+  try {
+    const message = await _updatePasswordService(rayId, newPassword);
+    return res
+      .status(200)
+      .json(new SuccessResponse(message, 200, "New Password added!"));
+  } catch (err: any) {
+    return res.status(400).json(new SuccessResponse(err.message, 400));
+  }
+};
+
 export {
   LoginSuperAdminController,
   LoginForAllUsers,
   LogoutForAllUsers,
   ForgotPasswordController,
   ResetPasswordController,
+  UpdateNewPassword,
 };
