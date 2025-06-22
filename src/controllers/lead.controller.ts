@@ -10,6 +10,7 @@ import {
   _getTodayLeadsGrouped,
   _updateAssignedAgentForLead,
   _deleteOrArchiveLead,
+  _getLeadStatusStatsService,
 } from "../services/lead.service";
 
 interface UpdateLabelRequest {
@@ -222,6 +223,23 @@ const DeleteOrArchiveForLead = async (req: any, res: any) => {
     return res.status(500).json(new SuccessResponse(error.message, 500));
   }
 };
+
+const LeadsPerStatus = async (req: any, res: any) => {
+  try {
+    const { startDate = "", endDate = "" } = req.query;
+
+    const result = await _getLeadStatusStatsService(
+      startDate as string,
+      endDate as string
+    );
+
+    return res
+      .status(200)
+      .json(new SuccessResponse("Donut chart data fetched", 200, result));
+  } catch (err: any) {
+    return res.status(500).json(new SuccessResponse(err.message, 500));
+  }
+};
 export {
   FetchLeadDetails,
   NewFollowUp,
@@ -232,4 +250,5 @@ export {
   GetTodaysLeadsGrouped,
   UpdateAssignmentForLead,
   DeleteOrArchiveForLead,
+  LeadsPerStatus
 };

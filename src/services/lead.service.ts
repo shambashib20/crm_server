@@ -636,6 +636,68 @@ const _deleteOrArchiveLead = async (rayId: string, userId: Types.ObjectId) => {
   );
 };
 
+const _getLeadStatusStatsService = async (
+  startDate?: string,
+  endDate?: string
+) => {
+  const matchStage: any = {};
+
+  if (startDate || endDate) {
+    matchStage.createdAt = {};
+    if (startDate) {
+      matchStage.createdAt.$gte = new Date(`${startDate}T00:00:00.000Z`);
+    }
+    if (endDate) {
+      matchStage.createdAt.$lte = new Date(`${endDate}T23:59:59.999Z`);
+    }
+  }
+
+  const aggregation = await Lead.aggregate([
+    { $match: matchStage },
+    {
+      $group: {
+        _id: "$status",
+        count: { $sum: 1 },
+      },
+    },
+    {
+      $lookup: {
+        from: "status",
+        localField: "_id",
+        foreignField: "_id",
+        as: "statusDetails",
+      },
+    },
+    {
+      $unwind: {
+        path: "$statusDetails",
+        preserveNullAndEmptyArrays: true,
+      },
+    },
+    {
+      $project: {
+        _id: 0,
+        label: {
+          $cond: [
+            { $ifNull: ["$statusDetails.title", false] },
+            "$statusDetails.title",
+            "Unassigned",
+          ],
+        },
+        value: "$count",
+      },
+    },
+  ]);
+
+  const labels = aggregation.map((item) => item.label || "Unknown");
+  const data = aggregation.map((item) => item.value);
+
+  return {
+    labels,
+    data,
+  };
+};
+
 export {
   _fetchLeadDetails,
   _createNewFollowUp,
@@ -646,4 +708,5 @@ export {
   _getTodayLeadsGrouped,
   _updateAssignedAgentForLead,
   _deleteOrArchiveLead,
+  _getLeadStatusStatsService,
 };

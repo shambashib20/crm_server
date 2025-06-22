@@ -3,6 +3,7 @@ import {
   DeleteOrArchiveForLead,
   FetchLeadDetails,
   GetMissedFollowUpsController,
+  LeadsPerStatus,
   NewFollowUp,
   UpdateAssignmentForLead,
   UpdateLabelForLead,
@@ -12,6 +13,7 @@ import express from "express";
 
 import AuthMiddleware from "../middlewares/authentication.middleware";
 import PermissionMiddleware from "../middlewares/permission.middleware";
+import Lead from "../models/lead.model";
 
 const leadRouter = express.Router();
 
@@ -63,5 +65,11 @@ leadRouter.patch(
   PermissionMiddleware("manage_leads"),
   DeleteOrArchiveForLead
 );
+
+leadRouter.get(
+  "/leads-per-status",
+  AuthMiddleware,
+  LeadsPerStatus
+)
 
 export default leadRouter;
