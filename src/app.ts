@@ -1,7 +1,7 @@
 import express, { Application } from "express";
 import dotenv from "dotenv";
 dotenv.config();
-import mongoose from "mongoose";
+
 import facebookRoutes from "./routes/facebook.routes";
 import { connect, getDbStatus } from "../config/db.config";
 import cors from "cors";
@@ -14,7 +14,16 @@ import { seedDefaultLeadStatuses } from "./seeders/status.seeder";
 import { seedDefaultLabelStatuses } from "./seeders/label.seeder";
 
 const app: Application = express();
-app.use(cors());
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      callback(null, origin || "*"); // allow any origin dynamically
+    },
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
+);
 app.use(cookieParser());
 const PORT = process.env.PORT || 5000;
 
