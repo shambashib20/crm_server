@@ -3,6 +3,7 @@ import SuccessResponse from "../middlewares/success.middleware";
 import {
   _fetchLeadDetails,
   _createNewFollowUp,
+  _homePageLeadService,
 } from "../services/lead.service";
 import { Request } from "express";
 import Lead from "../models/lead.model";
@@ -68,8 +69,31 @@ const UpdateLabelForLead = async (
       .status(200)
       .json(new SuccessResponse("Followup created successfully", 201));
   } catch (error: any) {
-    return res.status(500).json({ message: error.message });
+    return res.status(500).json(new SuccessResponse(error.message, 500));
   }
 };
 
-export { FetchLeadDetails, NewFollowUp, UpdateLabelForLead };
+const HomePageLeads = async (req: any, res: any) => {
+  try {
+    const { labelIds, assignedTo } = req.body;
+
+    const labelObjectIds = labelIds.map((id: string) => new Types.ObjectId(id));
+    const assignedToObjectIds = assignedTo.map(
+      (id: string) => new Types.ObjectId(id)
+    );
+
+    const leads = await _homePageLeadService(
+      labelObjectIds,
+      assignedToObjectIds
+    );
+    return res
+      .status(200)
+      .json(
+        new SuccessResponse("Filtered leads fetched successfully", 200, leads)
+      );
+  } catch (error: any) {
+    return res.status(500).json(new SuccessResponse(error.message, 500));
+  }
+};
+
+export { FetchLeadDetails, NewFollowUp, UpdateLabelForLead, HomePageLeads };

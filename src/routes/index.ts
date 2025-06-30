@@ -7,6 +7,7 @@ import userRouter from "./user.routes";
 import statusRouter from "./stats.routes";
 import labelRouter from "./label.routes";
 import leadRouter from "./lead.route";
+import homeRouter from "./home.route";
 
 mainRouter.use("/auth", authRouter);
 
@@ -14,5 +15,6 @@ mainRouter.use("/user", userRouter);
 mainRouter.use("/status", statusRouter);
 mainRouter.use("/label", labelRouter);
 mainRouter.use("/lead", leadRouter);
+mainRouter.use("/home-page", homeRouter);
 
 export default mainRouter;

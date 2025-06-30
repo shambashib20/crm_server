@@ -3,6 +3,7 @@ import Lead from "../models/lead.model";
 import Property from "../models/property.model";
 import User from "../models/user.model";
 import { LogStatus } from "../dtos/property.dto";
+import Label from "../models/label.model";
 
 const _fetchLeadDetails = async (leadId: Types.ObjectId) => {
   const existingLead = await Lead.findById(leadId)
@@ -114,4 +115,36 @@ const _updateLabelForLead = async (
   );
 };
 
-export { _fetchLeadDetails, _createNewFollowUp, _updateLabelForLead };
+const _homePageLeadService = async (
+  labelIds: Types.ObjectId[],
+  assignedToUserIds: Types.ObjectId[]
+) => {
+  const query: any = {};
+
+  if (labelIds.length > 0) {
+    const existingLabels = await Label.find({ _id: { $in: labelIds } });
+    if (existingLabels.length > 0) {
+      query.labels = { $in: labelIds };
+    }
+  }
+
+  if (assignedToUserIds.length > 0) {
+    query.assigned_to = { $in: assignedToUserIds };
+  }
+
+  const leads = await Lead.find(query)
+    .populate("status", "name")
+    .populate("assigned_to", "name")
+    .populate("assigned_by", "name")
+    .populate("labels", "title")
+    .lean();
+
+  return leads;
+};
+
+export {
+  _fetchLeadDetails,
+  _createNewFollowUp,
+  _updateLabelForLead,
+  _homePageLeadService,
+};
