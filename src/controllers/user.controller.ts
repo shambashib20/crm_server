@@ -1,5 +1,6 @@
 import { Types } from "mongoose";
 import {
+  _allChatAgents,
   _createUserForOrganization,
   _getUserdetails,
 } from "../services/user.service";
@@ -58,6 +59,22 @@ const CreateUserController = async (req: any, res: any) => {
   }
 };
 
+const FetchChatAgents = async (req: any, res: any) => {
+  const user = req.user;
+  try {
+    const result = await _allChatAgents(new Types.ObjectId(user.property_id));
+    return res
+      .status(200)
+      .json(
+        new SuccessResponse(
+          "Chat agents fetched in this organization",
+          200,
+          result
+        )
+      );
+  } catch (error: any) {
+    return res.status(500).json(new SuccessResponse(error.message, 500));
+  }
+};
 
-
-export { GetUserDetails, CreateUserController };
+export { GetUserDetails, CreateUserController, FetchChatAgents };

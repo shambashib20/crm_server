@@ -58,7 +58,6 @@ const UpdateLabelForLead = async (
   try {
     const { leadId, labelIds } = req.body;
 
-    // Validate if labelIds is a non-empty array
     if (!Array.isArray(labelIds) || labelIds.length === 0) {
       return res
         .status(400)
@@ -72,4 +71,5 @@ const UpdateLabelForLead = async (
     return res.status(500).json({ message: error.message });
   }
 };
-export { FetchLeadDetails, NewFollowUp };
+
+export { FetchLeadDetails, NewFollowUp, UpdateLabelForLead };

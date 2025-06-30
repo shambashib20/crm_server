@@ -1,5 +1,6 @@
 import {
   CreateUserController,
+  FetchChatAgents,
   GetUserDetails,
 } from "../controllers/user.controller";
 
@@ -19,5 +20,12 @@ userRouter.post(
 );
 
 userRouter.get("/all/profile-info", AuthMiddleware, GetUserDetails);
+
+userRouter.get(
+  "/chat-agents/all",
+  AuthMiddleware,
+  PermissionMiddleware("manage_leads"),
+  FetchChatAgents
+);
 
 export default userRouter;

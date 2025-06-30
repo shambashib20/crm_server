@@ -102,7 +102,6 @@ const _createUserForOrganization = async (
 
     return user;
   } catch (err: any) {
-    
     await Property.findByIdAndUpdate(property_id, {
       $push: {
         logs: {
@@ -117,4 +116,19 @@ const _createUserForOrganization = async (
   }
 };
 
-export { _getUserdetails, _createUserForOrganization };
+const _allChatAgents = async (propertyId: Types.ObjectId) => {
+  const chatAgentRole = await Role.findOne({ name: "Chat Agent" });
+
+  if (!chatAgentRole) {
+    return [];
+  }
+
+  const users = await User.find({
+    role: chatAgentRole._id,
+    property_id: propertyId,
+  }).select("name");
+
+  return users;
+};
+
+export { _getUserdetails, _createUserForOrganization, _allChatAgents };
