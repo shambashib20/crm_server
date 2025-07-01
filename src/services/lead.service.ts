@@ -8,6 +8,7 @@ import { LeadLogStatus } from "../dtos/lead.dto";
 import Status from "../models/status.model";
 import Role from "../models/role.model";
 import { v4 as uuidv4 } from "uuid";
+import Source from "../models/source.model";
 
 interface CreateLeadDto {
   name: string;
@@ -192,6 +193,10 @@ const _createLeadService = async (data: CreateLeadDto) => {
     }
   }
 
+  const defaultSource = await Source.findOne({
+    title: "Landing Page Leads",
+  });
+
   const defaultStatus = await Status.findOne({ title: "New" });
   if (!defaultStatus) {
     throw new Error("Status must contain a Status named New!");
@@ -210,6 +215,7 @@ const _createLeadService = async (data: CreateLeadDto) => {
       : null,
     meta: {
       ray_id,
+      source: defaultSource || "Landing Page Leads",
     },
 
     logs: [
