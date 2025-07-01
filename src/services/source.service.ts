@@ -1,5 +1,5 @@
 import { Types } from "mongoose";
-import Lead from "../models/lead.model";
+
 import Property from "../models/property.model";
 import User from "../models/user.model";
 import { LogStatus } from "../dtos/property.dto";
@@ -18,7 +18,7 @@ const _createSource = async (
   }
 
   const existingSuperadmin = await User.findOne({
-    property_id: propId,
+    property_id: new Types.ObjectId(propId),
     role: superadminRole._id,
   });
 
@@ -27,7 +27,7 @@ const _createSource = async (
   }
   const source = await Source.create({
     title,
-    propId,
+    property_id: propId,
     description,
     meta,
   });
@@ -38,7 +38,7 @@ const _createSource = async (
       $push: {
         logs: {
           title: "Source Created",
-          description: `A new source with this ${title} has been created.`,
+          description: `A new source with this title: ${title} has been created.`,
           status: LogStatus.ACTION,
           meta: {
             source_id: source._id,

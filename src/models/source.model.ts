@@ -8,6 +8,7 @@ const SourceSchema = new Schema<SourceDto & Document>(
     property_id: {
       type: Schema.Types.ObjectId,
       default: null,
+      ref: "Property",
     },
     description: {
       type: String,
