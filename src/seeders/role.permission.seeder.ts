@@ -19,6 +19,10 @@ export async function seedRolesAndPermissions() {
       name: "view_dashboard",
       description: "Access dashboard and summary data",
     },
+    {
+      name: "manage_sources_list",
+      description: "Managing Source list in the platform",
+    },
   ];
 
   const existingPermissions = await Permission.countDocuments();
@@ -50,6 +54,7 @@ export async function seedRolesAndPermissions() {
         permissionMap["view_reports"],
         permissionMap["view_dashboard"],
         permissionMap["manage_campaigns"],
+        permissionMap["manage_sources_list"],
       ],
     },
     {
