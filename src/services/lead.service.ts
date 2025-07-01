@@ -138,7 +138,8 @@ const _updateLabelForLead = async (
 
 const _homePageLeadService = async (
   labelIds: Types.ObjectId[],
-  assignedToUserIds: Types.ObjectId[]
+  assignedToUserIds: Types.ObjectId[],
+  sourceNames: string[]
 ) => {
   const query: any = {};
 
@@ -151,6 +152,9 @@ const _homePageLeadService = async (
 
   if (assignedToUserIds.length > 0) {
     query.assigned_to = { $in: assignedToUserIds };
+  }
+  if (sourceNames.length > 0) {
+    query["meta.source.title"] = { $in: sourceNames };
   }
 
   const leads = await Lead.find(query)
