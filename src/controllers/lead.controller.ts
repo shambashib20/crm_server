@@ -4,6 +4,7 @@ import {
   _fetchLeadDetails,
   _createNewFollowUp,
   _homePageLeadService,
+  _createLeadService,
 } from "../services/lead.service";
 import { Request } from "express";
 import Lead from "../models/lead.model";
@@ -96,4 +97,25 @@ const HomePageLeads = async (req: any, res: any) => {
   }
 };
 
-export { FetchLeadDetails, NewFollowUp, UpdateLabelForLead, HomePageLeads };
+const CreateLeadController = async (req: any, res: any) => {
+  try {
+    const leadPayload = req.body;
+    const lead = await _createLeadService(leadPayload);
+
+    return res
+      .status(201)
+      .json(new SuccessResponse("Lead created successfully", 201, lead));
+  } catch (error: any) {
+    return res
+      .status(500)
+      .json(new SuccessResponse(error.message || "Something went wrong", 500));
+  }
+};
+
+export {
+  FetchLeadDetails,
+  NewFollowUp,
+  UpdateLabelForLead,
+  HomePageLeads,
+  CreateLeadController,
+};

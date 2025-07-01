@@ -4,6 +4,26 @@ import Property from "../models/property.model";
 import User from "../models/user.model";
 import { LogStatus } from "../dtos/property.dto";
 import Label from "../models/label.model";
+import { LeadLogStatus } from "../dtos/lead.dto";
+import Status from "../models/status.model";
+import Role from "../models/role.model";
+import { v4 as uuidv4 } from "uuid";
+
+interface CreateLeadDto {
+  name: string;
+  company_name?: string;
+  phone_number?: string;
+  email?: string;
+  address?: string;
+  comment?: string;
+  reference?: string;
+  labels?: string[];
+  status?: Types.ObjectId;
+  assigned_to?: string;
+  assigned_by?: string;
+  property_id?: Types.ObjectId;
+  meta?: Record<string, any>;
+}
 
 const _fetchLeadDetails = async (leadId: Types.ObjectId) => {
   const existingLead = await Lead.findById(leadId)
@@ -142,9 +162,94 @@ const _homePageLeadService = async (
   return leads;
 };
 
+const _createLeadService = async (data: CreateLeadDto) => {
+  const now = new Date();
+
+  const meta: Record<string, any> = data.meta || {};
+
+  let createdById = meta.created_by || null;
+
+  if (!createdById) {
+    const chatAgentRole = await Role.findOne({ name: "Chat Agent" });
+
+    if (!chatAgentRole) {
+      throw new Error('No role named "Chat Agent" found.');
+    }
+
+    const chatAgents = await User.find({ role: chatAgentRole._id }).sort({
+      createdAt: 1,
+    });
+
+    if (!chatAgents.length) {
+      throw new Error("No chat agents found in the system.");
+    }
+
+    createdById = chatAgents[0]._id;
+    meta.created_by = createdById;
+
+    if (!data.assigned_to) {
+      data.assigned_to = createdById.toString();
+    }
+  }
+
+  const defaultStatus = await Status.findOne({ title: "New" });
+  if (!defaultStatus) {
+    throw new Error("Status must contain a Status named New!");
+  }
+
+  const ray_id = `ray-id-${uuidv4()}`;
+
+  const lead = await Lead.create({
+    ...data,
+    labels: data.labels?.map((id) => new Types.ObjectId(id)) || [],
+    status: defaultStatus._id ? new Types.ObjectId(data.status) : null,
+    assigned_to: data.assigned_to ? new Types.ObjectId(data.assigned_to) : null,
+    assigned_by: data.assigned_by ? new Types.ObjectId(data.assigned_by) : null,
+    property_id: defaultStatus.property_id
+      ? new Types.ObjectId(data.property_id)
+      : null,
+    meta: {
+      ray_id,
+    },
+
+    logs: [
+      {
+        title: "Lead created",
+        description: `Lead created by ${
+          data?.name || "Unknown"
+        } and assigned the status of ${defaultStatus.title}`,
+        status: LeadLogStatus.ACTION,
+        meta: {},
+        createdAt: now,
+        updatedAt: now,
+      },
+    ],
+  });
+
+  await Property.findByIdAndUpdate(
+    defaultStatus.property_id,
+    {
+      $inc: { usage_count: 1 },
+      $push: {
+        logs: {
+          title: "Lead Assigned",
+          description: `A new lead named (${lead.name}) was assigned to this property.`,
+          status: LogStatus.INFO,
+          meta: { leadId: lead._id },
+          createdAt: now,
+          updatedAt: now,
+        },
+      },
+    },
+    { new: true }
+  );
+
+  return lead;
+};
 export {
   _fetchLeadDetails,
   _createNewFollowUp,
   _updateLabelForLead,
   _homePageLeadService,
+  _createLeadService,
 };

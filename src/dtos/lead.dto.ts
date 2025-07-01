@@ -45,6 +45,7 @@ interface Lead {
   assigned_to?: Types.ObjectId;
   assigned_by?: Types.ObjectId;
   meta?: Record<string, any>;
+  ip_address?: string;
   property_id: Types.ObjectId;
 }
 
