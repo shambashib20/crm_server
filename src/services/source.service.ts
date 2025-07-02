@@ -53,4 +53,23 @@ const _createSource = async (
   return source;
 };
 
-export { _createSource };
+const _getAllSources = async (page = 1, limit = 10) => {
+  const skip = (page - 1) * limit;
+
+  const [sources, total] = await Promise.all([
+    Source.find().sort({ createdAt: -1 }).skip(skip).limit(limit),
+    Source.countDocuments(),
+  ]);
+
+  return {
+    sources,
+    pagination: {
+      total,
+      currentPage: page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    },
+  };
+};
+
+export { _createSource, _getAllSources };
