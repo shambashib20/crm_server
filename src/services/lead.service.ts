@@ -87,6 +87,7 @@ const _createNewFollowUp = async (
   await Property.findByIdAndUpdate(
     propId,
     {
+      $inc: { usage_count: 1 },
       $push: { logs: logEntry },
     },
     { new: true }
