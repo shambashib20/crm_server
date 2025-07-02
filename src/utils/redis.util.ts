@@ -1,17 +1,35 @@
+// redis.ts
 import Redis from "ioredis";
 
-// default localhost:6379
-const redis = new Redis({
+const redisClient = new Redis({
   host: "127.0.0.1",
   port: 6379,
+  maxRetriesPerRequest: 3,
+  connectTimeout: 1000,
+  lazyConnect: true,
+  retryStrategy: () => null,
 });
 
-redis.on("connect", () => {
+let silentErrorLogged = false;
+
+redisClient.on("connect", () => {
   console.log("Redis connected");
+  silentErrorLogged = false;
 });
 
-redis.on("error", (err) => {
-  console.error("Redis error:", err);
+redisClient.on("error", (err) => {
+  if (!silentErrorLogged) {
+    console.warn("Redis connection error:", err.message);
+    silentErrorLogged = true;
+  }
 });
 
-export { redis };
+export const redis = {
+  client: redisClient,
+  get silentErrorLogged() {
+    return silentErrorLogged;
+  },
+  set silentErrorLogged(val: boolean) {
+    silentErrorLogged = val;
+  },
+};

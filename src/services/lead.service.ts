@@ -11,8 +11,8 @@ import { v4 as uuidv4 } from "uuid";
 import Source from "../models/source.model";
 import { getLocationFromIP } from "../utils/get_location.util";
 
-import { createHash } from "crypto";
-import { redis } from "../utils/redis.util";
+// import { createHash } from "crypto";
+// import { redis } from "../utils/redis.util";
 
 interface CreateLeadDto {
   name: string;
@@ -147,44 +147,30 @@ const _homePageLeadService = async (
   sourceNames: string[]
 ) => {
   const query: any = {};
+
   if (labelIds.length > 0) {
     const existingLabels = await Label.find({ _id: { $in: labelIds } });
     if (existingLabels.length > 0) {
       query.labels = { $in: labelIds };
     }
   }
+
   if (assignedToUserIds.length > 0) {
     query.assigned_to = { $in: assignedToUserIds };
   }
   if (sourceNames.length > 0) {
     query["meta.source.title"] = { $in: sourceNames };
   }
-  const hashKey = createHash("md5")
-    .update(JSON.stringify({ labelIds, assignedToUserIds, sourceNames }))
-    .digest("hex");
-  const cacheKey = `leads:filter:${hashKey}`;
-  try {
-    const cached = await redis.get(cacheKey);
-    if (cached) {
-      console.log("Returning leads from cache");
-      return JSON.parse(cached);
-    }
-  } catch (err: any) {
-    console.warn("Redis not available or failed. Falling back to DB.");
-    return err.mesage;
-  }
+
   const leads = await Lead.find(query)
-    .populate("status", "title")
+    .populate("status", "name")
     .populate("assigned_to", "name")
     .populate("assigned_by", "name")
     .populate("labels", "title")
     .lean();
-  try {
-    await redis.set(cacheKey, JSON.stringify(leads), "EX", 300);
-  } catch (err: any) {
-    console.warn("Redis caching failed. Skipping cache set.");
-    return err.message;
-  }
+
+  console.log(leads, "llllll");
+
   return leads;
 };
 
@@ -278,11 +264,6 @@ const _createLeadService = async (data: CreateLeadDto, ip: string) => {
 
   return lead;
 };
-
-
-
-
-
 export {
   _fetchLeadDetails,
   _createNewFollowUp,
