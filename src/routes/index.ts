@@ -9,6 +9,7 @@ import labelRouter from "./label.routes";
 import leadRouter from "./lead.route";
 import homeRouter from "./home.route";
 import sourceRouter from "./source.routes";
+import propertyRouter from "./property.route";
 
 mainRouter.use("/auth", authRouter);
 
@@ -18,5 +19,6 @@ mainRouter.use("/label", labelRouter);
 mainRouter.use("/lead", leadRouter);
 mainRouter.use("/home-page", homeRouter);
 mainRouter.use("/source", sourceRouter);
+mainRouter.use("/property", propertyRouter);
 
 export default mainRouter;
