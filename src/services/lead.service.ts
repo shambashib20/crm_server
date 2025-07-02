@@ -159,7 +159,7 @@ const _homePageLeadService = async (
   }
 
   const leads = await Lead.find(query)
-    .populate("status", "name")
+    .populate("status", "title")
     .populate("assigned_to", "name")
     .populate("assigned_by", "name")
     .populate("labels", "title")
@@ -204,6 +204,7 @@ const _createLeadService = async (data: CreateLeadDto, ip: string) => {
   });
 
   const defaultStatus = await Status.findOne({ title: "New" });
+
   if (!defaultStatus) {
     throw new Error("Status must contain a Status named New!");
   }
@@ -213,7 +214,7 @@ const _createLeadService = async (data: CreateLeadDto, ip: string) => {
   const lead = await Lead.create({
     ...data,
     labels: data.labels?.map((id) => new Types.ObjectId(id)) || [],
-    status: defaultStatus._id ? new Types.ObjectId(data.status) : null,
+    status: defaultStatus._id,
     assigned_to: data.assigned_to ? new Types.ObjectId(data.assigned_to) : null,
     assigned_by: data.assigned_by ? new Types.ObjectId(data.assigned_by) : null,
     property_id: defaultStatus.property_id

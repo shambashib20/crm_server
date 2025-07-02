@@ -55,7 +55,7 @@ const _getLeadsFromForm = async (formId: string, accessToken: string) => {
 
 const _masterLeadService = async (userId: Types.ObjectId, fbCode?: string) => {
   const integration = await User.findOne({ _id: userId });
-  console.log(integration, "user");
+
   let userAccessToken = integration?.meta?.facebook?.userAccessToken;
 
   if (!userAccessToken && fbCode) {
@@ -165,7 +165,7 @@ const _masterLeadService = async (userId: Types.ObjectId, fbCode?: string) => {
         });
         if (existingLead) continue;
 
-        await Lead.create({
+        const lead = await Lead.create({
           name: fields.full_name || fields.name,
           phone_number: fields.phone_number,
           email: fields.email,
@@ -189,6 +189,8 @@ const _masterLeadService = async (userId: Types.ObjectId, fbCode?: string) => {
           assigned_to: integration?._id,
           property_id: integration?.property_id,
         });
+
+        console.log("Actual lead", lead);
       }
 
       summary.push({
