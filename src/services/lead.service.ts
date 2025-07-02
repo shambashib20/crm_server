@@ -9,6 +9,7 @@ import Status from "../models/status.model";
 import Role from "../models/role.model";
 import { v4 as uuidv4 } from "uuid";
 import Source from "../models/source.model";
+import { getLocationFromIP } from "../utils/get_location.util";
 
 interface CreateLeadDto {
   name: string;
@@ -167,10 +168,11 @@ const _homePageLeadService = async (
   return leads;
 };
 
-const _createLeadService = async (data: CreateLeadDto) => {
+const _createLeadService = async (data: CreateLeadDto, ip: string) => {
   const now = new Date();
 
   const meta: Record<string, any> = data.meta || {};
+  const locationData = await getLocationFromIP(ip);
 
   let createdById = meta.created_by || null;
 
@@ -220,6 +222,7 @@ const _createLeadService = async (data: CreateLeadDto) => {
     meta: {
       ray_id,
       source: defaultSource || "Landing Page Leads",
+      location: locationData,
     },
 
     logs: [

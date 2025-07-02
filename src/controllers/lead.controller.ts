@@ -7,7 +7,6 @@ import {
   _createLeadService,
 } from "../services/lead.service";
 import { Request } from "express";
-import Lead from "../models/lead.model";
 
 interface UpdateLabelRequest {
   leadId: Types.ObjectId | string;
@@ -101,7 +100,11 @@ const HomePageLeads = async (req: any, res: any) => {
 const CreateLeadController = async (req: any, res: any) => {
   try {
     const leadPayload = req.body;
-    const lead = await _createLeadService(leadPayload);
+    const ip =
+      (req.headers["x-forwarded-for"] as string) ||
+      req.socket.remoteAddress ||
+      "0.0.0.0";
+    const lead = await _createLeadService(leadPayload, ip);
 
     return res
       .status(201)
