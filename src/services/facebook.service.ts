@@ -53,50 +53,15 @@ const _getLeadsFromForm = async (formId: string, accessToken: string) => {
   }
 };
 
-const _masterLeadService = async (userId: Types.ObjectId, fbCode?: string) => {
-  const integration = await User.findOne({ _id: userId });
+const _masterLeadService = async (userId: Types.ObjectId) => {
+  const integration = await User.findById(userId);
 
-  let userAccessToken = integration?.meta?.facebook?.userAccessToken;
-
-  if (!userAccessToken && fbCode) {
-    const tokenRes = await axios.get(`${GRAPH_API_BASE}/oauth/access_token`, {
-      params: {
-        client_id: APP_ID,
-        client_secret: APP_SECRET,
-        redirect_uri: REDIRECT_URI,
-        code: fbCode,
-      },
-    });
-
-    const shortLived = tokenRes.data.access_token;
-
-    const longLivedRes = await axios.get(
-      `${GRAPH_API_BASE}/oauth/access_token`,
-      {
-        params: {
-          grant_type: "fb_exchange_token",
-          client_id: APP_ID,
-          client_secret: APP_SECRET,
-          fb_exchange_token: shortLived,
-        },
-      }
-    );
-
-    userAccessToken = longLivedRes.data.access_token;
-
-    await User.updateOne(
-      { userId },
-      {
-        $set: {
-          "meta.facebook.userAccessToken": userAccessToken,
-        },
-      }
-    );
-  }
+  const facebookMeta = integration?.meta?.get("facebook");
+  const userAccessToken = facebookMeta?.token;
 
   if (!userAccessToken) {
     throw new Error(
-      "Facebook is not connected. Please login and provide ?code=..."
+      "Facebook is not connected. Please link your account first."
     );
   }
 
@@ -165,7 +130,7 @@ const _masterLeadService = async (userId: Types.ObjectId, fbCode?: string) => {
         });
         if (existingLead) continue;
 
-        const lead = await Lead.create({
+        await Lead.create({
           name: fields.full_name || fields.name,
           phone_number: fields.phone_number,
           email: fields.email,
@@ -189,8 +154,6 @@ const _masterLeadService = async (userId: Types.ObjectId, fbCode?: string) => {
           assigned_to: integration?._id,
           property_id: integration?.property_id,
         });
-
-        console.log("Actual lead", lead);
       }
 
       summary.push({
@@ -203,4 +166,13 @@ const _masterLeadService = async (userId: Types.ObjectId, fbCode?: string) => {
 
   return summary;
 };
+
+
+
+
+
+
+
+
+
 export { _getUserPages, _getLeadsFromForm, _masterLeadService };

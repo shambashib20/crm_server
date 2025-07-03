@@ -10,7 +10,7 @@ import AuthMiddleware from "../middlewares/authentication.middleware";
 
 const facebookRoutes = express.Router();
 
-facebookRoutes.get("/login", facebookLogin);
+facebookRoutes.get("/login", AuthMiddleware, facebookLogin);
 facebookRoutes.get("/callback", facebookCallback);
 facebookRoutes.post("/subscribe/:pageId", subscribePageLeadWebhook);
 facebookRoutes.get("/leads/:formId", fetchLeads);

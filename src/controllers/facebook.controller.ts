@@ -10,6 +10,8 @@ import Label from "../models/label.model";
 import Lead from "../models/lead.model";
 import Status from "../models/status.model";
 import SuccessResponse from "../middlewares/success.middleware";
+import { Types } from "mongoose";
+import User from "../models/user.model";
 
 const FB_AUTH_URL = "https://www.facebook.com/v21.0/dialog/oauth";
 const FB_TOKEN_URL = "https://graph.facebook.com/v21.0/oauth/access_token";
@@ -21,35 +23,97 @@ const REDIRECT_URI = process.env.FB_REDIRECT_URI!;
 let ACCESS_TOKEN: string = "";
 
 const facebookLogin = (req: any, res: any) => {
-  const authUrl = `${FB_AUTH_URL}?client_id=${APP_ID}&redirect_uri=${REDIRECT_URI}&scope=pages_show_list,pages_read_engagement,leads_retrieval`;
+  const user_id = req.user._id;
+  const authUrl = `${FB_AUTH_URL}?client_id=${APP_ID}&redirect_uri=${REDIRECT_URI}&state=${user_id}${user_id}&scope=pages_show_list,pages_read_engagement,leads_retrieval`;
   return res.json({ login_url: authUrl });
 };
 
+// const facebookCallback = async (req: any, res: any) => {
+//   const code = req.query.code as string;
+
+//   try {
+//     const tokenRes = await axios.get(
+//       `${FB_TOKEN_URL}?${qs.stringify({
+//         client_id: APP_ID,
+//         redirect_uri: REDIRECT_URI,
+//         client_secret: APP_SECRET,
+//         code,
+//       })}`
+//     );
+
+//     ACCESS_TOKEN = tokenRes.data.access_token;
+//     console.log("✅ Access Token Received:", ACCESS_TOKEN);
+
+//     const pages = await _getUserPages(ACCESS_TOKEN);
+//     return res.json({
+//       message: "Authentication successful",
+//       accessToken: ACCESS_TOKEN,
+//       pages,
+//     });
+//   } catch (err) {
+//     console.error(err);
+//     return res.status(500).json({ message: "Facebook login failed" });
+//   }
+// };
+
 const facebookCallback = async (req: any, res: any) => {
-  const code = req.query.code as string;
+  const { code, state } = req.query;
+
+  if (!code || !state) {
+    return res.status(400).json({ error: "Missing code or user ID" });
+  }
+
+  const user_id = state.toString().slice(0, 24);
+
+  const redirectUri = process.env.FB_REDIRECT_URI;
+  const appId = process.env.FB_APP_ID;
+  const appSecret = process.env.FB_APP_SECRET;
 
   try {
     const tokenRes = await axios.get(
-      `${FB_TOKEN_URL}?${qs.stringify({
-        client_id: APP_ID,
-        redirect_uri: REDIRECT_URI,
-        client_secret: APP_SECRET,
-        code,
-      })}`
+      `https://graph.facebook.com/v18.0/oauth/access_token`,
+      {
+        params: {
+          client_id: appId,
+          client_secret: appSecret,
+          redirect_uri: redirectUri,
+          code,
+        },
+      }
     );
 
-    ACCESS_TOKEN = tokenRes.data.access_token;
-    console.log("✅ Access Token Received:", ACCESS_TOKEN);
+    const accessToken = tokenRes.data.access_token;
 
-    const pages = await _getUserPages(ACCESS_TOKEN);
-    return res.json({
-      message: "Authentication successful",
-      accessToken: ACCESS_TOKEN,
-      pages,
+    // Get user FB profile
+    const profileRes = await axios.get(
+      `https://graph.facebook.com/v18.0/me?fields=id,name,email`,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      }
+    );
+
+    const fbProfile = profileRes.data;
+
+    await User.findByIdAndUpdate(user_id, {
+      $set: {
+        "meta.facebook.token": accessToken,
+        "meta.facebook.id": fbProfile.id,
+        "meta.facebook.name": fbProfile.name,
+        "meta.facebook.email": fbProfile.email || "",
+        "meta.facebook.code": code,
+      },
     });
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: "Facebook login failed" });
+
+    return res.json({
+      success: true,
+      message: "Facebook account linked successfully",
+      fbProfile,
+    });
+  } catch (error: any) {
+    console.error("Facebook Callback Error:", error.response?.data || error);
+    return res.status(500).json({ error: "Facebook authentication failed" });
   }
 };
 
@@ -97,11 +161,10 @@ const fetchLeads = async (req: Request, res: Response) => {
 
 const connectFacebookLeads = async (req: any, res: any) => {
   const userId = req.user._id;
-  const code = req.query.code as string;
-  try {
-    const result = await _masterLeadService(userId, code);
 
-    console.log(result, "r");
+  try {
+    const result = await _masterLeadService(userId);
+
     return res
       .status(201)
       .json(new SuccessResponse("Leads fetched successfully!", 201, result));
@@ -109,6 +172,14 @@ const connectFacebookLeads = async (req: any, res: any) => {
     return res.status(500).json(new SuccessResponse(err.message, 500));
   }
 };
+
+
+
+
+
+
+
+
 
 export {
   facebookLogin,
