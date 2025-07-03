@@ -2,6 +2,7 @@ import { Types } from "mongoose";
 import Status from "../models/status.model";
 import Property from "../models/property.model";
 import { LogStatus } from "../dtos/property.dto";
+import User from "../models/user.model";
 
 const _fetchStatusInProperty = async (propId: Types.ObjectId) => {
   const statuses = await Status.find({
@@ -105,8 +106,47 @@ const _editStatusInProperty = async (
 
   return updatedStatus;
 };
+
+const _deleteStatusInProperty = async (
+  statusId: Types.ObjectId,
+  userId: Types.ObjectId,
+  propId: Types.ObjectId
+) => {
+  const status = await Status.findOne({ _id: statusId });
+  if (!status) {
+    throw new Error("Status not found");
+  }
+
+  const user = await User.findOne({ _id: userId });
+  if (!user) {
+    throw new Error("User not found");
+  }
+
+  const property = await Property.findOne({ _id: propId });
+  if (!property) {
+    throw new Error("Workspace not found");
+  }
+
+  // Proceed with deletion logic
+  const deletedStatus = await Status.deleteOne({ _id: statusId });
+  await Property.findByIdAndUpdate(propId, {
+    $push: {
+      logs: {
+        title: "Status deleted!",
+        description: `The Status was deleted.`,
+        status: LogStatus.ACTION,
+        meta: { statusId },
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    },
+  });
+
+  return deletedStatus;
+};
 export {
   _fetchStatusInProperty,
   _createStatusInProperty,
   _editStatusInProperty,
+  _deleteStatusInProperty,
 };

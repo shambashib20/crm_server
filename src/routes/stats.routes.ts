@@ -1,5 +1,6 @@
 import {
   CreateStatusInProperty,
+  DeleteStatusInProperty,
   FetchStatuses,
   UpdateStatusInProperty,
 } from "../controllers/status.controller";
@@ -30,6 +31,13 @@ statusRouter.patch(
   AuthMiddleware,
   PermissionMiddleware("view_dashboard"),
   UpdateStatusInProperty
+);
+
+statusRouter.delete(
+  "/delete/:statusId",
+  AuthMiddleware,
+  PermissionMiddleware("view_dashboard"),
+  DeleteStatusInProperty
 );
 
 export default statusRouter;

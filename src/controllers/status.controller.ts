@@ -1,6 +1,7 @@
 import SuccessResponse from "../middlewares/success.middleware";
 import {
   _createStatusInProperty,
+  _deleteStatusInProperty,
   _editStatusInProperty,
   _fetchStatusInProperty,
 } from "../services/status.service";
@@ -59,4 +60,26 @@ const UpdateStatusInProperty = async (req: any, res: any) => {
   }
 };
 
-export { FetchStatuses, CreateStatusInProperty, UpdateStatusInProperty };
+const DeleteStatusInProperty = async (req: any, res: any) => {
+  const propId = req.user.property_id;
+  const userId = req.user._id;
+  const { statusId } = req.params;
+
+  try {
+    const result = await _deleteStatusInProperty(statusId, userId, propId);
+    return res
+      .status(200)
+      .json(
+        new SuccessResponse("Deleted the status succesfully!", 200, result)
+      );
+  } catch (error: any) {
+    return res.status(500).json(new SuccessResponse(error.message, 500));
+  }
+};
+
+export {
+  FetchStatuses,
+  CreateStatusInProperty,
+  UpdateStatusInProperty,
+  DeleteStatusInProperty,
+};
