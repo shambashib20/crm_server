@@ -4,6 +4,7 @@ import qs from "querystring";
 import {
   _getLeadsFromForm,
   _getUserPages,
+  _importLeadsByFormId,
   _masterLeadService,
 } from "../services/facebook.service";
 import Label from "../models/label.model";
@@ -173,13 +174,20 @@ const connectFacebookLeads = async (req: any, res: any) => {
   }
 };
 
+const importFormLeadsManually = async (req: any, res: any) => {
+  const { formId, labelTitle } = req.body;
+  const userId = req.user._id;
 
-
-
-
-
-
-
+  try {
+    const result = await _importLeadsByFormId(formId, labelTitle, userId);
+    return res
+      .status(200)
+      .json(new SuccessResponse("Leads imported.", 200, result));
+  } catch (error: any) {
+    console.error("Import Error:", error.message);
+    return res.status(500).json({ error: error.message });
+  }
+};
 
 export {
   facebookLogin,
@@ -187,4 +195,5 @@ export {
   subscribePageLeadWebhook,
   fetchLeads,
   connectFacebookLeads,
+  importFormLeadsManually,
 };

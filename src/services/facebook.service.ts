@@ -7,6 +7,7 @@ import User from "../models/user.model";
 import { LabelDto } from "../dtos/label.dto";
 import { Types } from "mongoose";
 import { LeadLogStatus } from "../dtos/lead.dto";
+import Source from "../models/source.model";
 
 const FB_AUTH_URL = "https://www.facebook.com/v21.0/dialog/oauth";
 const FB_TOKEN_URL = "https://graph.facebook.com/v21.0/oauth/access_token";
@@ -167,12 +168,94 @@ const _masterLeadService = async (userId: Types.ObjectId) => {
   return summary;
 };
 
+const _importLeadsByFormId = async (
+  formId: string,
+  labelTitle: string,
+  userId: Types.ObjectId,
+  pageAccessToken?: string
+) => {
+  const user = await User.findById(userId);
+  const token = pageAccessToken || user?.meta?.get("facebook")?.token;
+  if (!token) {
+    throw new Error("Facebook access token is missing.");
+  }
+  const formDetailsRes = await axios.get(`${GRAPH_API_BASE}/${formId}`, {
+    params: {
+      access_token: token,
+      fields: "id,name,status,tracking_parameters",
+    },
+  });
+  const formDetails = formDetailsRes.data;
+  const label = await Label.findOne({
+    title: new RegExp(`^${labelTitle.trim()}$`, "i"),
+  });
 
+  if (!label) {
+    throw new Error(`Label "${labelTitle}" not found.`);
+  }
 
+  const leadsRes = await axios.get(`${GRAPH_API_BASE}/${formId}/leads`, {
+    params: { access_token: token },
+  });
 
+  const leads = leadsRes.data.data;
+  const defaultStatus = await Status.findOne({ title: "New" });
+  if (!defaultStatus) throw new Error("Default lead status not found.");
 
+  const source = await Source.findOne({
+    title: "Facebook",
+  });
 
+  if (!source) throw new Error("Source not found.");
+  let importedCount = 0;
 
+  for (const fbLead of leads) {
+    const fields = fbLead.field_data.reduce((acc: any, field: any) => {
+      acc[field.name] = field.values[0];
+      return acc;
+    }, {});
 
+    const existing = await Lead.findOne({ "meta.fb_lead_id": fbLead.id });
+    if (existing) continue;
 
-export { _getUserPages, _getLeadsFromForm, _masterLeadService };
+    await Lead.create({
+      name: fields.full_name || fields.name,
+      phone_number: fields.phone_number,
+      email: fields.email,
+      comment: "Imported from Facebook (manual)",
+      labels: [label._id],
+      status: defaultStatus._id,
+      meta: {
+        fb_lead_id: fbLead.id,
+        form_id: formId,
+        source,
+      },
+      logs: [
+        {
+          title: "Lead created",
+          description: `Lead created by ${
+            user?.name || "Unknown"
+          } and assigned status ${defaultStatus.title}`,
+          status: LeadLogStatus.INFO,
+        },
+      ],
+      assigned_to: userId,
+      property_id: user?.property_id,
+    });
+
+    importedCount++;
+  }
+
+  return {
+    form: formDetails.name,
+    imported: importedCount,
+    label: label.title,
+  };
+};
+
+export {
+  _getUserPages,
+  _getLeadsFromForm,
+  _masterLeadService,
+  _importLeadsByFormId,
+};
