@@ -164,7 +164,11 @@ const _homePageLeadService = async (
   }
 
   if (searchString && searchString.trim() !== "") {
-    query.name = { $regex: new RegExp(searchString.trim(), "i") };
+    query.$or = [
+      { name: { $regex: new RegExp(searchString.trim(), "i") } },
+      { phone_number: { $regex: new RegExp(searchString.trim(), "i") } },
+      { email: { $regex: new RegExp(searchString.trim(), "i") } },
+    ];
   }
 
   const leads = await Lead.find(query)
