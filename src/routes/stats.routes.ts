@@ -1,4 +1,8 @@
-import { FetchStatuses } from "../controllers/status.controller";
+import {
+  CreateStatusInProperty,
+  FetchStatuses,
+  UpdateStatusInProperty,
+} from "../controllers/status.controller";
 
 import express from "express";
 
@@ -12,6 +16,20 @@ statusRouter.get(
   AuthMiddleware,
   PermissionMiddleware("view_dashboard"),
   FetchStatuses
+);
+
+statusRouter.post(
+  "/create",
+  AuthMiddleware,
+  PermissionMiddleware("view_dashboard"),
+  CreateStatusInProperty
+);
+
+statusRouter.patch(
+  "/update",
+  AuthMiddleware,
+  PermissionMiddleware("view_dashboard"),
+  UpdateStatusInProperty
 );
 
 export default statusRouter;

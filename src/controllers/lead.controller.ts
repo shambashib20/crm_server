@@ -5,11 +5,14 @@ import {
   _createNewFollowUp,
   _homePageLeadService,
   _createLeadService,
+  _updateLabelForLead,
 } from "../services/lead.service";
 import { Request } from "express";
 
 interface UpdateLabelRequest {
   leadId: Types.ObjectId | string;
+  userId: Types.ObjectId;
+  propId: Types.ObjectId;
   labelIds: Types.ObjectId[] | string[];
 }
 
@@ -52,18 +55,24 @@ const NewFollowUp = async (req: any, res: any) => {
   }
 };
 
-const UpdateLabelForLead = async (
-  req: Request<{}, {}, UpdateLabelRequest>,
-  res: any
-) => {
+const UpdateLabelForLead = async (req: any, res: any) => {
   try {
     const { leadId, labelIds } = req.body;
+    const userId = req.user?._id;
+    const propId = req.user?.property_id;
 
     if (!Array.isArray(labelIds) || labelIds.length === 0) {
       return res
         .status(400)
         .json({ message: "labelIds must be a non-empty array" });
     }
+
+    await _updateLabelForLead(
+      new Types.ObjectId(leadId),
+      new Types.ObjectId(propId),
+      new Types.ObjectId(userId),
+      labelIds.map((id: any) => new Types.ObjectId(id))
+    );
 
     return res
       .status(200)

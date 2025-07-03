@@ -108,6 +108,7 @@ const _updateLabelForLead = async (
   if (!existingUser) {
     throw new Error("User not found");
   }
+
   const updatedLead = await Lead.findByIdAndUpdate(
     leadId,
     { labels: labelIds },
@@ -118,14 +119,20 @@ const _updateLabelForLead = async (
     throw new Error("Lead not found!");
   }
 
-  if (!updatedLead) {
-    throw new Error("Lead not found");
-  }
-
   const logEntry = {
     title: "Lead Label updated",
-    description: `${updatedLead.name} updated with lead status !`,
+    description: `${updatedLead.name} named lead updated the lead status!`,
     status: LogStatus.INFO,
+    meta: {
+      leadId,
+      userId,
+    },
+  };
+
+  const leadLogEntry = {
+    title: "Lead Label updated",
+    description: `${updatedLead.name} named lead updated the lead status!`,
+    status: LeadLogStatus.ACTION,
     meta: {
       leadId,
       userId,
@@ -138,6 +145,18 @@ const _updateLabelForLead = async (
       $push: { logs: logEntry },
     },
     { new: true }
+  );
+
+  await Lead.findByIdAndUpdate(
+    leadId,
+    {
+      $push: {
+        logs: leadLogEntry,
+      },
+    },
+    {
+      new: true,
+    }
   );
 };
 

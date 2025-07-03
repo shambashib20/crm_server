@@ -2,6 +2,7 @@ import {
   CreateLeadController,
   FetchLeadDetails,
   NewFollowUp,
+  UpdateLabelForLead,
 } from "../controllers/lead.controller";
 
 import express from "express";
@@ -30,6 +31,13 @@ leadRouter.post(
   AuthMiddleware,
   PermissionMiddleware("manage_leads"),
   NewFollowUp
+);
+
+leadRouter.patch(
+  "/update",
+  AuthMiddleware,
+  PermissionMiddleware("manage_leads"),
+  UpdateLabelForLead
 );
 
 export default leadRouter;
