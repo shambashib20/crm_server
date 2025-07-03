@@ -1,5 +1,21 @@
 import SuccessResponse from "../middlewares/success.middleware";
-import { _fetchLabelsInProperty } from "../services/label.service";
+import {
+  _createLabelInProperty,
+  _fetchLabelsInProperty,
+} from "../services/label.service";
+
+const CreateLabel = async (req: any, res: any) => {
+  const propId = req.user.property_id;
+  const { title, description } = req.body;
+  try {
+    const result = await _createLabelInProperty(propId, title, description);
+    return res
+      .status(201)
+      .json(new SuccessResponse("Created a label successfully!", 201, result));
+  } catch (error: any) {
+    return res.status(500).json(new SuccessResponse(error.message, 500));
+  }
+};
 
 const FetchLabels = async (req: any, res: any) => {
   const user = req.user;
@@ -20,4 +36,4 @@ const FetchLabels = async (req: any, res: any) => {
   }
 };
 
-export { FetchLabels };
+export { FetchLabels, CreateLabel };

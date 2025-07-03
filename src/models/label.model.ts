@@ -9,6 +9,10 @@ const LabelSchema = new Schema<LabelDto & Document>(
     description: {
       type: String,
     },
+    property_id: {
+      type: Schema.Types.ObjectId,
+      ref: "Property",
+    },
     meta: { type: Schema.Types.Mixed, default: {} },
   },
   { timestamps: true, versionKey: false }

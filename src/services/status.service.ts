@@ -127,7 +127,7 @@ const _deleteStatusInProperty = async (
     throw new Error("Workspace not found");
   }
 
-  // Proceed with deletion logic
+  
   const deletedStatus = await Status.deleteOne({ _id: statusId });
   await Property.findByIdAndUpdate(propId, {
     $push: {

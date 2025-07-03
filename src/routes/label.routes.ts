@@ -1,4 +1,4 @@
-import { FetchLabels } from "../controllers/label.controller";
+import { CreateLabel, FetchLabels } from "../controllers/label.controller";
 
 import express from "express";
 import AuthMiddleware from "../middlewares/authentication.middleware";
@@ -11,6 +11,13 @@ labelRouter.get(
   AuthMiddleware,
   PermissionMiddleware("view_dashboard"),
   FetchLabels
+);
+
+labelRouter.post(
+  "/create",
+  AuthMiddleware,
+  PermissionMiddleware("manage_leads"),
+  CreateLabel
 );
 
 export default labelRouter;

@@ -1,16 +1,18 @@
 import Property from "../models/property.model";
 
 import Label from "../models/label.model";
+import { Types } from "mongoose";
 
 export async function seedDefaultLabelStatuses() {
-  const existingProperty = await Property.findOne({
+  const property = await Property.findOne({
     name: "MR Group of Colleges and Hospitals",
   });
 
-  if (!existingProperty) {
-    console.error("Property not found.");
+  if (!property) {
+    console.error("❌ Property not found.");
     return;
   }
+
   const labels = [
     "Pharmacy Lead Strategy 5",
     "1st July Nursing Leads",
@@ -36,25 +38,25 @@ export async function seedDefaultLabelStatuses() {
     "Murshidabad Pharmacy Lead",
   ];
 
-  for (const statusTitle of labels) {
+  for (const rawTitle of labels) {
+    const normalizedTitle = rawTitle.trim().toLowerCase();
+
     const exists = await Label.findOne({
-      title: statusTitle,
-      property_id: existingProperty._id,
+      title: normalizedTitle,
+      property_id: property._id,
     });
 
     if (!exists) {
       await Label.create({
-        title: statusTitle,
-        description: `${statusTitle} status`,
-        property_id: existingProperty._id,
-        meta: {
-          is_active: true,
-        },
+        title: normalizedTitle,
+        description: `${rawTitle.trim()} label`,
+        property_id: property._id,
+        meta: { is_active: true },
       });
 
-      console.log(`✔️ Seeded label`);
+      console.log(`✔️ Seeded label: ${rawTitle}`);
     } else {
-      console.log(`ℹ️ Label already exists: ${statusTitle}`);
+      console.log(`ℹ️ Label already exists: ${rawTitle}`);
     }
   }
 }
