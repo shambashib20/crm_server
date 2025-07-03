@@ -132,7 +132,7 @@ const _forgotPasswordService = async (
   }
 
   const otp = generateOTP();
-  const expiration = new Date(Date.now() + 2 * 60 * 1000); // 2 minutes
+  const expiration = new Date(Date.now() + 2 * 60 * 1000); 
 
   // Update meta fields using findByIdAndUpdate
   await User.findByIdAndUpdate(
