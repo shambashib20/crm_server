@@ -75,7 +75,7 @@ const UpdateLabelForLead = async (
 
 const HomePageLeads = async (req: any, res: any) => {
   try {
-    const { labelIds, assignedTo, sourceNames } = req.body;
+    const { labelIds, assignedTo, sourceNames, search = "" } = req.body;
 
     const labelObjectIds = labelIds.map((id: string) => new Types.ObjectId(id));
     const assignedToObjectIds = assignedTo.map(
@@ -85,7 +85,8 @@ const HomePageLeads = async (req: any, res: any) => {
     const leads = await _homePageLeadService(
       labelObjectIds,
       assignedToObjectIds,
-      sourceNames || []
+      sourceNames || [],
+      search
     );
     return res
       .status(200)

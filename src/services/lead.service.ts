@@ -144,7 +144,8 @@ const _updateLabelForLead = async (
 const _homePageLeadService = async (
   labelIds: Types.ObjectId[],
   assignedToUserIds: Types.ObjectId[],
-  sourceNames: string[]
+  sourceNames: string[],
+  searchString: string
 ) => {
   const query: any = {};
 
@@ -162,6 +163,10 @@ const _homePageLeadService = async (
     query["meta.source.title"] = { $in: sourceNames };
   }
 
+  if (searchString && searchString.trim() !== "") {
+    query.name = { $regex: new RegExp(searchString.trim(), "i") };
+  }
+
   const leads = await Lead.find(query)
     .populate("status", "name")
     .populate("assigned_to", "name")
@@ -169,9 +174,20 @@ const _homePageLeadService = async (
     .populate("labels", "title")
     .lean();
 
-  console.log(leads, "llllll");
+  const uniquePropertyIds = [
+    ...new Set(
+      leads.map((lead) => lead.property_id?.toString()).filter(Boolean)
+    ),
+  ];
 
-  return leads;
+  const statuses = await Status.find({
+    property_id: { $in: uniquePropertyIds },
+  }).lean();
+
+  return {
+    leads,
+    statuses,
+  };
 };
 
 const _createLeadService = async (data: CreateLeadDto, ip: string) => {
