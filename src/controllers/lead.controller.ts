@@ -39,7 +39,10 @@ const NewFollowUp = async (req: any, res: any) => {
       req.body.leadId,
       propId,
       userId,
-      req.body.nextFollowUp
+      req.body.nextFollowUp,
+      req.body.comment,
+      req.body.attachmentUrl,
+      req.body.audioAttachmentUrl
     );
 
     if (!result) {

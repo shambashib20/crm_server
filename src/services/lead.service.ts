@@ -47,25 +47,36 @@ const _createNewFollowUp = async (
   leadId: Types.ObjectId,
   propId: Types.ObjectId,
   userId: Types.ObjectId,
-  nextFollowUp: string
+  nextFollowUp: string,
+  comment: string,
+  attachmentUrl?: string,
+  audioAttachmentUrl?: string
 ) => {
   const existingUser = await User.findById(userId).select("name");
   if (!existingUser) {
     throw new Error("User not found");
   }
-
+  const finalComment = comment?.trim() ? comment : "Follow-up added";
+  const parsedDate =
+    nextFollowUp && !isNaN(Date.parse(nextFollowUp))
+      ? new Date(nextFollowUp)
+      : new Date();
   const newFollowUp = {
-    comment: "Follow-up added",
-    next_followup_date: nextFollowUp || new Date(),
+    comment: finalComment,
+    next_followup_date: parsedDate,
     meta: {
       created_by: userId,
+      attachment_url: attachmentUrl || "",
+      audio_attachment_url: audioAttachmentUrl || "",
     },
   };
 
   const updatedLead = await Lead.findByIdAndUpdate(
     leadId,
     {
-      $push: { follow_ups: newFollowUp },
+      $push: {
+        follow_ups: newFollowUp,
+      },
     },
     { new: true }
   ).select("name");
@@ -92,6 +103,24 @@ const _createNewFollowUp = async (
     },
     { new: true }
   );
+  const leadLogEntry = {
+    title: "Lead Follow up created",
+    description: `${existingUser.name} created a follow-up with lead name ${updatedLead.name}!`,
+    status: LeadLogStatus.ACTION,
+    meta: {
+      leadId,
+      userId,
+    },
+  };
+  await Lead.findByIdAndUpdate(
+    leadId,
+    {
+      $push: {
+        logs: leadLogEntry,
+      },
+    },
+    { new: true }
+  ).select("name");
 
   return {
     followUp: newFollowUp,

@@ -1,7 +1,6 @@
 import { Schema, model } from "mongoose";
 import { StatusDto } from "../dtos/status.dto";
 
-// Status Schema
 const StatusSchema = new Schema<StatusDto & Document>(
   {
     title: {
