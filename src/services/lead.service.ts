@@ -285,6 +285,18 @@ const _createLeadService = async (data: CreateLeadDto, ip: string) => {
 
   const ray_id = `ray-id-${uuidv4()}`;
 
+  if (data.labels && data.labels.length > 0) {
+    const validLabels = await Label.find({
+      _id: { $in: data.labels.map((id) => new Types.ObjectId(id)) },
+    });
+
+    if (validLabels.length !== data.labels.length) {
+      const validIds = validLabels.map((label) => label._id.toString());
+      const invalidIds = data.labels.filter((id) => !validIds.includes(id));
+      throw new Error(`This Labels does not exists: ${invalidIds.join(", ")}`);
+    }
+  }
+
   const lead = await Lead.create({
     ...data,
     labels: data.labels?.map((id) => new Types.ObjectId(id)) || [],
