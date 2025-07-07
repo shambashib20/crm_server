@@ -1,6 +1,7 @@
 import {
   CreateLeadController,
   FetchLeadDetails,
+  GetMissedFollowUpsController,
   NewFollowUp,
   UpdateLabelForLead,
 } from "../controllers/lead.controller";
@@ -31,6 +32,13 @@ leadRouter.post(
   AuthMiddleware,
   PermissionMiddleware("manage_leads"),
   NewFollowUp
+);
+
+leadRouter.get(
+  "/missed-follow-ups",
+  AuthMiddleware,
+  PermissionMiddleware("manage_leads"),
+  GetMissedFollowUpsController
 );
 
 leadRouter.patch(

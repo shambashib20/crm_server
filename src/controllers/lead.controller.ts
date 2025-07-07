@@ -6,6 +6,7 @@ import {
   _homePageLeadService,
   _createLeadService,
   _updateLabelForLead,
+  _getMissedFollowUpsService,
 } from "../services/lead.service";
 import { Request } from "express";
 
@@ -129,10 +130,31 @@ const CreateLeadController = async (req: any, res: any) => {
   }
 };
 
+const GetMissedFollowUpsController = async (req: any, res: any) => {
+  try {
+    const propId = req.user.property_id;
+
+    const missedFollowUps = await _getMissedFollowUpsService(propId);
+
+    return res
+      .status(200)
+      .json(
+        new SuccessResponse(
+          "Missed follow-ups fetched successfully",
+          200,
+          missedFollowUps
+        )
+      );
+  } catch (error: any) {
+    return res.status(500).json(new SuccessResponse(error.message, 500));
+  }
+};
+
 export {
   FetchLeadDetails,
   NewFollowUp,
   UpdateLabelForLead,
   HomePageLeads,
   CreateLeadController,
+  GetMissedFollowUpsController,
 };

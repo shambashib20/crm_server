@@ -14,6 +14,27 @@ import { getLocationFromIP } from "../utils/get_location.util";
 // import { createHash } from "crypto";
 // import { redis } from "../utils/redis.util";
 
+interface MissedFollowUpLead {
+  leadId: Types.ObjectId;
+  name: string;
+  status: {
+    _id: Types.ObjectId;
+    title: string;
+  };
+  assigned_to?: {
+    _id: Types.ObjectId;
+    name: string;
+    email: string;
+  };
+  labels: {
+    _id: Types.ObjectId;
+    title: string;
+  }[];
+  next_followup_date: Date;
+  comment: string;
+  meta?: Record<string, any>;
+}
+
 interface CreateLeadDto {
   name: string;
   company_name?: string;
@@ -57,6 +78,15 @@ const _createNewFollowUp = async (
     throw new Error("User not found");
   }
   const finalComment = comment?.trim() ? comment : "Follow-up added";
+
+  const updatedStatus = await Status.findOne({
+    title: "Processing",
+  });
+
+  if (!updatedStatus) {
+    throw new Error("Status must contain a Status named Processing!");
+  }
+
   const parsedDate =
     nextFollowUp && !isNaN(Date.parse(nextFollowUp))
       ? new Date(nextFollowUp)
@@ -74,6 +104,7 @@ const _createNewFollowUp = async (
   const updatedLead = await Lead.findByIdAndUpdate(
     leadId,
     {
+      status: updatedStatus._id,
       $push: {
         follow_ups: newFollowUp,
       },
@@ -344,10 +375,67 @@ const _createLeadService = async (data: CreateLeadDto, ip: string) => {
 
   return lead;
 };
+
+const _getMissedFollowUpsService = async (
+  propId: Types.ObjectId
+): Promise<MissedFollowUpLead[]> => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const property = await Property.findOne({
+    _id: propId,
+  });
+
+  const leadsWithFollowUps = await Lead.find({
+    follow_ups: { $exists: true, $ne: [] },
+    property_id: property?._id,
+  })
+    .select("name follow_ups status assigned_to labels meta")
+    .populate<{ status: { _id: Types.ObjectId; title: string } }>(
+      "status",
+      "title"
+    )
+    .populate<{
+      assigned_to: { _id: Types.ObjectId; name: string; email: string };
+    }>("assigned_to", "name email")
+    .populate<{ labels: { _id: Types.ObjectId; title: string }[] }>(
+      "labels",
+      "title"
+    )
+    .lean();
+  const missedLeads: MissedFollowUpLead[] = [];
+
+  for (const lead of leadsWithFollowUps) {
+    const sortedFollowUps = [...lead.follow_ups].sort(
+      (a, b) =>
+        new Date(b.next_followup_date).getTime() -
+        new Date(a.next_followup_date).getTime()
+    );
+
+    const latestFollowUp = sortedFollowUps[0];
+    const nextFollowUpDate = new Date(latestFollowUp.next_followup_date);
+
+    if (nextFollowUpDate < today) {
+      missedLeads.push({
+        leadId: lead._id,
+        name: lead.name,
+        status: lead.status as MissedFollowUpLead["status"],
+        assigned_to: lead.assigned_to as MissedFollowUpLead["assigned_to"],
+        labels: lead.labels as MissedFollowUpLead["labels"],
+        next_followup_date: nextFollowUpDate,
+        comment: latestFollowUp.comment,
+        meta: lead.meta,
+      });
+    }
+  }
+
+  return missedLeads;
+};
+
 export {
   _fetchLeadDetails,
   _createNewFollowUp,
   _updateLabelForLead,
   _homePageLeadService,
   _createLeadService,
+  _getMissedFollowUpsService,
 };
