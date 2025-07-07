@@ -26,7 +26,6 @@ const generateAccessToken = (
   };
   try {
     const expiration = process.env.JWT_EXPIRATION || "1h";
-    console.log(expiration, "ll");
     const token = jwt.sign(payload, secret, { expiresIn: expiration as any });
 
     return token;

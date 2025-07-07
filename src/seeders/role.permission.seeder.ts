@@ -23,6 +23,10 @@ export async function seedRolesAndPermissions() {
       name: "manage_sources_list",
       description: "Managing Source list in the platform",
     },
+    {
+      name: "manage_user_permissions",
+      description: "Managing user permissions in the platform",
+    },
   ];
 
   const existingPermissions = await Permission.countDocuments();
@@ -41,12 +45,12 @@ export async function seedRolesAndPermissions() {
   const roles = [
     {
       name: "Superadmin",
-      description: "MR Group organisation employees",
+      description: "MR Group organisation owner",
       permissions: createdPermissions.map((p) => p._id),
     },
     {
       name: "Admin",
-      description: "Any organisation's owner",
+      description: "Any organisation's Administrator",
       permissions: [
         permissionMap["view_leads"],
         permissionMap["assign_leads"],
