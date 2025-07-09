@@ -11,9 +11,6 @@ import { v4 as uuidv4 } from "uuid";
 import Source from "../models/source.model";
 import { getLocationFromIP } from "../utils/get_location.util";
 
-// import { createHash } from "crypto";
-// import { redis } from "../utils/redis.util";
-
 interface MissedFollowUpLead {
   leadId: Types.ObjectId;
   name: string;
@@ -437,5 +434,5 @@ export {
   _updateLabelForLead,
   _homePageLeadService,
   _createLeadService,
-  _getMissedFollowUpsService,
+  _getMissedFollowUpsService
 };

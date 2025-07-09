@@ -6,9 +6,8 @@ import {
   _homePageLeadService,
   _createLeadService,
   _updateLabelForLead,
-  _getMissedFollowUpsService,
+  _getMissedFollowUpsService
 } from "../services/lead.service";
-import { Request } from "express";
 
 interface UpdateLabelRequest {
   leadId: Types.ObjectId | string;
@@ -16,6 +15,7 @@ interface UpdateLabelRequest {
   propId: Types.ObjectId;
   labelIds: Types.ObjectId[] | string[];
 }
+
 
 const FetchLeadDetails = async (req: any, res: any) => {
   try {
