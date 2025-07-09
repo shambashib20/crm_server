@@ -19,12 +19,18 @@ interface UserDto {
 }
 
 interface RoleDto {
+  meta?: {
+    [key: string]: any;
+  };
   name: string;
   description?: string;
   permissions: Types.ObjectId[];
 }
 
 interface PermissionDto {
+  meta?: {
+    [key: string]: any;
+  };
   name: string;
   description: string;
 }

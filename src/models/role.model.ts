@@ -4,6 +4,11 @@ import { RoleDto } from "../dtos/user.dto";
 
 const roleSchema = new Schema<RoleDto & Document>(
   {
+    meta: {
+      type: Map,
+      of: Schema.Types.Mixed,
+      default: {},
+    },
     name: {
       type: String,
     },

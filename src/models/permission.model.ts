@@ -6,6 +6,11 @@ export interface PermissionDocument extends PermissionDto, Document {}
 
 const permissionSchema = new Schema<PermissionDto & Document>(
   {
+    meta: {
+      type: Map,
+      of: Schema.Types.Mixed,
+      default: {},
+    },
     name: {
       type: String,
       required: true,

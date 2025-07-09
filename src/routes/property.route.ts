@@ -1,4 +1,8 @@
-import { FetchPropertyLogs } from "../controllers/property.controller";
+import {
+  CreatePropertyForOnboarding,
+  FetchPropertyLogs,
+  PropertyDetails,
+} from "../controllers/property.controller";
 
 import express from "express";
 import AuthMiddleware from "../middlewares/authentication.middleware";
@@ -12,5 +16,9 @@ propertyRouter.get(
   PermissionMiddleware("manage_leads"),
   FetchPropertyLogs
 );
+
+propertyRouter.get("/workspace-details", AuthMiddleware, PropertyDetails);
+
+propertyRouter.post("/onboarding", CreatePropertyForOnboarding);
 
 export default propertyRouter;

@@ -55,7 +55,6 @@ const _createUserForOrganization = async (
       throw new Error("User with same email or name already exists.");
     }
 
-    // ❗ Enforce usage limit unless user is Superadmin
     const isSuperadmin =
       !!superAdmin &&
       typeof superAdmin.role === "object" &&
