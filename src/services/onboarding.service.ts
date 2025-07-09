@@ -27,8 +27,6 @@ const _createNewUserForOnboarding = async (
     throw new Error(`Unsupported role: ${roleName}`);
   }
   try {
-    const role = await Role.findOne({ name: roleName });
-    if (!role) throw new Error(`Role '${roleName}' not found.`);
     const existingUser = await User.findOne({
       $or: [{ email }, { name }],
     });
@@ -60,51 +58,20 @@ const _createNewUserForOnboarding = async (
       status: PropertyStatus.INACTIVE,
     });
     await newProperty.save();
-
-    const createdPermissions: PermissionDocument[] = await Permission.find({
-      name: {
-        $in: [
-          "view_leads",
-          "assign_leads",
-          "manage_staff",
-          "view_reports",
-          "view_dashboard",
-          "manage_campaigns",
-          "manage_sources_list",
-        ],
-      },
-    });
-
-    const permissionMap = Object.fromEntries(
-      createdPermissions.map((p) => [p.name, p._id])
-    );
-
-    const newRole = new Role({
+    const role = await Role.findOne({
       name: roleName,
-      description: `Role for ${name}`,
-      permissions: [
-        permissionMap["view_leads"],
-        permissionMap["assign_leads"],
-        permissionMap["manage_staff"],
-        permissionMap["view_reports"],
-        permissionMap["view_dashboard"],
-        permissionMap["manage_campaigns"],
-        permissionMap["manage_sources_list"],
-      ],
-      meta: {
-        createdBy: "New User",
-        action: "Create Role",
-        property_id: newProperty._id,
-      },
     });
-    await newRole.save();
+
+    if (!role) {
+      throw new Error(`Role '${roleName}' not found.`);
+    }
 
     const newUser = new User({
       name,
       email,
       phone_number,
       password,
-      role: newRole._id,
+      role: role._id,
       property_id: newProperty._id,
       meta: {
         onboardingCompleted: false,
@@ -119,7 +86,6 @@ const _createNewUserForOnboarding = async (
     return {
       user: newUser,
       property: newProperty,
-      role: newRole,
     };
   } catch (error: any) {
     throw new Error(`Error creating user for organization: ${error.message}`);
