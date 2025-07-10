@@ -1,6 +1,7 @@
 import {
   _deleteFileService,
   _uploadFileService,
+  _uploadMultipleFilesService,
 } from "../services/file.service";
 
 const uploadFileController = async (req: any, res: any) => {
@@ -33,4 +34,21 @@ const deleteFileController = async (req: any, res: any) => {
   }
 };
 
-export { uploadFileController, deleteFileController };
+const uploadMultipleFilesController = async (req: any, res: any) => {
+  try {
+    const files = req.files as Express.Multer.File[];
+    // const uploadedBy = req.user?.id;
+
+    const results = await _uploadMultipleFilesService(files);
+    res.status(201).json({ message: "Files uploaded", data: results });
+  } catch (error: any) {
+    console.error("Upload error:", error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export {
+  uploadFileController,
+  deleteFileController,
+  uploadMultipleFilesController,
+};

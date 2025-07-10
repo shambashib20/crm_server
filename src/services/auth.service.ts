@@ -98,13 +98,15 @@ const _loginSuperAdmin = async (
   res.cookie("access_token", accessToken, {
     httpOnly: true,
     maxAge: 5 * 24 * 60 * 60 * 1000,
-    sameSite: "lax",
+    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+    secure: process.env.NODE_ENV === "production", 
   });
 
   res.cookie("refresh_token", refreshToken, {
     httpOnly: true,
     maxAge: 30 * 24 * 60 * 60 * 1000,
-    sameSite: "lax",
+    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+    secure: process.env.NODE_ENV === "production",
   });
 
   return {
@@ -132,7 +134,7 @@ const _forgotPasswordService = async (
   }
 
   const otp = generateOTP();
-  const expiration = new Date(Date.now() + 2 * 60 * 1000); 
+  const expiration = new Date(Date.now() + 2 * 60 * 1000);
 
   // Update meta fields using findByIdAndUpdate
   await User.findByIdAndUpdate(
