@@ -23,7 +23,8 @@
     "nodemailer": "^7.0.3",
     "nodemon": "^3.1.10",
     "uuid": "^11.1.0",
-    "vercel": "^44.2.11"
+    "vercel": "^44.2.11",
+    "@types/node": "^22.16.2"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
