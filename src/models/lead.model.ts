@@ -1,5 +1,5 @@
 import { Schema, model } from "mongoose";
-import { Lead, LeadLog, LeadLogStatus } from "../dtos/lead.dto";
+import { LeadDto, LeadLog, LeadLogStatus } from "../dtos/lead.dto";
 
 const LogSchema = new Schema<LeadLog & Document>(
   {
@@ -42,7 +42,7 @@ const FollowUpSchema = new Schema(
   { timestamps: true, versionKey: false }
 );
 
-const LeadSchema = new Schema<Lead & Document>(
+const LeadSchema = new Schema<LeadDto & Document>(
   {
     name: {
       type: String,
@@ -123,5 +123,5 @@ const LeadSchema = new Schema<Lead & Document>(
 );
 
 // Export model
-const Lead = model<Lead & Document>("Lead", LeadSchema);
+const Lead = model<LeadDto & Document>("Lead", LeadSchema);
 export default Lead;

@@ -1,5 +1,5 @@
 import { Types } from "mongoose";
-
+import { StatusDto } from "./status.dto";
 enum LeadLogStatus {
   INFO = "INFO",
   WARNING = "WARNING",
@@ -29,7 +29,7 @@ interface FollowUp {
   meta?: Record<string, any>;
 }
 
-interface Lead {
+interface LeadDto {
   name: string;
   company_name: string;
   phone_number: string;
@@ -40,7 +40,7 @@ interface Lead {
   logs: LeadLog[];
   follow_ups: FollowUp[];
   tasks: Task[];
-  status: Types.ObjectId;
+  status: Types.ObjectId | StatusDto;
   labels: Types.ObjectId[];
   assigned_to?: Types.ObjectId;
   assigned_by?: Types.ObjectId;
@@ -49,4 +49,4 @@ interface Lead {
   property_id: Types.ObjectId;
 }
 
-export { Lead, LeadLog, Task, FollowUp, LeadLogStatus };
+export { LeadDto, LeadLog, Task, FollowUp, LeadLogStatus };

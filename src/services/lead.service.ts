@@ -4,13 +4,13 @@ import Property from "../models/property.model";
 import User from "../models/user.model";
 import { LogStatus } from "../dtos/property.dto";
 import Label from "../models/label.model";
-import { LeadLogStatus } from "../dtos/lead.dto";
+import { LeadDto, LeadLogStatus } from "../dtos/lead.dto";
 import Status from "../models/status.model";
 import Role from "../models/role.model";
 import { v4 as uuidv4 } from "uuid";
 import Source from "../models/source.model";
 import { getLocationFromIP } from "../utils/get_location.util";
-
+import { startOfDay, endOfDay } from "date-fns";
 interface MissedFollowUpLead {
   leadId: Types.ObjectId;
   name: string;
@@ -428,11 +428,46 @@ const _getMissedFollowUpsService = async (
   return missedLeads;
 };
 
+const _getTodayLeadsGrouped = async () => {
+  const today = new Date();
+  const start = startOfDay(today);
+  const end = endOfDay(today);
+  const leads = await Lead.find({
+    createdAt: { $gte: start, $lte: end },
+  })
+    .populate("status")
+    .populate("labels")
+    .populate("assigned_to")
+    .populate("assigned_by")
+    .populate("property_id")
+    .sort({ createdAt: -1 });
+
+  const leads_in_new: LeadDto[] = [];
+  const leads_in_processing: LeadDto[] = [];
+
+  leads.forEach((lead) => {
+    const statusTitle = (lead.status as any)?.title;
+
+    if (statusTitle === "new") {
+      leads_in_new.push(lead);
+    } else if (statusTitle === "processing") {
+      leads_in_processing.push(lead);
+    }
+  });
+
+  return {
+    date: today.toISOString().split("T")[0],
+    leads_in_new,
+    leads_in_processing,
+  };
+};
+
 export {
   _fetchLeadDetails,
   _createNewFollowUp,
   _updateLabelForLead,
   _homePageLeadService,
   _createLeadService,
-  _getMissedFollowUpsService
+  _getMissedFollowUpsService,
+  _getTodayLeadsGrouped,
 };
