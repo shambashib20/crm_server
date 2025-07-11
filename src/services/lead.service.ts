@@ -436,8 +436,8 @@ const _getTodayLeadsGrouped = async (propId: Types.ObjectId) => {
     createdAt: { $gte: start, $lte: end },
     property_id: propId,
   })
-    .populate("status")
-    .populate("labels")
+    .populate({ path: "status", select: "title" })
+    .populate({ path: "labels", select: "title" })
     .populate("assigned_to")
     .populate("assigned_by")
     .populate("property_id")
@@ -449,9 +449,9 @@ const _getTodayLeadsGrouped = async (propId: Types.ObjectId) => {
   leads.forEach((lead) => {
     const statusTitle = (lead.status as any)?.title;
 
-    if (statusTitle === "new") {
+    if (statusTitle === "New") {
       leads_in_new.push(lead);
-    } else if (statusTitle === "processing") {
+    } else if (statusTitle === "Processing") {
       leads_in_processing.push(lead);
     }
   });
