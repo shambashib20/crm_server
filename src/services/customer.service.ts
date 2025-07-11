@@ -37,6 +37,7 @@ const _createCustomerFromLead = async (
     meta: {
       ...existingLead?.meta,
       lead_id: leadId,
+      active: true
     },
   });
 
