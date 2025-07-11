@@ -428,12 +428,13 @@ const _getMissedFollowUpsService = async (
   return missedLeads;
 };
 
-const _getTodayLeadsGrouped = async () => {
+const _getTodayLeadsGrouped = async (propId: Types.ObjectId) => {
   const today = new Date();
   const start = startOfDay(today);
   const end = endOfDay(today);
   const leads = await Lead.find({
     createdAt: { $gte: start, $lte: end },
+    property_id: propId,
   })
     .populate("status")
     .populate("labels")

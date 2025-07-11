@@ -6,7 +6,8 @@ import {
   _homePageLeadService,
   _createLeadService,
   _updateLabelForLead,
-  _getMissedFollowUpsService
+  _getMissedFollowUpsService,
+  _getTodayLeadsGrouped,
 } from "../services/lead.service";
 
 interface UpdateLabelRequest {
@@ -15,7 +16,6 @@ interface UpdateLabelRequest {
   propId: Types.ObjectId;
   labelIds: Types.ObjectId[] | string[];
 }
-
 
 const FetchLeadDetails = async (req: any, res: any) => {
   try {
@@ -150,11 +150,25 @@ const GetMissedFollowUpsController = async (req: any, res: any) => {
   }
 };
 
+const GetTodaysLeadsGrouped = async (req: any, res: any) => {
+  try {
+    const propId = req.user.property_id;
 
+    const todaysLeads = await _getTodayLeadsGrouped(propId);
 
-
-
-
+    return res
+      .status(200)
+      .json(
+        new SuccessResponse(
+          "Today's leads grouped by source fetched successfully",
+          200,
+          todaysLeads
+        )
+      );
+  } catch (error: any) {
+    return res.status(500).json(new SuccessResponse(error.message, 500));
+  }
+};
 
 export {
   FetchLeadDetails,
@@ -163,4 +177,5 @@ export {
   HomePageLeads,
   CreateLeadController,
   GetMissedFollowUpsController,
+  GetTodaysLeadsGrouped,
 };

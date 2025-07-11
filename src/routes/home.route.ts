@@ -1,4 +1,7 @@
-import { HomePageLeads } from "../controllers/lead.controller";
+import {
+  GetTodaysLeadsGrouped,
+  HomePageLeads,
+} from "../controllers/lead.controller";
 import express from "express";
 
 import AuthMiddleware from "../middlewares/authentication.middleware";
@@ -13,9 +16,11 @@ homeRouter.post(
   HomePageLeads
 );
 
-
-
-
-
+homeRouter.get(
+  "/leads/today",
+  AuthMiddleware,
+  PermissionMiddleware("manage_leads"),
+  GetTodaysLeadsGrouped
+);
 
 export default homeRouter;
