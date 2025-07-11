@@ -11,10 +11,10 @@ const _createCustomerFromLead = async (
 ) => {
   const now = new Date();
 
-  const existingCustomer = await Customer.find({ "meta.lead_id": leadId });
-  if (existingCustomer) {
-    throw new Error("This lead has already been converted into a customer!");
-  }
+  //   const existingCustomer = await Customer.find({ "meta.lead_id": leadId });
+  //   if (existingCustomer) {
+  //     throw new Error("This lead has already been converted into a customer!");
+  //   }
   const existingLead = await Lead.findById({ _id: leadId })
     .populate({ path: "assigned_to", select: "name" })
     .lean()
