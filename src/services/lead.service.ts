@@ -11,6 +11,19 @@ import { v4 as uuidv4 } from "uuid";
 import Source from "../models/source.model";
 import { getLocationFromIP } from "../utils/get_location.util";
 import { startOfDay, endOfDay } from "date-fns";
+
+function getEarliestFollowUpDate(followUps: any[] = []): Date | null {
+  if (!Array.isArray(followUps) || followUps.length === 0) return null;
+
+  const validDates = followUps
+    .map((f) => f.next_followup_date)
+    .filter((date) => !!date)
+    .map((d) => new Date(d));
+
+  if (validDates.length === 0) return null;
+
+  return validDates.sort((a, b) => a.getTime() - b.getTime())[0];
+}
 interface MissedFollowUpLead {
   leadId: Types.ObjectId;
   name: string;
@@ -221,7 +234,8 @@ const _homePageLeadService = async (
   labelIds: Types.ObjectId[],
   assignedToUserIds: Types.ObjectId[],
   sourceNames: string[],
-  searchString: string
+  searchString: string,
+  sortBy: string
 ) => {
   const query: any = {};
 
@@ -247,12 +261,37 @@ const _homePageLeadService = async (
     ];
   }
 
+  let sortOptions: Record<string, 1 | -1> = {};
+
+  if (sortBy === "by_created_date") {
+    sortOptions = { createdAt: -1 };
+  }
+
   const leads = await Lead.find(query)
+    .sort(sortOptions)
     .populate("status", "name")
     .populate("assigned_to", "name")
     .populate("assigned_by", "name")
     .populate("labels", "title")
     .lean();
+
+  if (sortBy === "by_next_followup_date") {
+    leads.sort((a, b) => {
+      const aNext = getEarliestFollowUpDate(a.follow_ups);
+      const bNext = getEarliestFollowUpDate(b.follow_ups);
+
+      if (!aNext && !bNext) return 0;
+      if (!aNext) return 1;
+      if (!bNext) return -1;
+
+      return new Date(aNext).getTime() - new Date(bNext).getTime();
+    });
+  } else if (sortBy === "by_created_date") {
+    leads.sort(
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+  }
 
   const uniquePropertyIds = [
     ...new Set(

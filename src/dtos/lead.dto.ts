@@ -47,6 +47,7 @@ interface LeadDto {
   meta?: Record<string, any>;
   ip_address?: string;
   property_id: Types.ObjectId;
+  createdAt: Date;
 }
 
 export { LeadDto, LeadLog, Task, FollowUp, LeadLogStatus };
