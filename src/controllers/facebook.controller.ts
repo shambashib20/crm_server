@@ -25,6 +25,7 @@ let ACCESS_TOKEN: string = "";
 
 const facebookLogin = (req: any, res: any) => {
   const user_id = req.user._id;
+  console.log(REDIRECT_URI, "uri");
   const authUrl = `${FB_AUTH_URL}?client_id=${APP_ID}&redirect_uri=${REDIRECT_URI}&state=${user_id}${user_id}&scope=pages_show_list,pages_read_engagement,leads_retrieval`;
   return res.json({ login_url: authUrl });
 };
@@ -97,20 +98,58 @@ const facebookCallback = async (req: any, res: any) => {
 
     const fbProfile = profileRes.data;
 
-    await User.findByIdAndUpdate(user_id, {
+    const pagesRes = await axios.get(
+      `https://graph.facebook.com/v18.0/me/accounts?fields=id,name,access_token`,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      }
+    );
+
+    const pages = pagesRes.data.data;
+
+    if (!pages.length) {
+      return res
+        .status(400)
+        .json({ error: "No pages found for this Facebook account" });
+    }
+    const firstPage = pages[0];
+    const pageId = firstPage.id;
+    const pageAccessToken = firstPage.access_token;
+
+    const formsRes = await axios.get(
+      `https://graph.facebook.com/v18.0/${pageId}/leadgen_forms?fields=id,name`,
+      {
+        headers: {
+          Authorization: `Bearer ${pageAccessToken}`,
+        },
+      }
+    );
+
+    const forms = formsRes.data.data;
+    const formId = forms.length > 0 ? forms[0].id : null;
+
+    const updatedUser = await User.findByIdAndUpdate(user_id, {
       $set: {
         "meta.facebook.token": accessToken,
         "meta.facebook.id": fbProfile.id,
         "meta.facebook.name": fbProfile.name,
         "meta.facebook.email": fbProfile.email || "",
         "meta.facebook.code": code,
+        "meta.facebook.page_id": pageId,
+        "meta.facebook.page_name": firstPage.name,
+        "meta.facebook.page_token": pageAccessToken,
+        "meta.facebook.form_id": formId,
       },
     });
+
+    console.log(updatedUser, "updateduser");
 
     return res.json({
       success: true,
       message: "Facebook account linked successfully",
-      fbProfile,
+      updatedUser,
     });
   } catch (error: any) {
     console.error("Facebook Callback Error:", error.response?.data || error);

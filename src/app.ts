@@ -1,6 +1,8 @@
 import express, { Application } from "express";
 import dotenv from "dotenv";
 dotenv.config();
+import axios from "axios";
+import { v4 as uuidv4 } from "uuid";
 
 import facebookRoutes from "./routes/facebook.routes";
 import { connect, getDbStatus } from "../config/db.config";
@@ -12,12 +14,14 @@ import mainRouter from "./routes";
 import cookieParser from "cookie-parser";
 import { seedDefaultLeadStatuses } from "./seeders/status.seeder";
 import { seedDefaultLabelStatuses } from "./seeders/label.seeder";
-import Property from "./models/property.model";
-import axios from "axios";
-import Label from "./models/label.model";
 import Lead from "./models/lead.model";
-import { Types } from "mongoose";
-import { LabelDto } from "./dtos/label.dto";
+import Source from "./models/source.model";
+import Status from "./models/status.model";
+import User from "./models/user.model";
+import { getLocationFromIP } from "./utils/get_location.util";
+import { LeadLogStatus } from "./dtos/lead.dto";
+import Property from "./models/property.model";
+import { LogStatus } from "./dtos/property.dto";
 
 const app: Application = express();
 app.use(
@@ -79,92 +83,100 @@ app.listen(PORT, async () => {
   }
 });
 
-app.get("/webhook", (req: any, res: any) => {
-  const VERIFY_TOKEN = process.env.FB_TOKEN;
+// app.get("/api/facebook/fetch-leads", async (req, res) => {
+//   try {
+//     const superadmin = await User.findOne({
+//       "meta.facebook.token": { $exists: true },
+//     });
 
-  const mode = req.query["hub.mode"];
-  const token = req.query["hub.verify_token"];
-  const challenge = req.query["hub.challenge"];
+//     if (
+//       !superadmin ||
+//       !superadmin.meta?.facebook?.token ||
+//       !superadmin.meta?.facebook?.id
+//     ) {
+//       return res
+//         .status(404)
+//         .json({ message: "Superadmin with Facebook token not found" });
+//     }
 
-  if (mode && token && mode === "subscribe" && token === VERIFY_TOKEN) {
-    console.log("✅ Facebook webhook verified");
-    return res.status(200).send(challenge);
-  } else {
-    return res.sendStatus(403);
-  }
-});
+//     const fbToken = superadmin.meta.facebook.token;
+//     const formId =  superadmin.meta.;
 
-app.post("/webhook", async (req: any, res: any) => {
-  try {
-    const body = req.body;
+//     const response = await axios.get(
+//       `https://graph.facebook.com/v18.0/${formId}/leads?access_token=${fbToken}`
+//     );
 
-    if (body.object === "page") {
-      for (const entry of body.entry) {
-        for (const change of entry.changes) {
-          if (change.field === "leadgen") {
-            const leadgen_id = change.value.leadgen_id;
-            const form_id = change.value.form_id;
-            const page_id = change.value.page_id;
+//     const leads = response.data.data;
 
-            const property = await Property.findOne({
-              "meta.facebook.page_id": page_id,
-            });
+//     const now = new Date();
 
-            const token = property?.meta?.facebook?.token;
-            if (!token) {
-              console.warn(`⚠️ Token not found for page_id: ${page_id}`);
-              continue;
-            }
+//     for (const lead of leads) {
+//       // Skip if already exists
+//       const exists = await Lead.findOne({ "meta.fb_lead_id": lead.id });
+//       if (exists) continue;
 
-            const leadRes = await axios.get(
-              `https://graph.facebook.com/v18.0/${leadgen_id}?access_token=${token}`
-            );
+//       const defaultSource = await Source.findOne({
+//         title: "Landing Page Leads",
+//       });
+//       const defaultStatus = await Status.findOne({ title: "New" });
 
-            const leadData = leadRes.data;
+//       const ray_id = `ray-id-${uuidv4()}`;
 
-            
-            const formRes = await axios.get(
-              `https://graph.facebook.com/v18.0/${form_id}?access_token=${token}&fields=tracking_parameters`
-            );
+//       const ip = req.ip || "::1";
+//       const locationData = await getLocationFromIP(ip);
 
-            const trackingParams = formRes.data?.tracking_parameters || [];
+//       const leadDoc = await Lead.create({
+//         name: lead.full_name || lead.name || "Unknown",
+//         email: lead.email || "",
+//         phone_number: lead.phone_number || "",
+//         labels: [],
+//         assigned_to: superadmin._id,
+//         assigned_by: superadmin._id,
+//         property_id: defaultStatus?.property_id,
+//         status: defaultStatus?._id,
+//         meta: {
+//           fb_lead_id: lead.id,
+//           ray_id,
+//           source: defaultSource || "Landing Page Leads",
+//           location: locationData,
+//           created_by: superadmin._id,
+//         },
+//         logs: [
+//           {
+//             title: "Lead created",
+//             description: `Lead fetched from Facebook and assigned status: ${defaultStatus?.title}`,
+//             status: LeadLogStatus.ACTION,
+//             meta: {},
+//             createdAt: now,
+//             updatedAt: now,
+//           },
+//         ],
+//       });
 
-            let matchedLabel: LabelDto | null = null;
+//       await Property.findByIdAndUpdate(
+//         defaultStatus?.property_id,
+//         {
+//           $inc: { usage_count: 1 },
+//           $push: {
+//             logs: {
+//               title: "Lead Assigned",
+//               description: `A new lead named (${leadDoc.name}) was assigned to this property.`,
+//               status: LogStatus.INFO,
+//               meta: { leadId: leadDoc._id },
+//               createdAt: now,
+//               updatedAt: now,
+//             },
+//           },
+//         },
+//         { new: true }
+//       );
+//     }
 
-            for (const param of trackingParams) {
-              matchedLabel = await Label.findOne({ key: param.key });
-              if (matchedLabel) break; 
-            }
-
-            const formattedFields: Record<string, any> = {};
-            leadData.field_data.forEach((field: any) => {
-              formattedFields[field.name] = field.values?.[0] || "";
-            });
-
-            await Lead.create({
-              name: formattedFields.full_name || "",
-              email: formattedFields.email || "",
-              phone: formattedFields.phone_number || "",
-              formId: form_id,
-              pageId: page_id,
-              leadgenId: leadgen_id,
-              label: new Types.ObjectId(matchedLabel?._id) || null,
-              raw: leadData,
-              property: property?._id || null,
-            });
-
-            console.log("✅ Lead saved from webhook:", leadgen_id);
-          }
-        }
-      }
-
-      return res.status(200).send("EVENT_RECEIVED");
-    } else {
-      return res.sendStatus(404);
-    }
-  } catch (err) {
-    console.error("❌ Error handling webhook:", err);
-    return res.status(500).json({ message: "Error handling webhook" });
-  }
-});
- 
+//     res.status(200).json({ message: "Facebook leads synced successfully." });
+//   } catch (err: any) {
+//     console.error("Error syncing Facebook leads:", err);
+//     res
+//       .status(500)
+//       .json({ message: "Error syncing leads", error: err.message });
+//   }
+// });
