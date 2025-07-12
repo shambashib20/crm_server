@@ -8,6 +8,7 @@ import {
   _updateLabelForLead,
   _getMissedFollowUpsService,
   _getTodayLeadsGrouped,
+  _updateAssignedAgentForLead,
 } from "../services/lead.service";
 
 interface UpdateLabelRequest {
@@ -88,7 +89,13 @@ const UpdateLabelForLead = async (req: any, res: any) => {
 
 const HomePageLeads = async (req: any, res: any) => {
   try {
-    const { labelIds, assignedTo, sourceNames, search = "", sortBy ="" } = req.body;
+    const {
+      labelIds,
+      assignedTo,
+      sourceNames,
+      search = "",
+      sortBy = "",
+    } = req.body;
 
     const labelObjectIds = labelIds.map((id: string) => new Types.ObjectId(id));
     const assignedToObjectIds = assignedTo.map(
@@ -171,6 +178,31 @@ const GetTodaysLeadsGrouped = async (req: any, res: any) => {
   }
 };
 
+const UpdateAssignmentForLead = async (req: any, res: any) => {
+  try {
+    const { leadId, chatAgentId } = req.body;
+    const userId = req.user?._id;
+    const propId = req.user?.property_id;
+
+    if (!chatAgentId) {
+      return res.status(400).json({ message: "chat agent id must be sent!" });
+    }
+
+    await _updateAssignedAgentForLead(
+      new Types.ObjectId(leadId),
+      new Types.ObjectId(propId),
+      new Types.ObjectId(userId),
+      new Types.ObjectId(chatAgentId)
+    );
+
+    return res
+      .status(200)
+      .json(new SuccessResponse("Chat Agent assigned successfully!", 201));
+  } catch (error: any) {
+    return res.status(500).json(new SuccessResponse(error.message, 500));
+  }
+};
+
 export {
   FetchLeadDetails,
   NewFollowUp,
@@ -179,4 +211,5 @@ export {
   CreateLeadController,
   GetMissedFollowUpsController,
   GetTodaysLeadsGrouped,
+  UpdateAssignmentForLead,
 };

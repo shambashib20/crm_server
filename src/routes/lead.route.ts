@@ -3,6 +3,7 @@ import {
   FetchLeadDetails,
   GetMissedFollowUpsController,
   NewFollowUp,
+  UpdateAssignmentForLead,
   UpdateLabelForLead,
 } from "../controllers/lead.controller";
 
@@ -46,6 +47,13 @@ leadRouter.patch(
   AuthMiddleware,
   PermissionMiddleware("manage_leads"),
   UpdateLabelForLead
+);
+
+leadRouter.patch(
+  "/update-chat-agent",
+  AuthMiddleware,
+  PermissionMiddleware("manage_leads"),
+  UpdateAssignmentForLead
 );
 
 export default leadRouter;

@@ -502,6 +502,77 @@ const _getTodayLeadsGrouped = async (propId: Types.ObjectId) => {
   };
 };
 
+const _updateAssignedAgentForLead = async (
+  leadId: Types.ObjectId,
+  propId: Types.ObjectId,
+  userId: Types.ObjectId,
+  chatAgentId: Types.ObjectId
+) => {
+  const existingUser = await User.findById(userId).select("name");
+  if (!existingUser) {
+    throw new Error("User not found");
+  }
+
+  const existingChatAgent = await User.findById(chatAgentId).populate({
+    path: "role",
+    select: "name",
+  });
+
+  if (!existingUser) {
+    throw new Error("Chat Agent not found");
+  }
+
+  const updatedLead = await Lead.findByIdAndUpdate(
+    leadId,
+    { assigned_to: existingChatAgent?._id, assigned_by: existingUser._id },
+    { new: true }
+  );
+
+  if (!updatedLead) {
+    throw new Error("Lead not found!");
+  }
+
+  const logEntry = {
+    title: "A new Chat agent assigned!",
+    description: `${existingUser.name} changed lead's assignment to ${existingChatAgent?.name}`,
+    status: LogStatus.INFO,
+    meta: {
+      leadId,
+      userId,
+    },
+  };
+
+  const leadLogEntry = {
+    title: "A new Chat agent assigned!",
+    description: `${existingUser.name} changed lead's assignment to ${existingChatAgent?.name}`,
+    status: LeadLogStatus.ACTION,
+    meta: {
+      leadId,
+      userId,
+    },
+  };
+
+  await Property.findByIdAndUpdate(
+    propId,
+    {
+      $push: { logs: logEntry },
+    },
+    { new: true }
+  );
+
+  await Lead.findByIdAndUpdate(
+    leadId,
+    {
+      $push: {
+        logs: leadLogEntry,
+      },
+    },
+    {
+      new: true,
+    }
+  );
+};
+
 export {
   _fetchLeadDetails,
   _createNewFollowUp,
@@ -510,4 +581,5 @@ export {
   _createLeadService,
   _getMissedFollowUpsService,
   _getTodayLeadsGrouped,
+  _updateAssignedAgentForLead,
 };
