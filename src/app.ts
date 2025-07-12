@@ -88,6 +88,7 @@ app.get("/lead/webhook", async (req, res) => {
     const superadmin = await User.findOne({
       "meta.facebook.token": { $exists: true },
     });
+    console.log(superadmin, "dkdkd");
 
     if (
       !superadmin ||
@@ -98,9 +99,13 @@ app.get("/lead/webhook", async (req, res) => {
         .status(404)
         .json({ message: "Superadmin with Facebook token not found" });
     }
-
+    if (!superadmin.meta.facebook.form_id) {
+      return res
+        .status(400)
+        .json({ message: "Form ID not found in Superadmin metadata" });
+    }
     const fbToken = superadmin.meta.facebook.token;
-    const formId = superadmin.meta.form_id;
+    const formId = superadmin.meta.facebook.form_id;
 
     const response = await axios.get(
       `https://graph.facebook.com/v18.0/${formId}/leads?access_token=${fbToken}`

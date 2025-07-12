@@ -1,7 +1,7 @@
 import cron from "node-cron";
 import axios from "axios";
 
-cron.schedule("*/5 * * * *", async () => {
+cron.schedule("* * * * *", async () => {
   console.log("Running FB sync task...");
   try {
     await axios.get("https://crm-server-tsnj.onrender.com/lead/webhook");
