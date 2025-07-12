@@ -22,7 +22,7 @@ import { getLocationFromIP } from "./utils/get_location.util";
 import { LeadLogStatus } from "./dtos/lead.dto";
 import Property from "./models/property.model";
 import { LogStatus } from "./dtos/property.dto";
-
+import "./cron-jobs/cron";
 const app: Application = express();
 app.use(
   cors({
@@ -83,100 +83,100 @@ app.listen(PORT, async () => {
   }
 });
 
-// app.get("/api/facebook/fetch-leads", async (req, res) => {
-//   try {
-//     const superadmin = await User.findOne({
-//       "meta.facebook.token": { $exists: true },
-//     });
+app.get("/lead/webhook", async (req, res) => {
+  try {
+    const superadmin = await User.findOne({
+      "meta.facebook.token": { $exists: true },
+    });
 
-//     if (
-//       !superadmin ||
-//       !superadmin.meta?.facebook?.token ||
-//       !superadmin.meta?.facebook?.id
-//     ) {
-//       return res
-//         .status(404)
-//         .json({ message: "Superadmin with Facebook token not found" });
-//     }
+    if (
+      !superadmin ||
+      !superadmin.meta?.facebook?.token ||
+      !superadmin.meta?.facebook?.id
+    ) {
+      return res
+        .status(404)
+        .json({ message: "Superadmin with Facebook token not found" });
+    }
 
-//     const fbToken = superadmin.meta.facebook.token;
-//     const formId =  superadmin.meta.;
+    const fbToken = superadmin.meta.facebook.token;
+    const formId = superadmin.meta.form_id;
 
-//     const response = await axios.get(
-//       `https://graph.facebook.com/v18.0/${formId}/leads?access_token=${fbToken}`
-//     );
+    const response = await axios.get(
+      `https://graph.facebook.com/v18.0/${formId}/leads?access_token=${fbToken}`
+    );
 
-//     const leads = response.data.data;
+    const leads = response.data.data;
 
-//     const now = new Date();
+    const now = new Date();
 
-//     for (const lead of leads) {
-//       // Skip if already exists
-//       const exists = await Lead.findOne({ "meta.fb_lead_id": lead.id });
-//       if (exists) continue;
+    for (const lead of leads) {
+      // Skip if already exists
+      const exists = await Lead.findOne({ "meta.fb_lead_id": lead.id });
+      if (exists) continue;
 
-//       const defaultSource = await Source.findOne({
-//         title: "Landing Page Leads",
-//       });
-//       const defaultStatus = await Status.findOne({ title: "New" });
+      const defaultSource = await Source.findOne({
+        title: "Landing Page Leads",
+      });
+      const defaultStatus = await Status.findOne({ title: "New" });
 
-//       const ray_id = `ray-id-${uuidv4()}`;
+      const ray_id = `ray-id-${uuidv4()}`;
 
-//       const ip = req.ip || "::1";
-//       const locationData = await getLocationFromIP(ip);
+      const ip = req.ip || "::1";
+      const locationData = await getLocationFromIP(ip);
 
-//       const leadDoc = await Lead.create({
-//         name: lead.full_name || lead.name || "Unknown",
-//         email: lead.email || "",
-//         phone_number: lead.phone_number || "",
-//         labels: [],
-//         assigned_to: superadmin._id,
-//         assigned_by: superadmin._id,
-//         property_id: defaultStatus?.property_id,
-//         status: defaultStatus?._id,
-//         meta: {
-//           fb_lead_id: lead.id,
-//           ray_id,
-//           source: defaultSource || "Landing Page Leads",
-//           location: locationData,
-//           created_by: superadmin._id,
-//         },
-//         logs: [
-//           {
-//             title: "Lead created",
-//             description: `Lead fetched from Facebook and assigned status: ${defaultStatus?.title}`,
-//             status: LeadLogStatus.ACTION,
-//             meta: {},
-//             createdAt: now,
-//             updatedAt: now,
-//           },
-//         ],
-//       });
+      const leadDoc = await Lead.create({
+        name: lead.full_name || lead.name || "Unknown",
+        email: lead.email || "",
+        phone_number: lead.phone_number || "",
+        labels: [],
+        assigned_to: superadmin._id,
+        assigned_by: superadmin._id,
+        property_id: defaultStatus?.property_id,
+        status: defaultStatus?._id,
+        meta: {
+          fb_lead_id: lead.id,
+          ray_id,
+          source: defaultSource || "Landing Page Leads",
+          location: locationData,
+          created_by: superadmin._id,
+        },
+        logs: [
+          {
+            title: "Lead created",
+            description: `Lead fetched from Facebook and assigned status: ${defaultStatus?.title}`,
+            status: LeadLogStatus.ACTION,
+            meta: {},
+            createdAt: now,
+            updatedAt: now,
+          },
+        ],
+      });
 
-//       await Property.findByIdAndUpdate(
-//         defaultStatus?.property_id,
-//         {
-//           $inc: { usage_count: 1 },
-//           $push: {
-//             logs: {
-//               title: "Lead Assigned",
-//               description: `A new lead named (${leadDoc.name}) was assigned to this property.`,
-//               status: LogStatus.INFO,
-//               meta: { leadId: leadDoc._id },
-//               createdAt: now,
-//               updatedAt: now,
-//             },
-//           },
-//         },
-//         { new: true }
-//       );
-//     }
+      await Property.findByIdAndUpdate(
+        defaultStatus?.property_id,
+        {
+          $inc: { usage_count: 1 },
+          $push: {
+            logs: {
+              title: "Lead Assigned",
+              description: `A new lead named (${leadDoc.name}) was assigned to this property.`,
+              status: LogStatus.INFO,
+              meta: { leadId: leadDoc._id },
+              createdAt: now,
+              updatedAt: now,
+            },
+          },
+        },
+        { new: true }
+      );
+    }
 
-//     res.status(200).json({ message: "Facebook leads synced successfully." });
-//   } catch (err: any) {
-//     console.error("Error syncing Facebook leads:", err);
-//     res
-//       .status(500)
-//       .json({ message: "Error syncing leads", error: err.message });
-//   }
-// });
+    res.status(200).json({ message: "Facebook leads synced successfully." });
+  } catch (err: any) {
+    console.error("Error syncing Facebook leads:", err);
+    res
+      .status(500)
+      .json({ message: "Error syncing leads", error: err.message });
+  }
+});

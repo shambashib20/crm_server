@@ -144,12 +144,12 @@ const facebookCallback = async (req: any, res: any) => {
       },
     });
 
-    console.log(updatedUser, "updateduser");
+    // console.log(updatedUser, "updateduser");
 
     return res.json({
       success: true,
       message: "Facebook account linked successfully",
-      updatedUser,
+      // updatedUser,
     });
   } catch (error: any) {
     console.error("Facebook Callback Error:", error.response?.data || error);
