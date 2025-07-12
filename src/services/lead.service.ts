@@ -518,7 +518,7 @@ const _updateAssignedAgentForLead = async (
     select: "name",
   });
 
-  if (!existingUser) {
+  if (!existingChatAgent) {
     throw new Error("Chat Agent not found");
   }
 
@@ -573,6 +573,69 @@ const _updateAssignedAgentForLead = async (
   );
 };
 
+const _deleteOrArchiveLead = async (rayId: string, userId: Types.ObjectId) => {
+  const existingLead = await Lead.findOne({ "meta.ray_id": rayId });
+  if (!existingLead) {
+    throw new Error("Lead not found");
+  }
+  const existingUser = await User.findById(userId).select("name");
+  if (!existingUser) {
+    throw new Error("User not found");
+  }
+
+  const updatedLead = await Lead.findByIdAndUpdate(
+    existingLead._id,
+    {
+      meta: {
+        ...existingLead.meta,
+        status: "ARCHIVED",
+      },
+    },
+    { new: true }
+  );
+
+  if (!updatedLead) {
+    throw new Error("Lead not found!");
+  }
+
+  const logEntry = {
+    title: "The lead is archived!",
+    description: `Lead named ${existingLead.name} is archived by ${existingUser.name}`,
+    status: LogStatus.INFO,
+    meta: {},
+  };
+
+  const leadLogEntry = {
+    title: "The lead is archived!",
+    description: `Lead named ${existingLead.name} is archived by ${existingUser.name}`,
+    status: LeadLogStatus.ACTION,
+    meta: {
+      leadId: updatedLead?._id,
+      userId,
+    },
+  };
+
+  await Property.findByIdAndUpdate(
+    existingLead.property_id,
+    {
+      $push: { logs: logEntry },
+    },
+    { new: true }
+  );
+
+  await Lead.findByIdAndUpdate(
+    updatedLead._id,
+    {
+      $push: {
+        logs: leadLogEntry,
+      },
+    },
+    {
+      new: true,
+    }
+  );
+};
+
 export {
   _fetchLeadDetails,
   _createNewFollowUp,
@@ -582,4 +645,5 @@ export {
   _getMissedFollowUpsService,
   _getTodayLeadsGrouped,
   _updateAssignedAgentForLead,
+  _deleteOrArchiveLead,
 };

@@ -1,5 +1,6 @@
 import {
   CreateLeadController,
+  DeleteOrArchiveForLead,
   FetchLeadDetails,
   GetMissedFollowUpsController,
   NewFollowUp,
@@ -54,6 +55,13 @@ leadRouter.patch(
   AuthMiddleware,
   PermissionMiddleware("manage_leads"),
   UpdateAssignmentForLead
+);
+
+leadRouter.patch(
+  "/delete-lead",
+  AuthMiddleware,
+  PermissionMiddleware("manage_leads"),
+  DeleteOrArchiveForLead
 );
 
 export default leadRouter;

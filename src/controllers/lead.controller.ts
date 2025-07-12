@@ -9,6 +9,7 @@ import {
   _getMissedFollowUpsService,
   _getTodayLeadsGrouped,
   _updateAssignedAgentForLead,
+  _deleteOrArchiveLead,
 } from "../services/lead.service";
 
 interface UpdateLabelRequest {
@@ -203,6 +204,24 @@ const UpdateAssignmentForLead = async (req: any, res: any) => {
   }
 };
 
+const DeleteOrArchiveForLead = async (req: any, res: any) => {
+  try {
+    const { rayId } = req.body;
+    const userId = req.user?._id;
+
+    if (!userId) {
+      return res.status(400).json({ message: "user id must be sent!" });
+    }
+
+    await _deleteOrArchiveLead(rayId, userId);
+
+    return res
+      .status(200)
+      .json(new SuccessResponse("Lead archived successfully!", 201));
+  } catch (error: any) {
+    return res.status(500).json(new SuccessResponse(error.message, 500));
+  }
+};
 export {
   FetchLeadDetails,
   NewFollowUp,
@@ -212,4 +231,5 @@ export {
   GetMissedFollowUpsController,
   GetTodaysLeadsGrouped,
   UpdateAssignmentForLead,
+  DeleteOrArchiveForLead,
 };
