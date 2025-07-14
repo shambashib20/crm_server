@@ -122,7 +122,10 @@ app.post("/lead/webhook", async (req: any, res: any) => {
     );
 
     const leads = response.data.data;
+    console.log(`✅ Leads fetched from Facebook:`, leads);
     const now = new Date();
+
+    const createdLeads: any[] = [];
 
     for (const lead of leads) {
       const exists = await Lead.findOne({ "meta.fb_lead_id": lead.id });
@@ -138,7 +141,7 @@ app.post("/lead/webhook", async (req: any, res: any) => {
       const locationData = await getLocationFromIP(ip);
 
       const leadDoc = await Lead.create({
-        name: lead.full_name || lead.name || "Unknown",
+        name: lead.full_name || lead.name || "",
         email: lead.email || "",
         phone_number: lead.phone_number || "",
         labels: [],
@@ -164,6 +167,7 @@ app.post("/lead/webhook", async (req: any, res: any) => {
           },
         ],
       });
+      createdLeads.push(leadDoc);
 
       await Property.findByIdAndUpdate(
         defaultStatus?.property_id,
@@ -183,6 +187,7 @@ app.post("/lead/webhook", async (req: any, res: any) => {
         { new: true }
       );
     }
+    console.log(`✅ Leads inserted into MongoDB:`, createdLeads);
 
     res.status(200).json({ message: "Facebook leads synced successfully." });
   } catch (err: any) {
