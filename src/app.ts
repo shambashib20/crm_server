@@ -83,26 +83,39 @@ app.listen(PORT, async () => {
   }
 });
 
-app.post("/lead/webhook", async (req, res) => {
+app.post("/lead/webhook", async (req: any, res: any) => {
   try {
-    const superadmin = await User.findOne({
-      "meta.facebook.token": { $exists: true },
-      "meta.facebook.form_id": { $exists: true },
-    });
+    // Step 1: Get all potential superadmins (filter further if needed)
+    const users = await User.find({});
+
+    let superadmin: (typeof users)[0] | null = null;
+
+    for (const user of users) {
+      const meta = user.meta;
+
+      // For Map-based `meta`
+      const fbMeta =
+        typeof meta?.get === "function"
+          ? meta?.get("facebook")
+          : meta?.facebook;
+
+      if (fbMeta?.token && fbMeta?.form_id) {
+        superadmin = user;
+        (superadmin.meta ??= {}).facebook = fbMeta;
+        break;
+      }
+    }
 
     console.log(superadmin, "superadmin object");
-    if (
-      !superadmin ||
-      !superadmin.meta?.facebook?.token ||
-      !superadmin.meta?.facebook?.form_id
-    ) {
+
+    if (!superadmin) {
       return res.status(404).json({
         message: "Superadmin with Facebook token and form ID not found",
       });
     }
 
-    const access_token = superadmin.meta.facebook.token;
-    const form_id = superadmin.meta.facebook.form_id;
+    const access_token = superadmin?.meta?.facebook.token;
+    const form_id = superadmin?.meta?.facebook.form_id;
 
     const response = await axios.get(
       `https://graph.facebook.com/v18.0/${form_id}/leads?access_token=${access_token}`
