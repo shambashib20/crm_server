@@ -83,40 +83,34 @@ app.listen(PORT, async () => {
   }
 });
 
-app.get("/lead/webhook", async (req, res) => {
+app.post("/lead/webhook", async (req, res) => {
   try {
     const superadmin = await User.findOne({
       "meta.facebook.token": { $exists: true },
+      "meta.facebook.form_id": { $exists: true },
     });
-    console.log(superadmin, "dkdkd");
 
     if (
       !superadmin ||
       !superadmin.meta?.facebook?.token ||
-      !superadmin.meta?.facebook?.id
+      !superadmin.meta?.facebook?.form_id
     ) {
-      return res
-        .status(404)
-        .json({ message: "Superadmin with Facebook token not found" });
+      return res.status(404).json({
+        message: "Superadmin with Facebook token and form ID not found",
+      });
     }
-    if (!superadmin.meta.facebook.form_id) {
-      return res
-        .status(400)
-        .json({ message: "Form ID not found in Superadmin metadata" });
-    }
-    const fbToken = superadmin.meta.facebook.token;
-    const formId = superadmin.meta.facebook.form_id;
+
+    const access_token = superadmin.meta.facebook.token;
+    const form_id = superadmin.meta.facebook.form_id;
 
     const response = await axios.get(
-      `https://graph.facebook.com/v18.0/${formId}/leads?access_token=${fbToken}`
+      `https://graph.facebook.com/v18.0/${form_id}/leads?access_token=${access_token}`
     );
 
     const leads = response.data.data;
-
     const now = new Date();
 
     for (const lead of leads) {
-      // Skip if already exists
       const exists = await Lead.findOne({ "meta.fb_lead_id": lead.id });
       if (exists) continue;
 
@@ -126,7 +120,6 @@ app.get("/lead/webhook", async (req, res) => {
       const defaultStatus = await Status.findOne({ title: "New" });
 
       const ray_id = `ray-id-${uuidv4()}`;
-
       const ip = req.ip || "::1";
       const locationData = await getLocationFromIP(ip);
 
