@@ -90,6 +90,7 @@ app.post("/lead/webhook", async (req, res) => {
       "meta.facebook.form_id": { $exists: true },
     });
 
+    console.log(superadmin, "superadmin object");
     if (
       !superadmin ||
       !superadmin.meta?.facebook?.token ||
