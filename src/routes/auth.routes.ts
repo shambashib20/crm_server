@@ -4,6 +4,7 @@ import {
   LogoutForAllUsers,
   ForgotPasswordController,
   ResetPasswordController,
+  UpdateNewPassword,
 } from "../controllers/auth.controller";
 import express from "express";
 
@@ -15,5 +16,6 @@ authRouter.post("/login/all", LoginForAllUsers);
 authRouter.get("/logout", LogoutForAllUsers);
 authRouter.post("/forget-password", ForgotPasswordController);
 authRouter.post("/reset-password", ResetPasswordController);
+authRouter.patch("/update-password", UpdateNewPassword)
 
 export default authRouter;

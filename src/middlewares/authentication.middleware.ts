@@ -43,8 +43,6 @@ const AuthMiddleware = async (req: any, res: any, next: any) => {
 
     const userRole = await Role.findOne({ _id: user.role._id });
 
-    
-
     req.user = user;
     req.property = property;
 
