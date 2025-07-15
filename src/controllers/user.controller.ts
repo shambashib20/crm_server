@@ -3,6 +3,7 @@ import {
   _allChatAgents,
   _createUserForOrganization,
   _getUserdetails,
+  _uploadProfilePicture,
 } from "../services/user.service";
 import SuccessResponse from "../middlewares/success.middleware";
 
@@ -77,4 +78,28 @@ const FetchChatAgents = async (req: any, res: any) => {
   }
 };
 
-export { GetUserDetails, CreateUserController, FetchChatAgents };
+const UploadProfilePhoto = async (req: any, res: any) => {
+  const userId = req.user._id;
+  const { fileUrl } = req.body;
+  try {
+    const result = await _uploadProfilePicture(fileUrl, userId);
+    return res
+      .status(200)
+      .json(
+        new SuccessResponse(
+          "Profile picture successfully uploaded!",
+          200,
+          result
+        )
+      );
+  } catch (error: any) {
+    return res.status(500).json(new SuccessResponse(error.message, 500));
+  }
+};
+
+export {
+  GetUserDetails,
+  CreateUserController,
+  FetchChatAgents,
+  UploadProfilePhoto,
+};

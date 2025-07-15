@@ -2,6 +2,7 @@ import {
   CreateUserController,
   FetchChatAgents,
   GetUserDetails,
+  UploadProfilePhoto,
 } from "../controllers/user.controller";
 
 import express from "express";
@@ -27,5 +28,11 @@ userRouter.get(
   PermissionMiddleware("manage_leads"),
   FetchChatAgents
 );
+
+userRouter.post(
+  "/profile-details/profile-image",
+  AuthMiddleware,
+  UploadProfilePhoto
+)
 
 export default userRouter;

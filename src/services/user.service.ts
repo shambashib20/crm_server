@@ -4,6 +4,7 @@ import Role from "../models/role.model";
 import { v4 as uuidv4 } from "uuid";
 import Property from "../models/property.model";
 import { LogStatus } from "../dtos/property.dto";
+import File from "../models/file.model";
 
 const _getUserdetails = async (userId: Types.ObjectId) => {
   const user = await User.findById(userId)
@@ -18,6 +19,21 @@ const _getUserdetails = async (userId: Types.ObjectId) => {
 
   if (!user) {
     throw new Error("No user details found!");
+  }
+
+  if (user.meta instanceof Map) {
+    const profilePictureId = user.meta.get("profile_picture_data");
+
+    if (profilePictureId) {
+      const fileData = await File.findById(profilePictureId);
+      if (fileData) {
+        const metaObj = Object.fromEntries(user.meta);
+        metaObj.profile_picture_data = fileData;
+        user.meta = metaObj as any;
+      }
+    } else {
+      user.meta = Object.fromEntries(user.meta) as any;
+    }
   }
 
   return user;
@@ -130,4 +146,46 @@ const _allChatAgents = async (propertyId: Types.ObjectId) => {
   return users;
 };
 
-export { _getUserdetails, _createUserForOrganization, _allChatAgents };
+const _uploadProfilePicture = async (
+  fileUrl: string,
+  userId: Types.ObjectId
+) => {
+  try {
+    const existingUser = await User.findById(userId);
+    if (!existingUser) {
+      throw new Error("No User found!");
+    }
+
+    const existingFile = await File.findOne({ file_url: fileUrl });
+    if (!existingFile) {
+      throw new Error("Profile picture can't be uploaded!");
+    }
+
+    const metaMap =
+      existingUser.meta instanceof Map
+        ? Object.fromEntries(existingUser.meta)
+        : typeof existingUser.meta === "object"
+        ? existingUser.meta
+        : {};
+
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      {
+        meta: {
+          ...metaMap,
+          profile_picture_data: existingFile._id,
+        },
+      },
+      { new: true }
+    );
+  } catch (error: any) {
+    throw error;
+  }
+};
+
+export {
+  _getUserdetails,
+  _createUserForOrganization,
+  _allChatAgents,
+  _uploadProfilePicture,
+};
