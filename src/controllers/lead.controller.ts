@@ -226,9 +226,10 @@ const DeleteOrArchiveForLead = async (req: any, res: any) => {
 
 const LeadsPerStatus = async (req: any, res: any) => {
   try {
-    const { startDate = "", endDate = "" } = req.query;
+    const { startDate = "", endDate = "", agentId = "" } = req.query;
 
     const result = await _getLeadStatusStatsService(
+      new Types.ObjectId(agentId),
       startDate as string,
       endDate as string
     );
@@ -250,5 +251,5 @@ export {
   GetTodaysLeadsGrouped,
   UpdateAssignmentForLead,
   DeleteOrArchiveForLead,
-  LeadsPerStatus
+  LeadsPerStatus,
 };

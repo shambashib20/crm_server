@@ -637,6 +637,7 @@ const _deleteOrArchiveLead = async (rayId: string, userId: Types.ObjectId) => {
 };
 
 const _getLeadStatusStatsService = async (
+  agentId: Types.ObjectId,
   startDate?: string,
   endDate?: string
 ) => {
@@ -650,6 +651,10 @@ const _getLeadStatusStatsService = async (
     if (endDate) {
       matchStage.createdAt.$lte = new Date(`${endDate}T23:59:59.999Z`);
     }
+  }
+
+  if (agentId) {
+    matchStage.assigned_to = new Types.ObjectId(agentId);
   }
 
   const aggregation = await Lead.aggregate([
