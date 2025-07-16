@@ -97,7 +97,12 @@ const HomePageLeads = async (req: any, res: any) => {
       sourceNames,
       search = "",
       sortBy = "",
+      is_table_view,
+      page = 1,
+      limit = 10,
     } = req.body;
+
+    console.log(req.body, "req body");
 
     const labelObjectIds = labelIds.map((id: string) => new Types.ObjectId(id));
     const assignedToObjectIds = assignedTo.map(
@@ -109,7 +114,10 @@ const HomePageLeads = async (req: any, res: any) => {
       assignedToObjectIds,
       sourceNames || [],
       search,
-      sortBy
+      sortBy,
+      is_table_view,
+      parseInt(page),
+      parseInt(limit)
     );
     return res
       .status(200)

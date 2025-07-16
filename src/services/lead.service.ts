@@ -235,7 +235,10 @@ const _homePageLeadService = async (
   assignedToUserIds: Types.ObjectId[],
   sourceNames: string[],
   searchString: string,
-  sortBy: string
+  sortBy: string,
+  is_table_view: boolean,
+  page = 1,
+  limit = 10
 ) => {
   const query: any = {};
 
@@ -249,6 +252,7 @@ const _homePageLeadService = async (
   if (assignedToUserIds.length > 0) {
     query.assigned_to = { $in: assignedToUserIds };
   }
+
   if (sourceNames.length > 0) {
     query["meta.source.title"] = { $in: sourceNames };
   }
@@ -262,12 +266,12 @@ const _homePageLeadService = async (
   }
 
   let sortOptions: Record<string, 1 | -1> = {};
-
   if (sortBy === "by_created_date") {
     sortOptions = { createdAt: -1 };
   }
 
-  const leads = await Lead.find(query)
+  // Step 1: Fetch all leads without skip/limit
+  let fullLeads = await Lead.find(query)
     .sort(sortOptions)
     .populate("status", "name")
     .populate("assigned_to", "name")
@@ -276,26 +280,26 @@ const _homePageLeadService = async (
     .lean();
 
   if (sortBy === "by_next_followup_date") {
-    leads.sort((a, b) => {
+    fullLeads.sort((a, b) => {
       const aNext = getEarliestFollowUpDate(a.follow_ups);
       const bNext = getEarliestFollowUpDate(b.follow_ups);
-
       if (!aNext && !bNext) return 0;
       if (!aNext) return 1;
       if (!bNext) return -1;
-
       return new Date(aNext).getTime() - new Date(bNext).getTime();
     });
-  } else if (sortBy === "by_created_date") {
-    leads.sort(
-      (a, b) =>
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    );
+  }
+
+  let paginatedLeads = fullLeads;
+  if (is_table_view) {
+    const startIndex = (page - 1) * limit;
+    const endIndex = startIndex + limit;
+    paginatedLeads = fullLeads.slice(startIndex, endIndex);
   }
 
   const uniquePropertyIds = [
     ...new Set(
-      leads.map((lead) => lead.property_id?.toString()).filter(Boolean)
+      paginatedLeads.map((lead) => lead.property_id?.toString()).filter(Boolean)
     ),
   ];
 
@@ -304,8 +308,18 @@ const _homePageLeadService = async (
   }).lean();
 
   return {
-    leads,
+    leads: paginatedLeads,
     statuses,
+    ...(is_table_view && {
+      pagination: {
+        total: fullLeads.length,
+        page,
+        limit,
+        totalPages: Math.ceil(fullLeads.length / limit),
+        hasNextPage: page * limit < fullLeads.length,
+        hasPrevPage: page > 1,
+      },
+    }),
   };
 };
 
