@@ -12,6 +12,7 @@ import {
   _deleteOrArchiveLead,
   _getLeadStatusStatsService,
   _archiveThisSessionsLeadService,
+  _getLeadSourceStatsService,
 } from "../services/lead.service";
 
 interface UpdateLabelRequest {
@@ -249,6 +250,26 @@ const LeadsPerStatus = async (req: any, res: any) => {
   }
 };
 
+const LeadsPerSource = async (req: any, res: any) => {
+  try {
+    const { startDate = "", endDate = "", agentId = "" } = req.query;
+
+    const result = await _getLeadSourceStatsService(
+      new Types.ObjectId(agentId),
+      startDate as string,
+      endDate as string
+    );
+
+    return res
+      .status(200)
+      .json(
+        new SuccessResponse("Donut chart data fetched for Source", 200, result)
+      );
+  } catch (err: any) {
+    return res.status(500).json(new SuccessResponse(err.message, 500));
+  }
+};
+
 const ArchiveSessionLeads = async (req: any, res: any) => {
   try {
     const propertyId = req.user.property_id;
@@ -275,4 +296,5 @@ export {
   DeleteOrArchiveForLead,
   LeadsPerStatus,
   ArchiveSessionLeads,
+  LeadsPerSource,
 };

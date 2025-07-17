@@ -719,6 +719,73 @@ const _getLeadStatusStatsService = async (
   };
 };
 
+const _getLeadSourceStatsService = async (
+  agentId: Types.ObjectId,
+  startDate?: string,
+  endDate?: string
+) => {
+  const matchStage: any = {};
+
+  if (startDate || endDate) {
+    matchStage.createdAt = {};
+    if (startDate) {
+      matchStage.createdAt.$gte = new Date(`${startDate}T00:00:00.000Z`);
+    }
+    if (endDate) {
+      matchStage.createdAt.$lte = new Date(`${endDate}T23:59:59.999Z`);
+    }
+  }
+
+  if (agentId) {
+    matchStage.assigned_to = new Types.ObjectId(agentId);
+  }
+
+  const aggregation = await Lead.aggregate([
+    { $match: matchStage },
+    {
+      $group: {
+        _id: "$meta.source._id",
+        count: { $sum: 1 },
+      },
+    },
+    {
+      $lookup: {
+        from: "sources",
+        localField: "_id",
+        foreignField: "_id",
+        as: "sourceDetails",
+      },
+    },
+    {
+      $unwind: {
+        path: "$sourceDetails",
+        preserveNullAndEmptyArrays: true,
+      },
+    },
+    {
+      $project: {
+        _id: 0,
+        label: {
+          $cond: [
+            { $ifNull: ["$sourceDetails.title", false] },
+            "$sourceDetails.title",
+            "Unassigned",
+          ],
+        },
+        value: "$count",
+      },
+    },
+  ]);
+
+  const sources = aggregation.map((item) => item.label || "Unknown");
+  const data = aggregation.map((item) => item.value);
+
+  return {
+    sources,
+    data,
+  };
+};
+
 const _archiveThisSessionsLeadService = async (propertyId: Types.ObjectId) => {
   const result = await Lead.updateMany(
     {
@@ -766,4 +833,5 @@ export {
   _deleteOrArchiveLead,
   _getLeadStatusStatsService,
   _archiveThisSessionsLeadService,
+  _getLeadSourceStatsService,
 };

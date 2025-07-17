@@ -4,6 +4,7 @@ import {
   DeleteOrArchiveForLead,
   FetchLeadDetails,
   GetMissedFollowUpsController,
+  LeadsPerSource,
   LeadsPerStatus,
   NewFollowUp,
   UpdateAssignmentForLead,
@@ -67,17 +68,15 @@ leadRouter.patch(
   DeleteOrArchiveForLead
 );
 
-leadRouter.get(
-  "/leads-per-status",
-  AuthMiddleware,
-  LeadsPerStatus
-);
+leadRouter.get("/leads-per-status", AuthMiddleware, LeadsPerStatus);
+
+leadRouter.get("/leads-per-source", AuthMiddleware, LeadsPerSource);
 
 leadRouter.get(
   "/archive-leads",
   AuthMiddleware,
   PermissionMiddleware("manage_leads"),
   ArchiveSessionLeads
-)
+);
 
 export default leadRouter;
