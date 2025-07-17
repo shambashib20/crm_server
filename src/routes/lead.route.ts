@@ -1,4 +1,5 @@
 import {
+  ArchiveSessionLeads,
   CreateLeadController,
   DeleteOrArchiveForLead,
   FetchLeadDetails,
@@ -70,6 +71,13 @@ leadRouter.get(
   "/leads-per-status",
   AuthMiddleware,
   LeadsPerStatus
+);
+
+leadRouter.get(
+  "/archive-leads",
+  AuthMiddleware,
+  PermissionMiddleware("manage_leads"),
+  ArchiveSessionLeads
 )
 
 export default leadRouter;

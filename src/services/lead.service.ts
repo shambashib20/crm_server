@@ -242,6 +242,8 @@ const _homePageLeadService = async (
 ) => {
   const query: any = {};
 
+  query["meta.status"] = { $ne: "ARCHIVED" };
+
   if (labelIds.length > 0) {
     const existingLabels = await Label.find({ _id: { $in: labelIds } });
     if (existingLabels.length > 0) {
@@ -270,7 +272,6 @@ const _homePageLeadService = async (
     sortOptions = { createdAt: -1 };
   }
 
-  // Step 1: Fetch all leads without skip/limit
   let fullLeads = await Lead.find(query)
     .sort(sortOptions)
     .populate("status", "name")
@@ -389,6 +390,7 @@ const _createLeadService = async (data: CreateLeadDto, ip: string) => {
       ray_id,
       source: defaultSource || "Landing Page Leads",
       location: locationData,
+      status: "ACTIVE",
     },
 
     logs: [
@@ -717,6 +719,41 @@ const _getLeadStatusStatsService = async (
   };
 };
 
+const _archiveThisSessionsLeadService = async (propertyId: Types.ObjectId) => {
+  const result = await Lead.updateMany(
+    {
+      "meta.status": {
+        $ne: "ARCHIVED",
+      },
+    },
+    {
+      $set: {
+        "meta.status": "ARCHIVED",
+      },
+    }
+  );
+
+  const logEntry = {
+    title: "Session Lead Archive",
+    description: `${result.modifiedCount} leads archived successfully.`,
+    status: LogStatus.INFO,
+    meta: {
+      action: "archive-leads",
+      modifiedCount: result.modifiedCount,
+      matchedCount: result.matchedCount,
+    },
+  };
+  await Property.findByIdAndUpdate(propertyId, {
+    $push: { logs: logEntry },
+  });
+
+  return {
+    matchedCount: result.matchedCount,
+    modifiedCount: result.modifiedCount,
+    acknowledged: result.acknowledged,
+  };
+};
+
 export {
   _fetchLeadDetails,
   _createNewFollowUp,
@@ -728,4 +765,5 @@ export {
   _updateAssignedAgentForLead,
   _deleteOrArchiveLead,
   _getLeadStatusStatsService,
+  _archiveThisSessionsLeadService,
 };

@@ -11,6 +11,7 @@ import {
   _updateAssignedAgentForLead,
   _deleteOrArchiveLead,
   _getLeadStatusStatsService,
+  _archiveThisSessionsLeadService,
 } from "../services/lead.service";
 
 interface UpdateLabelRequest {
@@ -101,8 +102,6 @@ const HomePageLeads = async (req: any, res: any) => {
       page = 1,
       limit = 10,
     } = req.body;
-
-    console.log(req.body, "req body");
 
     const labelObjectIds = labelIds.map((id: string) => new Types.ObjectId(id));
     const assignedToObjectIds = assignedTo.map(
@@ -249,6 +248,21 @@ const LeadsPerStatus = async (req: any, res: any) => {
     return res.status(500).json(new SuccessResponse(err.message, 500));
   }
 };
+
+const ArchiveSessionLeads = async (req: any, res: any) => {
+  try {
+    const propertyId = req.user.property_id;
+    const result = await _archiveThisSessionsLeadService(propertyId);
+
+    return res
+      .status(200)
+      .json(
+        new SuccessResponse("Leads archived for this session!", 200, result)
+      );
+  } catch (err: any) {
+    return res.status(500).json(new SuccessResponse(err.message, 500));
+  }
+};
 export {
   FetchLeadDetails,
   NewFollowUp,
@@ -260,4 +274,5 @@ export {
   UpdateAssignmentForLead,
   DeleteOrArchiveForLead,
   LeadsPerStatus,
+  ArchiveSessionLeads,
 };
