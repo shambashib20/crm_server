@@ -589,7 +589,11 @@ const _updateAssignedAgentForLead = async (
   );
 };
 
-const _deleteOrArchiveLead = async (rayId: string, userId: Types.ObjectId) => {
+const _deleteOrArchiveLead = async (
+  rayId: string,
+  userId: Types.ObjectId,
+  deleteReason: string
+) => {
   const existingLead = await Lead.findOne({ "meta.ray_id": rayId });
   if (!existingLead) {
     throw new Error("Lead not found");
@@ -605,6 +609,7 @@ const _deleteOrArchiveLead = async (rayId: string, userId: Types.ObjectId) => {
       meta: {
         ...existingLead.meta,
         status: "ARCHIVED",
+        deleteReason,
       },
     },
     { new: true }

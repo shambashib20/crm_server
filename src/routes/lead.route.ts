@@ -68,9 +68,19 @@ leadRouter.patch(
   DeleteOrArchiveForLead
 );
 
-leadRouter.get("/leads-per-status", AuthMiddleware, LeadsPerStatus);
+leadRouter.get(
+  "/leads-per-status",
+  AuthMiddleware,
+  PermissionMiddleware("manage_leads"),
+  LeadsPerStatus
+);
 
-leadRouter.get("/leads-per-source", AuthMiddleware, LeadsPerSource);
+leadRouter.get(
+  "/leads-per-source",
+  AuthMiddleware,
+  PermissionMiddleware("manage_leads"),
+  LeadsPerSource
+);
 
 leadRouter.get(
   "/archive-leads",

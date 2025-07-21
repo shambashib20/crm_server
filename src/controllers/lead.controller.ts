@@ -215,14 +215,14 @@ const UpdateAssignmentForLead = async (req: any, res: any) => {
 
 const DeleteOrArchiveForLead = async (req: any, res: any) => {
   try {
-    const { rayId } = req.body;
+    const { rayId, deleteReason } = req.body;
     const userId = req.user?._id;
 
     if (!userId) {
       return res.status(400).json({ message: "user id must be sent!" });
     }
 
-    await _deleteOrArchiveLead(rayId, userId);
+    await _deleteOrArchiveLead(rayId, userId, deleteReason);
 
     return res
       .status(200)
