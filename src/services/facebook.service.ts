@@ -8,7 +8,7 @@ import { LabelDto } from "../dtos/label.dto";
 import { Types } from "mongoose";
 import { LeadLogStatus } from "../dtos/lead.dto";
 import Source from "../models/source.model";
-
+import { v4 as uuidv4 } from "uuid";
 const FB_AUTH_URL = "https://www.facebook.com/v21.0/dialog/oauth";
 const FB_TOKEN_URL = "https://graph.facebook.com/v21.0/oauth/access_token";
 
@@ -217,7 +217,7 @@ const _importLeadsByFormId = async (
 
     const existing = await Lead.findOne({ "meta.fb_lead_id": fbLead.id });
     if (existing) continue;
-
+    const ray_id = `ray-id-${uuidv4()}`;
     await Lead.create({
       name: fields.full_name || fields.name,
       phone_number: fields.phone_number,
@@ -229,6 +229,7 @@ const _importLeadsByFormId = async (
         fb_lead_id: fbLead.id,
         form_id: formId,
         source,
+        rayId: ray_id,
       },
       logs: [
         {
