@@ -34,10 +34,11 @@ const _createCustomerFromLead = async (
     phone_number: existingLead.phone_number,
     address: existingLead.address,
     created_by: existingLead.assigned_to,
+    converted_date: now,
     meta: {
       ...existingLead?.meta,
       lead_id: leadId,
-      active: true
+      active: true,
     },
   });
 
