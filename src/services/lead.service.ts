@@ -412,13 +412,14 @@ const _createLeadService = async (data: CreateLeadDto, ip: string) => {
       status: "ACTIVE",
       whatsapp: meta.whatsapp || "",
       course: meta.course || "",
+      stream: meta.stream || "",
       // comment: data.comment,
     },
 
     logs: [
       {
         title: "Lead created",
-        description: `Lead created by ${
+        description: `Lead created by the name of ${
           data?.name || "Unknown"
         } and assigned the status of ${defaultStatus.title}`,
         status: LeadLogStatus.ACTION,
