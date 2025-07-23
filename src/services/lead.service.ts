@@ -290,7 +290,9 @@ const _homePageLeadService = async (
 
     fullLeads = [
       latestLead,
-      ...fullLeads.filter((lead) => lead._id.toString() !== latestLead._id.toString()),
+      ...fullLeads.filter(
+        (lead) => lead._id.toString() !== latestLead._id.toString()
+      ),
     ];
   }
 
@@ -340,7 +342,6 @@ const _homePageLeadService = async (
     }),
   };
 };
-
 
 const _createLeadService = async (data: CreateLeadDto, ip: string) => {
   const now = new Date();
@@ -409,6 +410,9 @@ const _createLeadService = async (data: CreateLeadDto, ip: string) => {
       source: defaultSource || "Landing Page Leads",
       location: locationData,
       status: "ACTIVE",
+      whatsapp: meta.whatsapp || "",
+      course: meta.course || "",
+      // comment: data.comment,
     },
 
     logs: [
