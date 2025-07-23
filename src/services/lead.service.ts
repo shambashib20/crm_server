@@ -280,8 +280,24 @@ const _homePageLeadService = async (
     .populate("labels", "title")
     .lean();
 
+  // Always place the latest created lead on top
+  if (fullLeads.length > 1) {
+    const latestLead = fullLeads.reduce((latest, current) => {
+      return new Date(current.createdAt) > new Date(latest.createdAt)
+        ? current
+        : latest;
+    }, fullLeads[0]);
+
+    fullLeads = [
+      latestLead,
+      ...fullLeads.filter((lead) => lead._id.toString() !== latestLead._id.toString()),
+    ];
+  }
+
+  // Apply secondary sort if required
   if (sortBy === "by_next_followup_date") {
-    fullLeads.sort((a, b) => {
+    const leadsExceptLatest = fullLeads.slice(1); // skip the latest which is already at index 0
+    leadsExceptLatest.sort((a, b) => {
       const aNext = getEarliestFollowUpDate(a.follow_ups);
       const bNext = getEarliestFollowUpDate(b.follow_ups);
       if (!aNext && !bNext) return 0;
@@ -289,6 +305,7 @@ const _homePageLeadService = async (
       if (!bNext) return -1;
       return new Date(aNext).getTime() - new Date(bNext).getTime();
     });
+    fullLeads = [fullLeads[0], ...leadsExceptLatest];
   }
 
   let paginatedLeads = fullLeads;
@@ -323,6 +340,7 @@ const _homePageLeadService = async (
     }),
   };
 };
+
 
 const _createLeadService = async (data: CreateLeadDto, ip: string) => {
   const now = new Date();
