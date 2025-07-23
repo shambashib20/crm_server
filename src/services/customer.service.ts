@@ -11,24 +11,28 @@ const _createCustomerFromLead = async (
 ) => {
   const now = new Date();
 
-  //   const existingCustomer = await Customer.find({ "meta.lead_id": leadId });
-  //   if (existingCustomer) {
-  //     throw new Error("This lead has already been converted into a customer!");
-  //   }
+  // Check if lead already converted (based on meta.status)
   const existingLead = await Lead.findById({ _id: leadId })
     .populate({ path: "assigned_to", select: "name" })
     .lean()
     .exec();
+
   if (!existingLead) {
     throw new Error("Lead does not exist!");
   }
+
+  if (existingLead.meta?.status === "CONVERTED TO CUSTOMER") {
+    throw new Error("This lead has already been converted into a customer!");
+  }
+
   const existingProperty = await Property.findById({ _id: propId });
   if (!existingProperty) {
     throw new Error("Property does not exist!");
   }
 
+  // Create the customer
   const newCustomer = await Customer.create({
-    name: existingLead?.name,
+    name: existingLead.name,
     company_name: existingLead.company_name || "",
     email: existingLead.email || "",
     phone_number: existingLead.phone_number,
@@ -36,20 +40,25 @@ const _createCustomerFromLead = async (
     created_by: existingLead.assigned_to,
     converted_date: now,
     meta: {
-      ...existingLead?.meta,
+      ...existingLead.meta,
       lead_id: leadId,
       active: true,
+      property_id: existingProperty._id,
     },
   });
 
+  // Update lead meta status + logs
   await Lead.findByIdAndUpdate(leadId, {
+    $set: {
+      "meta.status": "CONVERTED TO CUSTOMER",
+    },
     $push: {
       logs: {
         title: "Lead converted to Customer!",
         description: `Lead named ${
-          existingLead?.name || "Unknown"
+          existingLead.name || "Unknown"
         } was converted to Customer successfully by ${
-          (existingLead?.assigned_to as { name?: string })?.name || ""
+          (existingLead.assigned_to as { name?: string })?.name || ""
         }`,
         status: LeadLogStatus.ACTION,
         meta: {},
@@ -59,6 +68,7 @@ const _createCustomerFromLead = async (
     },
   });
 
+  // Update property logs + usage count
   await Property.findByIdAndUpdate(propId, {
     $inc: {
       usage_count: 1,
@@ -67,10 +77,10 @@ const _createCustomerFromLead = async (
       logs: {
         title: "Lead converted to Customer!",
         description: `Lead named ${
-          existingLead?.name || "Unknown"
+          existingLead.name || "Unknown"
         } was converted to Customer successfully by ${
-          (existingLead?.assigned_to as { name?: string })?.name || ""
-        }in this property!`,
+          (existingLead.assigned_to as { name?: string })?.name || ""
+        } in this property!`,
         status: LogStatus.INFO,
         meta: { leadId: existingLead._id },
         createdAt: now,
@@ -82,4 +92,28 @@ const _createCustomerFromLead = async (
   return newCustomer;
 };
 
-export { _createCustomerFromLead };
+const _fetchCustomersInProperty = async (
+  propId: Types.ObjectId,
+  page: number = 1,
+  limit: number = 10
+) => {
+  const skip = (page - 1) * limit;
+
+  const customers = await Customer.find({ "meta.property_id": propId })
+    .skip(skip)
+    .limit(limit)
+    .sort({ createdAt: -1 })
+    .lean()
+    .exec();
+
+  const total = await Customer.countDocuments({ "meta.property_id": propId });
+
+  return {
+    customers,
+    total,
+    page,
+    limit,
+  };
+};
+
+export { _createCustomerFromLead, _fetchCustomersInProperty };
