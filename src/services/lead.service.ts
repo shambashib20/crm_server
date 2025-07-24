@@ -242,7 +242,7 @@ const _homePageLeadService = async (
 ) => {
   const query: any = {};
 
-  query["meta.status"] = { $ne: "ARCHIVED" };
+  query["meta.status"] = { $nin: ["ARCHIVED", "CONVERTED TO CUSTOMER"] };
 
   if (labelIds.length > 0) {
     const existingLabels = await Label.find({ _id: { $in: labelIds } });
