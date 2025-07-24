@@ -1,4 +1,7 @@
-import { CreateCustomerFromLead } from "../controllers/customer.controller";
+import {
+  CreateCustomerFromLead,
+  GetCustomersInProperty,
+} from "../controllers/customer.controller";
 
 import express from "express";
 
@@ -14,4 +17,5 @@ customerRouter.post(
   CreateCustomerFromLead
 );
 
+customerRouter.get("/fetch", AuthMiddleware, GetCustomersInProperty);
 export default customerRouter;

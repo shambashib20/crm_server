@@ -99,21 +99,32 @@ const _fetchCustomersInProperty = async (
 ) => {
   const skip = (page - 1) * limit;
 
-  const customers = await Customer.find({ "meta.property_id": propId })
-    .skip(skip)
-    .limit(limit)
-    .sort({ createdAt: -1 })
-    .lean()
-    .exec();
+  const [customers, total] = await Promise.all([
+    Customer.find({ "meta.property_id": propId })
+      .skip(skip)
+      .limit(limit)
+      .sort({ createdAt: -1 })
+      .lean()
+      .exec(),
+    Customer.countDocuments({ "meta.property_id": propId })
+  ]);
 
-  const total = await Customer.countDocuments({ "meta.property_id": propId });
+  const totalPages = Math.ceil(total / limit);
+  const hasNextPage = page < totalPages;
+  const hasPrevPage = page > 1;
 
   return {
     customers,
-    total,
-    page,
-    limit,
+    pagination: {
+      totalItems: total,
+      totalPages,
+      currentPage: page,
+      limit,
+      hasNextPage,
+      hasPrevPage,
+    }
   };
 };
+
 
 export { _createCustomerFromLead, _fetchCustomersInProperty };
