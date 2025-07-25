@@ -191,7 +191,7 @@ const _updateLabelForLead = async (
 
   const logEntry = {
     title: "Lead Label updated",
-    description: `${updatedLead.name} named lead updated the lead status!`,
+    description: `${updatedLead.name} named lead updated the lead label!`,
     status: LogStatus.INFO,
     meta: {
       leadId,
@@ -201,7 +201,7 @@ const _updateLabelForLead = async (
 
   const leadLogEntry = {
     title: "Lead Label updated",
-    description: `${updatedLead.name} named lead updated the lead status!`,
+    description: `${updatedLead.name} named lead updated the lead label!`,
     status: LeadLogStatus.ACTION,
     meta: {
       leadId,
