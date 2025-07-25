@@ -2,6 +2,7 @@ import {
   CreateStatusInProperty,
   DeleteStatusInProperty,
   FetchStatuses,
+  GetStatusesPaginated,
   UpdateStatusInProperty,
 } from "../controllers/status.controller";
 
@@ -38,6 +39,13 @@ statusRouter.delete(
   AuthMiddleware,
   PermissionMiddleware("view_dashboard"),
   DeleteStatusInProperty
+);
+
+statusRouter.get(
+  "/paginated-statuses",
+  AuthMiddleware,
+  PermissionMiddleware("view_dashboard"),
+  GetStatusesPaginated
 );
 
 export default statusRouter;

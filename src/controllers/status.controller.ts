@@ -4,6 +4,7 @@ import {
   _deleteStatusInProperty,
   _editStatusInProperty,
   _fetchStatusInProperty,
+  _getStatusesPaginated,
 } from "../services/status.service";
 
 const FetchStatuses = async (req: any, res: any) => {
@@ -77,9 +78,32 @@ const DeleteStatusInProperty = async (req: any, res: any) => {
   }
 };
 
+const GetStatusesPaginated = async (req: any, res: any) => {
+  const userPropId = req.user.property_id;
+
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 10;
+
+  try {
+    const result = await _getStatusesPaginated(page, limit, userPropId);
+    return res
+      .status(200)
+      .json(
+        new SuccessResponse(
+          "Paginated statuses fetched in this organization",
+          200,
+          result
+        )
+      );
+  } catch (error: any) {
+    return res.status(500).json(new SuccessResponse(error.message, 500));
+  }
+};
+
 export {
   FetchStatuses,
   CreateStatusInProperty,
   UpdateStatusInProperty,
   DeleteStatusInProperty,
+  GetStatusesPaginated,
 };

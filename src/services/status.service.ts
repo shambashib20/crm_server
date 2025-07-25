@@ -127,7 +127,6 @@ const _deleteStatusInProperty = async (
     throw new Error("Workspace not found");
   }
 
-  
   const deletedStatus = await Status.deleteOne({ _id: statusId });
   await Property.findByIdAndUpdate(propId, {
     $push: {
@@ -144,9 +143,40 @@ const _deleteStatusInProperty = async (
 
   return deletedStatus;
 };
+
+const _getStatusesPaginated = async (
+  page = 1,
+  limit = 10,
+  propId: Types.ObjectId
+) => {
+  const skip = (page - 1) * limit;
+
+  const filter = { property_id: propId };
+
+  const [statuses, total] = await Promise.all([
+    Status.find(filter)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .populate("property_id"),
+    Status.countDocuments(),
+  ]);
+
+  return {
+    statuses,
+    pagination: {
+      total,
+      currentPage: page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    },
+  };
+};
+
 export {
   _fetchStatusInProperty,
   _createStatusInProperty,
   _editStatusInProperty,
   _deleteStatusInProperty,
+  _getStatusesPaginated,
 };
