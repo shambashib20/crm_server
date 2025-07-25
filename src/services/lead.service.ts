@@ -849,6 +849,72 @@ const _archiveThisSessionsLeadService = async (propertyId: Types.ObjectId) => {
   };
 };
 
+const _updateStatusForLead = async (
+  leadId: Types.ObjectId,
+  propId: Types.ObjectId,
+  userId: Types.ObjectId,
+  statusId: Types.ObjectId | string
+) => {
+  const existingUser = await User.findById(userId).select("name");
+  if (!existingUser) {
+    throw new Error("User not found");
+  }
+  const existingStatus = await Status.findById(statusId);
+  if (!existingStatus) {
+    throw new Error("Status not found");
+  }
+
+  const updatedLead = await Lead.findByIdAndUpdate(
+    leadId,
+    { status: statusId },
+    { new: true }
+  ).populate("status");
+
+  if (!updatedLead) {
+    throw new Error("Lead not found!");
+  }
+
+  const logEntry = {
+    title: "Lead Status updated",
+    description: `${updatedLead.name} named lead updated the lead status to ${existingStatus.title}!`,
+    status: LogStatus.INFO,
+    meta: {
+      leadId,
+      userId,
+    },
+  };
+
+  const leadLogEntry = {
+    title: "Lead Status updated",
+    description: `${updatedLead.name} named lead updated the lead status!`,
+    status: LeadLogStatus.ACTION,
+    meta: {
+      leadId,
+      userId,
+    },
+  };
+
+  await Property.findByIdAndUpdate(
+    propId,
+    {
+      $push: { logs: logEntry },
+    },
+    { new: true }
+  );
+
+  await Lead.findByIdAndUpdate(
+    leadId,
+    {
+      $push: {
+        logs: leadLogEntry,
+      },
+    },
+    {
+      new: true,
+    }
+  );
+};
+
 export {
   _fetchLeadDetails,
   _createNewFollowUp,
@@ -862,4 +928,5 @@ export {
   _getLeadStatusStatsService,
   _archiveThisSessionsLeadService,
   _getLeadSourceStatsService,
+  _updateStatusForLead,
 };

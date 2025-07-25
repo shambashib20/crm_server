@@ -9,6 +9,7 @@ import {
   NewFollowUp,
   UpdateAssignmentForLead,
   UpdateLabelForLead,
+  UpdateStatusForLead,
 } from "../controllers/lead.controller";
 
 import express from "express";
@@ -52,6 +53,13 @@ leadRouter.patch(
   AuthMiddleware,
   PermissionMiddleware("manage_leads"),
   UpdateLabelForLead
+);
+
+leadRouter.patch(
+  "/update-status",
+  AuthMiddleware,
+  PermissionMiddleware("manage_leads"),
+  UpdateStatusForLead
 );
 
 leadRouter.patch(

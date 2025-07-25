@@ -13,6 +13,7 @@ import {
   _getLeadStatusStatsService,
   _archiveThisSessionsLeadService,
   _getLeadSourceStatsService,
+  _updateStatusForLead,
 } from "../services/lead.service";
 
 interface UpdateLabelRequest {
@@ -86,6 +87,35 @@ const UpdateLabelForLead = async (req: any, res: any) => {
     return res
       .status(200)
       .json(new SuccessResponse("Followup created successfully", 201));
+  } catch (error: any) {
+    return res.status(500).json(new SuccessResponse(error.message, 500));
+  }
+};
+
+const UpdateStatusForLead = async (req: any, res: any) => {
+  try {
+    const { leadId, statusId } = req.body;
+    const userId = req.user?._id;
+    const propId = req.user?.property_id;
+
+    if (statusId === undefined || statusId === null || statusId === "") {
+      return res
+        .status(400)
+        .json({ message: "statusId must be not be empty!" });
+    }
+
+    await _updateStatusForLead(
+      new Types.ObjectId(leadId),
+      new Types.ObjectId(propId),
+      new Types.ObjectId(userId),
+      new Types.ObjectId(statusId)
+    );
+
+    return res
+      .status(200)
+      .json(
+        new SuccessResponse("Status updated for the lead successfully", 201)
+      );
   } catch (error: any) {
     return res.status(500).json(new SuccessResponse(error.message, 500));
   }
@@ -297,4 +327,5 @@ export {
   LeadsPerStatus,
   ArchiveSessionLeads,
   LeadsPerSource,
+  UpdateStatusForLead,
 };
