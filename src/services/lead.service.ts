@@ -238,9 +238,11 @@ const _homePageLeadService = async (
   sortBy: string,
   is_table_view: boolean,
   page = 1,
-  limit = 10
+  limit = 10,
+  userPropId: Types.ObjectId
 ) => {
   const query: any = {};
+  query.property_id = userPropId;
 
   query["meta.status"] = { $nin: ["ARCHIVED", "CONVERTED TO CUSTOMER"] };
 

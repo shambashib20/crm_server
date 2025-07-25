@@ -134,6 +134,7 @@ const HomePageLeads = async (req: any, res: any) => {
       limit = 10,
     } = req.body;
 
+    const userPropId = req.user.property_id;
     const labelObjectIds = labelIds.map((id: string) => new Types.ObjectId(id));
     const assignedToObjectIds = assignedTo.map(
       (id: string) => new Types.ObjectId(id)
@@ -147,7 +148,8 @@ const HomePageLeads = async (req: any, res: any) => {
       sortBy,
       is_table_view,
       parseInt(page),
-      parseInt(limit)
+      parseInt(limit),
+      userPropId
     );
     return res
       .status(200)
