@@ -116,6 +116,7 @@ const _loginSuperAdmin = async (
       email: user.email,
       phone_number: user.phone_number,
       role: role?.name,
+      property_id: user.property_id
     },
   };
 };
