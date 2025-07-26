@@ -26,8 +26,15 @@ const _fetchPropertyDetails = async (propId: Types.ObjectId) => {
     if (!property) {
       throw new Error("Property not found");
     }
+     const sortedLogs = [...(property.logs || [])].sort(
+      (a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
 
-    return property as PropertyDto;
+
+    return {
+      ...property.toObject(),
+      logs: sortedLogs,
+    } as PropertyDto;
   } catch (error: any) {
     throw new Error(`Failed to fetch property details: ${error.message}`);
   }

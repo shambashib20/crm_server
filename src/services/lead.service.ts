@@ -282,7 +282,29 @@ const _homePageLeadService = async (
     .populate("labels", "title")
     .lean();
 
-  // Always place the latest created lead on top
+  const createdByUserIds = new Set<string>();
+  fullLeads.forEach((lead) => {
+    lead.follow_ups?.forEach((fu) => {
+      const userId = fu.meta?.created_by;
+      if (userId) createdByUserIds.add(userId.toString());
+    });
+  });
+
+  const users = await User.find(
+    { _id: { $in: [...createdByUserIds] } },
+    "name title email"
+  ).lean();
+  const userMap = new Map(users.map((u) => [u._id.toString(), u]));
+
+  fullLeads.forEach((lead) => {
+    lead.follow_ups?.forEach((fu: any) => {
+      const createdBy = fu.meta?.created_by?.toString();
+      if (createdBy && userMap.has(createdBy)) {
+        fu.created_by_user = userMap.get(createdBy);
+      }
+    });
+  });
+
   if (fullLeads.length > 1) {
     const latestLead = fullLeads.reduce((latest, current) => {
       return new Date(current.createdAt) > new Date(latest.createdAt)
@@ -298,7 +320,6 @@ const _homePageLeadService = async (
     ];
   }
 
-  // Apply secondary sort if required
   if (sortBy === "by_next_followup_date") {
     const leadsExceptLatest = fullLeads.slice(1); // skip the latest which is already at index 0
     leadsExceptLatest.sort((a, b) => {
