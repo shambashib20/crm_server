@@ -44,6 +44,7 @@ const _createUserForOrganization = async (
   name: string,
   email: string,
   phone_number: string,
+  password: string,
   property_id: Types.ObjectId,
   userId: Types.ObjectId
 ) => {
@@ -62,7 +63,6 @@ const _createUserForOrganization = async (
     if (!role) throw new Error(`Role '${roleName}' not found.`);
     if (!property) throw new Error(`Property '${property_id}' not found.`);
 
-    // ❗ Check for duplicate email or name
     const existingUser = await User.findOne({
       $or: [{ email }, { name }],
     });
@@ -81,18 +81,17 @@ const _createUserForOrganization = async (
       throw new Error("User creation limit exceeded for this property.");
     }
 
-    // ✅ Create new user
     const user = await User.create({
       name,
       email,
-      password: `${roleName}@123`,
+      password: password?.trim() || `${roleName}@123`,
       phone_number,
       meta: { ray_id: `ray-id-${uuidv4()}` },
       role: role._id,
       property_id,
     });
 
-    // ✅ Update logs + usage count
+    
     const updateOps: any = {
       $push: {
         logs: {

@@ -25,11 +25,19 @@ const GetUserDetails = async (req: any, res: any) => {
 };
 
 const CreateUserController = async (req: any, res: any) => {
-  const { roleName, name, email, phone_number, property_id } = req.body;
+  const { roleName, name, email, phone_number, password, property_id } =
+    req.body;
   const superAdminId = req.user?._id;
 
   try {
-    if (!roleName || !name || !email || !phone_number || !property_id) {
+    if (
+      !roleName ||
+      !name ||
+      !email ||
+      !phone_number ||
+      !password ||
+      !property_id
+    ) {
       return res
         .status(400)
         .json(new SuccessResponse("Missing required fields", 400));
@@ -40,6 +48,7 @@ const CreateUserController = async (req: any, res: any) => {
       name.trim(),
       email.trim(),
       phone_number.trim(),
+      password,
       new Types.ObjectId(property_id),
       new Types.ObjectId(superAdminId)
     );
