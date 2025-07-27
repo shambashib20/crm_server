@@ -1,6 +1,7 @@
 import {
   CreateUserController,
   FetchChatAgents,
+  FetchPaginatedChatAgents,
   GetUserDetails,
   UploadProfilePhoto,
 } from "../controllers/user.controller";
@@ -27,6 +28,13 @@ userRouter.get(
   AuthMiddleware,
   PermissionMiddleware("manage_leads"),
   FetchChatAgents
+);
+
+userRouter.get(
+  "/chat-agents/paginated",
+  AuthMiddleware,
+  PermissionMiddleware("manage_leads"),
+  FetchPaginatedChatAgents
 );
 
 userRouter.post(

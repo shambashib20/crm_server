@@ -91,7 +91,6 @@ const _createUserForOrganization = async (
       property_id,
     });
 
-    
     const updateOps: any = {
       $push: {
         logs: {
@@ -145,6 +144,51 @@ const _allChatAgents = async (propertyId: Types.ObjectId) => {
   return users;
 };
 
+const _allPaginatedChatAgents = async (
+  propertyId: Types.ObjectId,
+  page = 1,
+  limit = 10
+) => {
+  const chatAgentRole = await Role.findOne({ name: "Chat Agent" });
+
+  if (!chatAgentRole) {
+    return {
+      chatAgents: [],
+      pagination: {
+        total: 0,
+        limit,
+        currentPage: page,
+        totalPages: 0,
+      },
+    };
+  }
+
+  const query = {
+    role: chatAgentRole._id,
+    property_id: propertyId,
+  };
+
+  const total = await User.countDocuments(query);
+  const totalPages = Math.ceil(total / limit);
+  const skip = (page - 1) * limit;
+
+  const chatAgents = await User.find(query)
+    .select("name email phone_number createdAt")
+    .skip(skip)
+    .limit(limit)
+    .sort({ createdAt: -1 });
+
+  return {
+    chatAgents,
+    pagination: {
+      total,
+      limit,
+      currentPage: page,
+      totalPages,
+    },
+  };
+};
+
 const _uploadProfilePicture = async (
   fileUrl: string,
   userId: Types.ObjectId
@@ -187,4 +231,5 @@ export {
   _createUserForOrganization,
   _allChatAgents,
   _uploadProfilePicture,
+  _allPaginatedChatAgents,
 };

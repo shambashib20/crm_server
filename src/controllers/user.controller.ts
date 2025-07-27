@@ -1,6 +1,7 @@
 import { Types } from "mongoose";
 import {
   _allChatAgents,
+  _allPaginatedChatAgents,
   _createUserForOrganization,
   _getUserdetails,
   _uploadProfilePicture,
@@ -87,6 +88,30 @@ const FetchChatAgents = async (req: any, res: any) => {
   }
 };
 
+const FetchPaginatedChatAgents = async (req: any, res: any) => {
+  const user = req.user;
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const result = await _allPaginatedChatAgents(
+      new Types.ObjectId(user.property_id),
+      page,
+      limit
+    );
+    return res
+      .status(200)
+      .json(
+        new SuccessResponse(
+          "Chat agents fetched in this organization",
+          200,
+          result
+        )
+      );
+  } catch (error: any) {
+    return res.status(500).json(new SuccessResponse(error.message, 500));
+  }
+};
+
 const UploadProfilePhoto = async (req: any, res: any) => {
   const userId = req.user._id;
   const { fileUrl } = req.body;
@@ -111,4 +136,5 @@ export {
   CreateUserController,
   FetchChatAgents,
   UploadProfilePhoto,
+  FetchPaginatedChatAgents,
 };
