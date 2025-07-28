@@ -1,9 +1,11 @@
+import { Types } from "mongoose";
 import SuccessResponse from "../middlewares/success.middleware";
 import { _createNewUserForOnboarding } from "../services/onboarding.service";
 import {
   _createPropertyForOnboarding,
   _fetchPropertyDetails,
   _fetchPropertyLogs,
+  _updatePropertyById,
 } from "../services/property.service";
 
 const FetchPropertyLogs = async (req: any, res: any) => {
@@ -81,4 +83,33 @@ const CreatePropertyForOnboarding = async (req: any, res: any) => {
   }
 };
 
-export { FetchPropertyLogs, PropertyDetails, CreatePropertyForOnboarding };
+const UpdatePropertyById = async (req: any, res: any) => {
+  try {
+    const propId = req.body.propId;
+    const { name, description, status } = req.body;
+    const performedBy = req.user?.name || "System";
+
+    const response = await _updatePropertyById(
+      new Types.ObjectId(propId),
+      { name, description, status },
+      performedBy
+    );
+
+    return res
+      .status(201)
+      .json(
+        new SuccessResponse("Workspace updated successfully", 201, response)
+      );
+  } catch (error: any) {
+    return res
+      .status(500)
+      .json(new SuccessResponse(error.message || "Something went wrong", 500));
+  }
+};
+
+export {
+  FetchPropertyLogs,
+  PropertyDetails,
+  CreatePropertyForOnboarding,
+  UpdatePropertyById,
+};

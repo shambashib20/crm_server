@@ -26,10 +26,10 @@ const _fetchPropertyDetails = async (propId: Types.ObjectId) => {
     if (!property) {
       throw new Error("Property not found");
     }
-     const sortedLogs = [...(property.logs || [])].sort(
-      (a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    const sortedLogs = [...(property.logs || [])].sort(
+      (a: any, b: any) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     );
-
 
     return {
       ...property.toObject(),
@@ -82,8 +82,64 @@ const _createPropertyForOnboarding = async (
   }
 };
 
+const _updatePropertyById = async (
+  propId: Types.ObjectId,
+  updatePayload: Partial<Pick<PropertyDto, "name" | "description" | "status">>,
+  performedBy: string
+) => {
+  try {
+    const now = new Date();
+    const property = await Property.findById(propId);
+    if (!property) {
+      throw new Error("Property not found");
+    }
+
+    const updates: string[] = [];
+
+    if (updatePayload.name && updatePayload.name !== property.name) {
+      updates.push(
+        `Name changed from '${property.name}' to '${updatePayload.name}'`
+      );
+      property.name = updatePayload.name;
+    }
+    if (
+      updatePayload.description &&
+      updatePayload.description !== property.description
+    ) {
+      updates.push(`Description updated`);
+      property.description = updatePayload.description;
+    }
+    if (updatePayload.status && updatePayload.status !== property.status) {
+      updates.push(
+        `Status changed from '${property.status}' to '${updatePayload.status}'`
+      );
+      property.status = updatePayload.status;
+    }
+
+    if (updates.length > 0) {
+      property.logs.push({
+        title: "Property Updated",
+        description: updates.join(", "),
+        status: LogStatus.INFO,
+        meta: {
+          updatedBy: performedBy,
+          action: "Update Property",
+        },
+        createdAt: now,
+      });
+    }
+
+    await property.save();
+
+    return property;
+  } catch (error: any) {
+    throw new Error(`Failed to update property: ${error.message}`);
+  }
+};
+
 export {
   _fetchPropertyLogs,
   _fetchPropertyDetails,
   _createPropertyForOnboarding,
+  _updatePropertyById,
 };

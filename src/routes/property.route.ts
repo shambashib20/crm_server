@@ -2,6 +2,7 @@ import {
   CreatePropertyForOnboarding,
   FetchPropertyLogs,
   PropertyDetails,
+  UpdatePropertyById,
 } from "../controllers/property.controller";
 
 import express from "express";
@@ -20,5 +21,12 @@ propertyRouter.get(
 propertyRouter.get("/workspace-details", AuthMiddleware, PropertyDetails);
 
 propertyRouter.post("/onboarding", CreatePropertyForOnboarding);
+
+propertyRouter.patch(
+  "/update",
+  AuthMiddleware,
+  PermissionMiddleware("manage_leads"),
+  UpdatePropertyById
+);
 
 export default propertyRouter;
