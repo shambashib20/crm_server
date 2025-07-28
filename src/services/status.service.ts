@@ -35,12 +35,15 @@ const _createStatusInProperty = async (
     throw new Error(
       `Status with title "${title}" already exists in this property.`
     );
-  }
+  }    
 
   const newStatus = new Status({
     title,
     description,
     property_id: propertyId,
+    meta: {
+      is_active: true
+    }
   });
 
   await Property.findByIdAndUpdate(
