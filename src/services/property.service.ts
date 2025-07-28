@@ -90,26 +90,35 @@ const _updatePropertyById = async (
   try {
     const now = new Date();
     const property = await Property.findById(propId);
+
     if (!property) {
       throw new Error("Property not found");
     }
 
     const updates: string[] = [];
 
-    if (updatePayload.name && updatePayload.name !== property.name) {
+    if (
+      typeof updatePayload.name === "string" &&
+      updatePayload.name !== property.name
+    ) {
       updates.push(
         `Name changed from '${property.name}' to '${updatePayload.name}'`
       );
       property.name = updatePayload.name;
     }
+
     if (
-      updatePayload.description &&
+      typeof updatePayload.description === "string" &&
       updatePayload.description !== property.description
     ) {
-      updates.push(`Description updated`);
+      updates.push("Description updated");
       property.description = updatePayload.description;
     }
-    if (updatePayload.status && updatePayload.status !== property.status) {
+
+    if (
+      typeof updatePayload.status === "string" &&
+      updatePayload.status !== property.status
+    ) {
       updates.push(
         `Status changed from '${property.status}' to '${updatePayload.status}'`
       );
