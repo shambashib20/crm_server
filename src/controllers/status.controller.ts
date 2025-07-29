@@ -42,14 +42,15 @@ const CreateStatusInProperty = async (req: any, res: any) => {
 
 const UpdateStatusInProperty = async (req: any, res: any) => {
   const propId = req.user.property_id;
-  const { statusId, title, description } = req.body;
+  const { statusId, title, description, meta } = req.body;
 
   try {
     const result = await _editStatusInProperty(
       statusId,
       title,
       description,
-      propId
+      propId,
+      meta?.is_active
     );
     return res
       .status(200)
