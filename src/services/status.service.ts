@@ -73,23 +73,29 @@ const _editStatusInProperty = async (
   statusId: Types.ObjectId,
   title: string,
   description: string,
-  propertyId: Types.ObjectId
+  propertyId: Types.ObjectId,
+  is_active?: boolean // <-- Add this
 ) => {
   const now = new Date();
+
   const status = await Status.findById(statusId);
   if (!status) {
     throw new Error("Status not found.");
   }
 
+  const updatePayload: any = {
+    title,
+    description,
+    updatedAt: now,
+  };
+
+  if (typeof is_active === "boolean") {
+    updatePayload["meta.is_active"] = is_active;
+  }
+
   const updatedStatus = await Status.findByIdAndUpdate(
     statusId,
-    {
-      $set: {
-        title,
-        description,
-        updatedAt: now,
-      },
-    },
+    { $set: updatePayload },
     { new: true }
   );
 
@@ -109,6 +115,7 @@ const _editStatusInProperty = async (
 
   return updatedStatus;
 };
+
 
 const _deleteStatusInProperty = async (
   statusId: Types.ObjectId,
