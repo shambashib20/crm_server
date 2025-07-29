@@ -23,6 +23,8 @@ import { LeadLogStatus } from "./dtos/lead.dto";
 import Property from "./models/property.model";
 import { LogStatus } from "./dtos/property.dto";
 import "./cron-jobs/cron";
+import Label from "./models/label.model";
+import Role from "./models/role.model";
 const app: Application = express();
 app.use(
   cors({
@@ -70,15 +72,74 @@ app.listen(PORT, async () => {
 
   if (process.env.SEED_DB === "true") {
     try {
-      console.log("🌱 Running database seeders...");
-      await seedRolesAndPermissions();
-      await seedDefaultProperty();
-      await seedSuperadminUser();
-      await seedDefaultLeadStatuses();
-      await seedDefaultLabelStatuses();
-      console.log("✅ Database seeding completed.");
+      console.log("🌱 Checking if seeding is necessary...");
+
+      const existingProperty = await Property.findOne({
+        name: "MR Group of Colleges and Hospitals",
+      });
+
+      if (!existingProperty) {
+        console.log("🔨 Seeding property...");
+        await seedDefaultProperty();
+      } else {
+        console.log("ℹ️ Property already exists. Skipping property seeder.");
+      }
+
+      const finalProperty =
+        existingProperty ||
+        (await Property.findOne({
+          name: "MR Group of Colleges and Hospitals",
+        }));
+
+      if (finalProperty) {
+        const labelCount = await Label.countDocuments({
+          property_id: finalProperty._id,
+        });
+
+        const statusCount = await Status.countDocuments({
+          property_id: finalProperty._id,
+        });
+
+        if (labelCount === 0) {
+          console.log("🔨 Seeding labels...");
+          await seedDefaultLabelStatuses();
+        } else {
+          console.log("ℹ️ Labels already exist. Skipping label seeder.");
+        }
+
+        if (statusCount === 0) {
+          console.log("🔨 Seeding statuses...");
+          await seedDefaultLeadStatuses();
+        } else {
+          console.log("ℹ️ Statuses already exist. Skipping status seeder.");
+        }
+      } else {
+        console.error(
+          "❌ Cannot proceed with label/status seeding: Property not found."
+        );
+      }
+
+      const superadmin = await User.findOne({ name: "MR Superadmin" });
+
+      if (!superadmin) {
+        console.log("🔨 Seeding superadmin user...");
+        await seedSuperadminUser();
+      } else {
+        console.log("ℹ️ Superadmin user already exists. Skipping seeder.");
+      }
+
+      const rolesCount = await Role.countDocuments();
+
+      if (rolesCount === 0) {
+        console.log("🔨 Seeding roles and permissions...");
+        await seedRolesAndPermissions();
+      } else {
+        console.log("ℹ️ Roles already exist. Skipping role seeder.");
+      }
+
+      console.log("✅ Seeder checks completed.");
     } catch (error) {
-      console.error("❌ Error during seeding:", error);
+      console.error("❌ Error during seeding checks:", error);
     }
   }
 });
