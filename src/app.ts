@@ -119,7 +119,9 @@ app.listen(PORT, async () => {
         );
       }
 
-      const superadmin = await User.findOne({ name: "MR Superadmin" });
+      const superadmin = await User.findOne({
+        property_id: finalProperty?._id,
+      });
 
       if (!superadmin) {
         console.log("🔨 Seeding superadmin user...");
