@@ -35,15 +35,15 @@ const _createStatusInProperty = async (
     throw new Error(
       `Status with title "${title}" already exists in this property.`
     );
-  }    
+  }
 
   const newStatus = new Status({
     title,
     description,
     property_id: propertyId,
     meta: {
-      is_active: true
-    }
+      is_active: true,
+    },
   });
 
   await Property.findByIdAndUpdate(
@@ -130,12 +130,22 @@ const _deleteStatusInProperty = async (
     throw new Error("Workspace not found");
   }
 
-  const deletedStatus = await Status.deleteOne({ _id: statusId });
+  const updatedStatus = await Status.findByIdAndUpdate(
+    statusId,
+    {
+      $set: {
+        "meta.is_active": false,
+        updatedAt: new Date(),
+      },
+    },
+    { new: true }
+  );
+
   await Property.findByIdAndUpdate(propId, {
     $push: {
       logs: {
-        title: "Status deleted!",
-        description: `The Status was deleted.`,
+        title: "Status deactivated!",
+        description: `The status "${status.title}" was marked as inactive.`,
         status: LogStatus.ACTION,
         meta: { statusId },
         createdAt: new Date(),
@@ -144,7 +154,7 @@ const _deleteStatusInProperty = async (
     },
   });
 
-  return deletedStatus;
+  return updatedStatus;
 };
 
 const _getStatusesPaginated = async (
