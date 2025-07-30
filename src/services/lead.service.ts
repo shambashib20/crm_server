@@ -65,7 +65,8 @@ const _fetchLeadDetails = async (leadId: Types.ObjectId) => {
   const existingLead = await Lead.findById(leadId)
     .populate("labels")
     .populate("status")
-    .populate("assigned_to", "name email");
+    .populate("assigned_to", "name email")
+    .populate("assigned_by", "name email");
 
   if (!existingLead) {
     throw new Error("Lead not found!");
