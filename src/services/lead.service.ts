@@ -349,6 +349,7 @@ const _homePageLeadService = async (
 
   const statuses = await Status.find({
     property_id: { $in: uniquePropertyIds },
+    "meta.is_active": true,
   }).lean();
 
   return {
