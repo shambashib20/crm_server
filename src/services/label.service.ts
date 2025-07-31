@@ -56,7 +56,9 @@ const _createLabelInProperty = async (
 };
 
 const _fetchLabelsInProperty = async (propId: Types.ObjectId) => {
-  const labels = await Label.find();
+  const labels = await Label.find({
+    property_id: propId
+  });
 
   const property = await Property.findOne({
     _id: propId,
