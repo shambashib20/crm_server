@@ -53,21 +53,34 @@ const _createSource = async (
   return source;
 };
 
-const _getAllSources = async (page = 1, limit = 10) => {
+const _getAllSources = async (
+  propId: Types.ObjectId,
+  page: number = 1,
+  limit: number = 10
+) => {
   const skip = (page - 1) * limit;
 
   const [sources, total] = await Promise.all([
-    Source.find().sort({ createdAt: -1 }).skip(skip).limit(limit),
-    Source.countDocuments(),
+    Source.find({ property_id: propId })
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit),
+    Source.countDocuments({ property_id: propId }),
   ]);
+
+  const totalPages = Math.ceil(total / limit);
+  const hasNextPage = page < totalPages;
+  const hasPrevPage = page > 1;
 
   return {
     sources,
     pagination: {
-      total,
+      totalItems: total,
+      totalPages,
       currentPage: page,
       limit,
-      totalPages: Math.ceil(total / limit),
+      hasNextPage,
+      hasPrevPage,
     },
   };
 };

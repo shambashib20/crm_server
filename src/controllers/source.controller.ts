@@ -26,10 +26,11 @@ const CreateSourceController = async (req: any, res: any) => {
 
 const FetchSourcesController = async (req: any, res: any) => {
   try {
+    const propId = req.user.property_id;
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 10;
 
-    const data = await _getAllSources(page, limit);
+    const data = await _getAllSources(propId,page, limit);
 
     return res
       .status(200)
