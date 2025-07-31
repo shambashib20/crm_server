@@ -22,7 +22,12 @@ const _createNewUserForOnboarding = async (
   orgName: string,
   orgDescription: string
 ) => {
-  const validRoles = new Set(["Admin", "Lead Manager", "Chat Agent"]);
+  const validRoles = new Set([
+    "Superadmin",
+    "Admin",
+    "Lead Manager",
+    "Chat Agent",
+  ]);
   if (!validRoles.has(roleName)) {
     throw new Error(`Unsupported role: ${roleName}`);
   }
@@ -55,7 +60,7 @@ const _createNewUserForOnboarding = async (
       is_verified: false,
       reported: false,
       is_banned: false,
-      status: PropertyStatus.INACTIVE,
+      status: PropertyStatus.ACTIVE,
     });
     await newProperty.save();
     const role = await Role.findOne({

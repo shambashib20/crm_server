@@ -242,39 +242,58 @@ const _homePageLeadService = async (
   limit = 10,
   userPropId: Types.ObjectId
 ) => {
-  const query: any = {};
-  query.property_id = userPropId;
+  const query: any = {
+    property_id: userPropId,
+    "meta.status": { $nin: ["ARCHIVED", "CONVERTED TO CUSTOMER"] },
+  };
 
-  query["meta.status"] = { $nin: ["ARCHIVED", "CONVERTED TO CUSTOMER"] };
-
+  let validLabelIds: Types.ObjectId[] = [];
   if (labelIds.length > 0) {
-    const existingLabels = await Label.find({ _id: { $in: labelIds } });
-    if (existingLabels.length > 0) {
-      query.labels = { $in: labelIds };
+    const existingLabels = await Label.find({
+      _id: { $in: labelIds },
+      property_id: userPropId,
+    }).lean();
+    validLabelIds = existingLabels.map((label) => label._id);
+    if (validLabelIds.length > 0) {
+      query.labels = { $in: validLabelIds };
     }
   }
 
+  // ✅ Secure Assigned User Filtering
+  let validUserIds: Types.ObjectId[] = [];
   if (assignedToUserIds.length > 0) {
-    query.assigned_to = { $in: assignedToUserIds };
+    const existingUsers = await User.find({
+      _id: { $in: assignedToUserIds },
+      property_id: userPropId,
+    }).lean();
+    validUserIds = existingUsers.map((user) => user._id);
+    if (validUserIds.length > 0) {
+      query.assigned_to = { $in: validUserIds };
+    }
   }
 
+  // ✅ Source Names
   if (sourceNames.length > 0) {
     query["meta.source.title"] = { $in: sourceNames };
   }
 
-  if (searchString && searchString.trim() !== "") {
+  // ✅ Search
+  if (searchString?.trim()) {
+    const searchRegex = new RegExp(searchString.trim(), "i");
     query.$or = [
-      { name: { $regex: new RegExp(searchString.trim(), "i") } },
-      { phone_number: { $regex: new RegExp(searchString.trim(), "i") } },
-      { email: { $regex: new RegExp(searchString.trim(), "i") } },
+      { name: { $regex: searchRegex } },
+      { phone_number: { $regex: searchRegex } },
+      { email: { $regex: searchRegex } },
     ];
   }
 
+  // ✅ Sort options
   let sortOptions: Record<string, 1 | -1> = {};
   if (sortBy === "by_created_date") {
     sortOptions = { createdAt: -1 };
   }
 
+  // ✅ Get full list of leads
   let fullLeads = await Lead.find(query)
     .sort(sortOptions)
     .populate("status", "name")
@@ -283,6 +302,11 @@ const _homePageLeadService = async (
     .populate("labels", "title")
     .lean();
 
+  fullLeads = (fullLeads || [])
+    .filter(Boolean) 
+    .filter((lead) => lead._id && lead.name && lead.email);
+
+  // ✅ Extract user info for follow ups
   const createdByUserIds = new Set<string>();
   fullLeads.forEach((lead) => {
     lead.follow_ups?.forEach((fu) => {
@@ -295,6 +319,7 @@ const _homePageLeadService = async (
     { _id: { $in: [...createdByUserIds] } },
     "name title email"
   ).lean();
+
   const userMap = new Map(users.map((u) => [u._id.toString(), u]));
 
   fullLeads.forEach((lead) => {
@@ -306,12 +331,15 @@ const _homePageLeadService = async (
     });
   });
 
+  // ✅ Push latest created lead to top
   if (fullLeads.length > 1) {
-    const latestLead = fullLeads.reduce((latest, current) => {
-      return new Date(current.createdAt) > new Date(latest.createdAt)
-        ? current
-        : latest;
-    }, fullLeads[0]);
+    const latestLead = fullLeads.reduce(
+      (latest, current) =>
+        new Date(current.createdAt) > new Date(latest.createdAt)
+          ? current
+          : latest,
+      fullLeads[0]
+    );
 
     fullLeads = [
       latestLead,
@@ -321,8 +349,9 @@ const _homePageLeadService = async (
     ];
   }
 
+  // ✅ Sort by next follow-up if requested
   if (sortBy === "by_next_followup_date") {
-    const leadsExceptLatest = fullLeads.slice(1); // skip the latest which is already at index 0
+    const leadsExceptLatest = fullLeads.slice(1); // skip latest lead
     leadsExceptLatest.sort((a, b) => {
       const aNext = getEarliestFollowUpDate(a.follow_ups);
       const bNext = getEarliestFollowUpDate(b.follow_ups);
@@ -334,6 +363,7 @@ const _homePageLeadService = async (
     fullLeads = [fullLeads[0], ...leadsExceptLatest];
   }
 
+  // ✅ Paginate only in table view
   let paginatedLeads = fullLeads;
   if (is_table_view) {
     const startIndex = (page - 1) * limit;
@@ -341,14 +371,9 @@ const _homePageLeadService = async (
     paginatedLeads = fullLeads.slice(startIndex, endIndex);
   }
 
-  const uniquePropertyIds = [
-    ...new Set(
-      paginatedLeads.map((lead) => lead.property_id?.toString()).filter(Boolean)
-    ),
-  ];
-
+  // ✅ Fetch statuses scoped to current property
   const statuses = await Status.find({
-    property_id: { $in: uniquePropertyIds },
+    property_id: userPropId,
     "meta.is_active": true,
   }).lean();
 
