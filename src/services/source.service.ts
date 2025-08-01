@@ -85,4 +85,58 @@ const _getAllSources = async (
   };
 };
 
-export { _createSource, _getAllSources };
+const _updateSource = async (
+  propId: Types.ObjectId,
+  sourceId: Types.ObjectId,
+  updates: Partial<{
+    title: string;
+    description: string;
+    meta: any;
+  }>
+) => {
+  const source = await Source.findOneAndUpdate(
+    {
+      _id: sourceId,
+      property_id: propId,
+    },
+    {
+      $set: updates,
+    },
+    {
+      new: true,
+    }
+  );
+
+  if (!source) {
+    throw new Error("Source not found for the given property");
+  }
+
+  // Optional: Log the update
+  const superadminRole = await Role.findOne({ name: "Superadmin" });
+  if (superadminRole) {
+    const superadmin = await User.findOne({
+      property_id: propId,
+      role: superadminRole._id,
+    });
+
+    if (superadmin) {
+      await Property.findByIdAndUpdate(propId, {
+        $push: {
+          logs: {
+            title: "Source Updated",
+            description: `Source with title "${source.title}" has been updated.`,
+            status: LogStatus.ACTION,
+            meta: {
+              source_id: source._id,
+              updated_by: superadmin._id,
+            },
+          },
+        },
+      });
+    }
+  }
+
+  return source;
+};
+
+export { _createSource, _getAllSources, _updateSource };
