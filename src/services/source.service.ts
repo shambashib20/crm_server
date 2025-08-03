@@ -139,4 +139,44 @@ const _updateSource = async (
   return source;
 };
 
-export { _createSource, _getAllSources, _updateSource };
+const _deleteSource = async (
+  propId: Types.ObjectId,
+  sourceId: Types.ObjectId
+) => {
+  const source = await Source.findOneAndDelete({
+    _id: sourceId,
+    property_id: propId,
+  });
+
+  if (!source) {
+    throw new Error("Source not found for the given property");
+  }
+
+  const superadminRole = await Role.findOne({ name: "Superadmin" });
+  if (superadminRole) {
+    const superadmin = await User.findOne({
+      property_id: propId,
+      role: superadminRole._id,
+    });
+
+    if (superadmin) {
+      await Property.findByIdAndUpdate(propId, {
+        $push: {
+          logs: {
+            title: "Source Deleted",
+            description: `Source with title "${source.title}" has been deleted.`,
+            status: LogStatus.ACTION,
+            meta: {
+              source_id: source._id,
+              deleted_by: superadmin._id,
+            },
+          },
+        },
+      });
+    }
+  }
+
+  return source;
+};
+
+export { _createSource, _getAllSources, _updateSource, _deleteSource };

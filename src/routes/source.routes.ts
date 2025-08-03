@@ -1,5 +1,6 @@
 import {
   CreateSourceController,
+  DeleteSourceController,
   FetchSourcesController,
   UpdateSourceController,
 } from "../controllers/source.controller";
@@ -29,6 +30,13 @@ sourceRouter.put(
   AuthMiddleware,
   PermissionMiddleware("manage_sources_list"),
   UpdateSourceController
+);
+
+sourceRouter.delete(
+  "/delete/:sourceId",
+  AuthMiddleware,
+  PermissionMiddleware("manage_sources_list"),
+  DeleteSourceController
 );
 
 export default sourceRouter;

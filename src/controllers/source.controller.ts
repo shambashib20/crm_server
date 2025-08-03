@@ -1,6 +1,7 @@
 import { Types } from "mongoose";
 import {
   _createSource,
+  _deleteSource,
   _getAllSources,
   _updateSource,
 } from "../services/source.service";
@@ -86,8 +87,29 @@ const UpdateSourceController = async (req: any, res: any) => {
   }
 };
 
+const DeleteSourceController = async (req: any, res: any) => {
+  try {
+    const { sourceId } = req.params;
+    const user = req.user;
+
+    const deleted = await _deleteSource(
+      new Types.ObjectId(user.property_id),
+      new Types.ObjectId(sourceId)
+    );
+
+    return res
+      .status(200)
+      .json(new SuccessResponse("Source deleted successfully", 200, deleted));
+  } catch (error: any) {
+    return res
+      .status(500)
+      .json(new SuccessResponse(error.message || "Something went wrong", 500));
+  }
+};
+
 export {
   CreateSourceController,
   FetchSourcesController,
   UpdateSourceController,
+  DeleteSourceController
 };
