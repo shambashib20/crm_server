@@ -5,9 +5,12 @@ const _uploadFileService = async (
   file: Express.Multer.File,
   uploadedBy?: string
 ) => {
+  const isAudio = file.mimetype.startsWith("audio/");
+  const isVideo = file.mimetype.startsWith("video/");
   const uploadResult = await imagekit.upload({
     file: file.buffer,
     fileName: file.originalname,
+    useUniqueFileName: true,
   });
 
   const savedFile = await File.create({
@@ -18,6 +21,8 @@ const _uploadFileService = async (
     uploaded_by: uploadedBy,
     meta: {
       size: file.size,
+      is_audio: isAudio,
+      is_video: isVideo,
     },
   });
 
