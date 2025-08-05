@@ -144,7 +144,12 @@ const facebookCallback = async (req: any, res: any) => {
       },
     });
 
-    // console.log(updatedUser, "updateduser");
+    res.send(`
+  <script>
+    localStorage.setItem('fb_integration_success', 'true');
+    window.close();
+  </script>
+`);
 
     return res.json({
       success: true,
