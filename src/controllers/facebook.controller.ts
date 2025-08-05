@@ -25,7 +25,7 @@ let ACCESS_TOKEN: string = "";
 
 const facebookLogin = (req: any, res: any) => {
   const user_id = req.user._id;
-  console.log(REDIRECT_URI, "uri");
+
   const authUrl = `${FB_AUTH_URL}?client_id=${APP_ID}&redirect_uri=${REDIRECT_URI}&state=${user_id}${user_id}&scope=pages_show_list,pages_read_engagement,leads_retrieval`;
   return res.json({ login_url: authUrl });
 };
