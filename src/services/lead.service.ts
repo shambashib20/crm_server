@@ -447,7 +447,6 @@ const _createLeadService = async (data: CreateLeadDto, ip: string) => {
       throw new Error(`This Labels does not exists: ${invalidIds.join(", ")}`);
     }
   }
-  console.log(data.status, "data.status");
 
   const lead = await Lead.create({
     ...data,
