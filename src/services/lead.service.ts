@@ -303,7 +303,7 @@ const _homePageLeadService = async (
     .lean();
 
   fullLeads = (fullLeads || [])
-    .filter(Boolean) 
+    .filter(Boolean)
     .filter((lead) => lead._id && lead.name && lead.email);
 
   // ✅ Extract user info for follow ups
@@ -447,11 +447,12 @@ const _createLeadService = async (data: CreateLeadDto, ip: string) => {
       throw new Error(`This Labels does not exists: ${invalidIds.join(", ")}`);
     }
   }
+  console.log(data.status, "data.status");
 
   const lead = await Lead.create({
     ...data,
     labels: data.labels?.map((id) => new Types.ObjectId(id)) || [],
-    status: defaultStatus._id || data.status,
+    status: data.status || defaultStatus._id,
     assigned_to: data.assigned_to ? new Types.ObjectId(data.assigned_to) : null,
     assigned_by: data.assigned_by ? new Types.ObjectId(data.assigned_by) : null,
     property_id: defaultStatus.property_id,
