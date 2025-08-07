@@ -27,7 +27,7 @@ cron.schedule("*/15 * * * *", async () => {
 //   await sendMarketingEmails();
 // });
 
-// cron.schedule("*/2 * * * *", async () => {
-//   console.log("⏰ Running test email campaign job (every 2 mins)...");
-//   await sendMarketingEmails();
-// });
+cron.schedule("0 0 * * *", async () => {
+  console.log("⏰ Running daily email campaign job at midnight...");
+  await sendMarketingEmails();
+});
