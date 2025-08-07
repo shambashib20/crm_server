@@ -451,7 +451,7 @@ const _createLeadService = async (data: CreateLeadDto, ip: string) => {
   const lead = await Lead.create({
     ...data,
     labels: data.labels?.map((id) => new Types.ObjectId(id)) || [],
-    status: defaultStatus._id,
+    status: defaultStatus._id || data.status,
     assigned_to: data.assigned_to ? new Types.ObjectId(data.assigned_to) : null,
     assigned_by: data.assigned_by ? new Types.ObjectId(data.assigned_by) : null,
     property_id: defaultStatus.property_id,
