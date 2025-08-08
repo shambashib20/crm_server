@@ -296,7 +296,10 @@ const _homePageLeadService = async (
   // ✅ Get full list of leads
   let fullLeads = await Lead.find(query)
     .sort(sortOptions)
-    .populate("status", "name")
+    .populate({
+      path: "status",
+      select: "_id title", 
+    })
     .populate("assigned_to", "name")
     .populate("assigned_by", "name")
     .populate("labels", "title")
