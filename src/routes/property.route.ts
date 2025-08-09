@@ -2,6 +2,7 @@ import {
   CreatePropertyForOnboarding,
   FetchPropertyLogs,
   PropertyDetails,
+  TogglePropertyLogReadStatus,
   UpdatePropertyById,
 } from "../controllers/property.controller";
 
@@ -27,6 +28,13 @@ propertyRouter.patch(
   AuthMiddleware,
   PermissionMiddleware("manage_leads"),
   UpdatePropertyById
+);
+
+propertyRouter.put(
+  "/logs/read",
+  AuthMiddleware,
+  PermissionMiddleware("manage_leads"),
+  TogglePropertyLogReadStatus
 );
 
 export default propertyRouter;

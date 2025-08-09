@@ -9,6 +9,7 @@ enum LogStatus {
 }
 
 interface Log {
+  [x: string]: any;
   title: string;
   description: string;
   status: LogStatus;
