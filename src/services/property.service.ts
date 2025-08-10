@@ -11,7 +11,11 @@ const _fetchPropertyLogs = async (propId: Types.ObjectId) => {
       throw new Error("Property not found");
     }
 
-    return property.logs;
+    const unreadLogs = property.logs.filter(
+      (log: any) => log.meta?.status !== "READ"
+    );
+
+    return unreadLogs;
   } catch (error: any) {
     throw new Error(`Failed to fetch logs: ${error.message}`);
   }
@@ -26,7 +30,12 @@ const _fetchPropertyDetails = async (propId: Types.ObjectId) => {
     if (!property) {
       throw new Error("Property not found");
     }
-    const sortedLogs = [...(property.logs || [])].sort(
+
+    const unreadLogs = (property.logs || []).filter(
+      (log: any) => !(log.meta && log.meta.readStatus === "READ")
+    );
+
+    const sortedLogs = [...unreadLogs].sort(
       (a: any, b: any) =>
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     );
@@ -135,7 +144,7 @@ const _updatePropertyById = async (
           action: "Update Property",
         },
         createdAt: now,
-      });
+      } as any);
     }
 
     await property.save();
@@ -146,9 +155,42 @@ const _updatePropertyById = async (
   }
 };
 
+const _markPropertyLogAsRead = async (
+  propId: Types.ObjectId,
+  logId: Types.ObjectId
+) => {
+  try {
+    const property = await Property.findById(propId);
+
+    if (!property) {
+      throw new Error("Property not found");
+    }
+
+    const log = property.logs.find(
+      (log) => log._id?.toString() === logId.toString()
+    );
+
+    if (!log) {
+      throw new Error("Log not found in property");
+    }
+
+    log.meta = {
+      ...log.meta,
+      readStatus: "READ",
+      readAt: new Date(),
+    };
+
+    await property.save();
+    return log;
+  } catch (error: any) {
+    throw new Error(`Failed to mark log as read: ${error.message}`);
+  }
+};
+
 export {
   _fetchPropertyLogs,
   _fetchPropertyDetails,
   _createPropertyForOnboarding,
   _updatePropertyById,
+  _markPropertyLogAsRead,
 };

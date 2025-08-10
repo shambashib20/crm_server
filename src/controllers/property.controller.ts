@@ -7,6 +7,7 @@ import {
   _fetchPropertyLogs,
   _updatePropertyById,
 } from "../services/property.service";
+import Property from "../models/property.model";
 
 const FetchPropertyLogs = async (req: any, res: any) => {
   try {
@@ -107,9 +108,58 @@ const UpdatePropertyById = async (req: any, res: any) => {
   }
 };
 
+const TogglePropertyLogReadStatus = async (req: any, res: any) => {
+  try {
+    const propId = req.user.property_id;
+    const { logId } = req.body;
+    const property = await Property.findById(propId);
+
+    if (!property) {
+      return res
+        .status(404)
+        .json(new SuccessResponse("Property not found", 404));
+    }
+
+    const log = property.logs.find(
+      (l) => l._id?.toString() === logId.toString()
+    );
+
+    if (!log) {
+      return res
+        .status(404)
+        .json(new SuccessResponse("Log not found in property", 404));
+    }
+
+    const isCurrentlyRead = log.meta?.readStatus === "READ";
+
+    log.meta = {
+      ...log.meta,
+      readStatus: isCurrentlyRead ? "UNREAD" : "READ",
+      readAt: isCurrentlyRead ? null : new Date(),
+    };
+
+    await property.save();
+
+    return res
+      .status(200)
+      .json(
+        new SuccessResponse(
+          `Log marked as ${isCurrentlyRead ? "UNREAD" : "READ"} successfully`,
+          200,
+          log
+        )
+      );
+  } catch (error: any) {
+    return res
+      .status(500)
+      .json(new SuccessResponse(error.message || "Something went wrong", 500));
+  }
+};
+
 export {
   FetchPropertyLogs,
   PropertyDetails,
   CreatePropertyForOnboarding,
   UpdatePropertyById,
+  TogglePropertyLogReadStatus,
 };
