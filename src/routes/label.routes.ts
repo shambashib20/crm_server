@@ -1,4 +1,8 @@
-import { CreateLabel, FetchLabels } from "../controllers/label.controller";
+import {
+  CreateLabel,
+  FetchLabels,
+  FetchPaginatedLabelsController,
+} from "../controllers/label.controller";
 
 import express from "express";
 import AuthMiddleware from "../middlewares/authentication.middleware";
@@ -18,6 +22,13 @@ labelRouter.post(
   AuthMiddleware,
   PermissionMiddleware("manage_leads"),
   CreateLabel
+);
+
+labelRouter.get(
+  "/fetch-paginated/all",
+  AuthMiddleware,
+  PermissionMiddleware("manage_leads"),
+  FetchPaginatedLabelsController
 );
 
 export default labelRouter;

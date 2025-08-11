@@ -57,7 +57,7 @@ const _createLabelInProperty = async (
 
 const _fetchLabelsInProperty = async (propId: Types.ObjectId) => {
   const labels = await Label.find({
-    property_id: propId
+    property_id: propId,
   });
 
   const property = await Property.findOne({
@@ -71,4 +71,40 @@ const _fetchLabelsInProperty = async (propId: Types.ObjectId) => {
   return labels;
 };
 
-export { _fetchLabelsInProperty, _createLabelInProperty };
+const _fetchPaginatedLabels = async (
+  propId: Types.ObjectId,
+  page: number = 1,
+  limit: number = 10
+) => {
+  const skip = (page - 1) * limit;
+
+  const [labels, total] = await Promise.all([
+    Label.find({ property_id: propId })
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit),
+    Label.countDocuments({ property_id: propId }),
+  ]);
+
+  const totalPages = Math.ceil(total / limit);
+  const hasNextPage = page < totalPages;
+  const hasPrevPage = page > 1;
+
+  return {
+    labels,
+    pagination: {
+      totalItems: total,
+      totalPages,
+      currentPage: page,
+      limit,
+      hasNextPage,
+      hasPrevPage,
+    },
+  };
+};
+
+export {
+  _fetchLabelsInProperty,
+  _createLabelInProperty,
+  _fetchPaginatedLabels,
+};
