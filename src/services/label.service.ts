@@ -5,6 +5,8 @@ import Label from "../models/label.model";
 import Property from "../models/property.model";
 import { LabelDto } from "../dtos/label.dto";
 import { LogStatus } from "../dtos/property.dto";
+import Role from "../models/role.model";
+import User from "../models/user.model";
 
 const _createLabelInProperty = async (
   propId: Types.ObjectId,
@@ -103,8 +105,104 @@ const _fetchPaginatedLabels = async (
   };
 };
 
+const _updateLabel = async (
+  propId: Types.ObjectId,
+  labelId: Types.ObjectId,
+  updates: Partial<{
+    title: string;
+    description: string;
+    meta: any;
+  }>
+) => {
+  const label = await Label.findOneAndUpdate(
+    {
+      _id: labelId,
+      property_id: propId,
+    },
+    {
+      $set: updates,
+    },
+    {
+      new: true,
+    }
+  );
+
+  if (!label) {
+    throw new Error("label not found for the given property");
+  }
+
+  // Optional: Log the update
+  const superadminRole = await Role.findOne({ name: "Superadmin" });
+  if (superadminRole) {
+    const superadmin = await User.findOne({
+      property_id: propId,
+      role: superadminRole._id,
+    });
+
+    if (superadmin) {
+      await Property.findByIdAndUpdate(propId, {
+        $push: {
+          logs: {
+            title: "Label Updated",
+            description: `Label with title "${label.title}" has been updated.`,
+            status: LogStatus.ACTION,
+            meta: {
+              label_id: label._id,
+              updated_by: superadmin._id,
+            },
+          },
+        },
+      });
+    }
+  }
+
+  return label;
+};
+
+const _deleteLabel = async (
+  propId: Types.ObjectId,
+  labelId: Types.ObjectId
+) => {
+  const label = await Label.findOneAndDelete({
+    _id: labelId,
+    property_id: propId,
+  });
+
+  if (!label) {
+    throw new Error("Label not found for the given property");
+  }
+
+  const superadminRole = await Role.findOne({ name: "Superadmin" });
+  if (superadminRole) {
+    const superadmin = await User.findOne({
+      property_id: propId,
+      role: superadminRole._id,
+    });
+
+    if (superadmin) {
+      await Property.findByIdAndUpdate(propId, {
+        $push: {
+          logs: {
+            title: "Label Deleted",
+            description: `Label with title "${label.title}" has been deleted.`,
+            status: LogStatus.ACTION,
+            meta: {
+              label_id: label._id,
+              deleted_by: superadmin._id,
+            },
+          },
+        },
+      });
+    }
+  }
+
+  return label;
+};
+
 export {
   _fetchLabelsInProperty,
   _createLabelInProperty,
   _fetchPaginatedLabels,
+  _updateLabel,
+  _deleteLabel,
 };

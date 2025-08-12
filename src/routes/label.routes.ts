@@ -1,7 +1,9 @@
 import {
   CreateLabel,
+  DeleteLabelController,
   FetchLabels,
   FetchPaginatedLabelsController,
+  UpdateLabelController,
 } from "../controllers/label.controller";
 
 import express from "express";
@@ -29,6 +31,20 @@ labelRouter.get(
   AuthMiddleware,
   PermissionMiddleware("manage_leads"),
   FetchPaginatedLabelsController
+);
+
+labelRouter.put(
+  "/update/:labelId",
+  AuthMiddleware,
+  PermissionMiddleware("manage_leads"),
+  UpdateLabelController
+);
+
+labelRouter.delete(
+  "/delete/:labelId",
+  AuthMiddleware,
+  PermissionMiddleware("manage_leads"),
+  DeleteLabelController
 );
 
 export default labelRouter;
