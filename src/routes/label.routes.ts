@@ -10,7 +10,7 @@ import express from "express";
 import AuthMiddleware from "../middlewares/authentication.middleware";
 import PermissionMiddleware from "../middlewares/permission.middleware";
 
-const labelRouter = express.Router();
+const   labelRouter = express.Router();
 
 labelRouter.get(
   "/all",

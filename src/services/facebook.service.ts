@@ -123,8 +123,19 @@ const _masterLeadService = async (userId: Types.ObjectId) => {
           return acc;
         }, {});
 
-        const defaultStatus = await Status.findOne({ title: "New" });
-        if (!defaultStatus) continue;
+        let defaultStatus = await Status.findOne({
+          title: "New",
+          property_id: integration?.property_id,
+        });
+
+        if (!defaultStatus) {
+          defaultStatus = await Status.create({
+            title: "New",
+            description: "Default status for new leads",
+            property_id: integration?.property_id,
+            meta: {},
+          });
+        }
 
         const existingLead = await Lead.findOne({
           "meta.fb_lead_id": fbLead.id,
