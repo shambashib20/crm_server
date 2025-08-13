@@ -129,13 +129,16 @@ const _masterLeadService = async (userId: Types.ObjectId) => {
         });
 
         if (!defaultStatus) {
-          defaultStatus = await Status.create({
+          defaultStatus = new Status({
             title: "New",
             description: "Default status for new leads",
             property_id: integration?.property_id,
-            meta: {},
+            meta: { is_active: true },
           });
+          defaultStatus.markModified("meta"); 
+          await defaultStatus.save();
         }
+
 
         const existingLead = await Lead.findOne({
           "meta.fb_lead_id": fbLead.id,
