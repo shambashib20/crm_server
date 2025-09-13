@@ -989,9 +989,16 @@ const _importLeadsFromExcel = async (
   const worksheet = workbook.Sheets[sheetName];
   const rows = XLSX.utils.sheet_to_json<ExcelLeadRow>(worksheet);
 
-  if (!rows.length) {
-    throw new Error("No data found in the sheet.");
-  }
+ if (!rows.length) {
+   throw new Error("No data found in the sheet.");
+ }
+
+ // ✅ Limit: max 500 leads
+ if (rows.length > 500) {
+   throw new Error(
+     `Too many leads in the sheet. Maximum allowed is 500, but got ${rows.length}.`
+   );
+ }
 
   const createdLeads: (Document & LeadDto)[] = [];
 
