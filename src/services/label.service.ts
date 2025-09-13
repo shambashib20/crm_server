@@ -84,7 +84,12 @@ const _fetchPaginatedLabels = async (
     Label.find({ property_id: propId })
       .sort({ createdAt: -1 })
       .skip(skip)
-      .limit(limit),
+      .limit(limit)
+      .populate({
+        path: "meta.assigned_agents.agent_id",
+        model: User,
+        select: "name email", 
+      }),
     Label.countDocuments({ property_id: propId }),
   ]);
 
@@ -104,6 +109,7 @@ const _fetchPaginatedLabels = async (
     },
   };
 };
+
 
 const _updateLabel = async (
   propId: Types.ObjectId,
