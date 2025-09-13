@@ -74,6 +74,16 @@ app.listen(PORT, async () => {
     try {
       console.log("🌱 Checking if seeding is necessary...");
 
+      // 1️⃣ Seed roles and permissions first
+      const rolesCount = await Role.countDocuments();
+      if (rolesCount === 0) {
+        console.log("🔨 Seeding roles and permissions...");
+        await seedRolesAndPermissions();
+      } else {
+        console.log("ℹ️ Roles already exist. Skipping role seeder.");
+      }
+
+      // 2️⃣ Now seed property
       const existingProperty = await Property.findOne({
         name: "MR Group of Colleges and Hospitals",
       });
@@ -119,6 +129,7 @@ app.listen(PORT, async () => {
         );
       }
 
+      // 3️⃣ Seed superadmin user last
       const superadmin = await User.findOne({
         property_id: finalProperty?._id,
       });
@@ -128,15 +139,6 @@ app.listen(PORT, async () => {
         await seedSuperadminUser();
       } else {
         console.log("ℹ️ Superadmin user already exists. Skipping seeder.");
-      }
-
-      const rolesCount = await Role.countDocuments();
-
-      if (rolesCount === 0) {
-        console.log("🔨 Seeding roles and permissions...");
-        await seedRolesAndPermissions();
-      } else {
-        console.log("ℹ️ Roles already exist. Skipping role seeder.");
       }
 
       console.log("✅ Seeder checks completed.");
@@ -260,3 +262,4 @@ app.post("/lead/webhook", async (req: any, res: any) => {
       .json({ message: "Error syncing leads", error: err.message });
   }
 });
+ 
