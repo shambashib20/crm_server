@@ -11,6 +11,8 @@ import { v4 as uuidv4 } from "uuid";
 import Source from "../models/source.model";
 import { getLocationFromIP } from "../utils/get_location.util";
 import { startOfDay, endOfDay } from "date-fns";
+import * as XLSX from "xlsx";
+import fs from "fs";
 
 function getEarliestFollowUpDate(followUps: any[] = []): Date | null {
   if (!Array.isArray(followUps) || followUps.length === 0) return null;
@@ -45,6 +47,15 @@ interface MissedFollowUpLead {
   meta?: Record<string, any>;
 }
 
+interface ExcelLeadRow {
+  customer_name?: string;
+  company_name?: string;
+  email?: string;
+  mobile?: string | number;
+  address?: string;
+  reference?: string;
+  comment?: string;
+}
 interface CreateLeadDto {
   name: string;
   company_name?: string;
@@ -298,7 +309,7 @@ const _homePageLeadService = async (
     .sort(sortOptions)
     .populate({
       path: "status",
-      select: "_id title", 
+      select: "_id title",
     })
     .populate("assigned_to", "name")
     .populate("assigned_by", "name")
@@ -968,6 +979,52 @@ const _updateStatusForLead = async (
   );
 };
 
+const _importLeadsFromExcel = async (
+  filePath: string,
+  ip: string,
+  propertyId: string
+) => {
+  const workbook = XLSX.readFile(filePath);
+  const sheetName = workbook.SheetNames[0];
+  const worksheet = workbook.Sheets[sheetName];
+  const rows = XLSX.utils.sheet_to_json<ExcelLeadRow>(worksheet);
+
+  if (!rows.length) {
+    throw new Error("No data found in the sheet.");
+  }
+
+  const createdLeads: (Document & LeadDto)[] = [];
+
+  for (const row of rows) {
+    const dto = {
+      name: row.customer_name || "",
+      company_name: row.company_name || "",
+      phone_number: row.mobile ? String(row.mobile) : "",
+      email: row.email || "",
+      address: row.address || "",
+      comment: row.comment || "",
+      reference: row.reference || "",
+      logs: [],
+      follow_ups: [],
+      tasks: [],
+      status: null,
+      labels: [],
+      assigned_to: null,
+      assigned_by: null,
+      meta: {},
+      property_id: new Types.ObjectId(propertyId),
+    };
+
+    const lead = await _createLeadService(dto as any, ip);
+    createdLeads.push(lead);
+  }
+
+  // clean up uploaded file
+  fs.unlinkSync(filePath);
+
+  return createdLeads;
+};
+
 export {
   _fetchLeadDetails,
   _createNewFollowUp,
@@ -982,4 +1039,5 @@ export {
   _archiveThisSessionsLeadService,
   _getLeadSourceStatsService,
   _updateStatusForLead,
+  _importLeadsFromExcel,
 };

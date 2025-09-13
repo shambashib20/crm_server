@@ -29,13 +29,14 @@
     "ioredis": "^5.6.1",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.15.0",
-    "multer": "^2.0.1",
+    "multer": "^2.0.2",
     "node-cron": "^4.2.1",
     "nodemailer": "^7.0.3",
     "nodemon": "^3.1.10",
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.8.3",
     "uuid": "^11.1.0",
-    "vercel": "^44.2.11"
+    "vercel": "^44.2.11",
+    "xlsx": "^0.18.5"
   }
 }

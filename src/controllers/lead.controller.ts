@@ -14,7 +14,9 @@ import {
   _archiveThisSessionsLeadService,
   _getLeadSourceStatsService,
   _updateStatusForLead,
+  _importLeadsFromExcel,
 } from "../services/lead.service";
+import multer from "multer";
 
 interface UpdateLabelRequest {
   leadId: Types.ObjectId | string;
@@ -23,6 +25,7 @@ interface UpdateLabelRequest {
   labelIds: Types.ObjectId[] | string[];
 }
 
+const upload = multer({ dest: "uploads/" });
 const FetchLeadDetails = async (req: any, res: any) => {
   try {
     const { leadId } = req.query;
@@ -316,6 +319,44 @@ const ArchiveSessionLeads = async (req: any, res: any) => {
     return res.status(500).json(new SuccessResponse(err.message, 500));
   }
 };
+
+export const UploadExcelMiddleware = upload.single("file");
+
+const ImportLeadsController = async (req: any, res: any) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json(new SuccessResponse("No file uploaded", 400));
+    }
+
+    const propertyId = req.user.property_id;
+    if (!propertyId) {
+      return res
+        .status(400)
+        .json(new SuccessResponse("property_id is required", 400));
+    }
+
+    const ip =
+      (req.headers["x-forwarded-for"] as string) ||
+      req.socket.remoteAddress ||
+      "0.0.0.0";
+
+    const leads = await _importLeadsFromExcel(
+      req.file.path,
+      ip,
+      propertyId as string
+    );
+
+    return res
+      .status(201)
+      .json(new SuccessResponse("Leads imported successfully", 201, leads));
+  } catch (error: any) {
+    console.error("Error importing leads:", error);
+    return res
+      .status(500)
+      .json(new SuccessResponse(error.message || "Something went wrong", 500));
+  }
+};
+
 export {
   FetchLeadDetails,
   NewFollowUp,
@@ -330,4 +371,5 @@ export {
   ArchiveSessionLeads,
   LeadsPerSource,
   UpdateStatusForLead,
+  ImportLeadsController,
 };

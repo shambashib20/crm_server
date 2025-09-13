@@ -4,12 +4,14 @@ import {
   DeleteOrArchiveForLead,
   FetchLeadDetails,
   GetMissedFollowUpsController,
+  ImportLeadsController,
   LeadsPerSource,
   LeadsPerStatus,
   NewFollowUp,
   UpdateAssignmentForLead,
   UpdateLabelForLead,
   UpdateStatusForLead,
+  UploadExcelMiddleware,
 } from "../controllers/lead.controller";
 
 import express from "express";
@@ -95,6 +97,14 @@ leadRouter.get(
   AuthMiddleware,
   PermissionMiddleware("manage_leads"),
   ArchiveSessionLeads
+);
+
+leadRouter.post(
+  "/import-leads",
+  AuthMiddleware,
+  UploadExcelMiddleware,
+  // PermissionMiddleware("manage_leads"),
+  ImportLeadsController
 );
 
 export default leadRouter;
