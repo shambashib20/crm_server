@@ -1013,7 +1013,7 @@ const _importLeadsFromExcel = async (
    throw new Error("No data found in the sheet.");
  }
 
- // ✅ Limit: max 500 leads
+
  if (rows.length > 500) {
    throw new Error(
      `Too many leads in the sheet. Maximum allowed is 500, but got ${rows.length}.`

@@ -51,7 +51,11 @@ export async function seedDefaultLabelStatuses() {
         title: normalizedTitle,
         description: `${rawTitle.trim()} label`,
         property_id: property._id,
-        meta: { is_active: true },
+        meta: {
+          is_active: true,
+          assigned_agents: [],
+          color_code: "",
+        },
       });
 
       console.log(`✔️ Seeded label: ${rawTitle}`);
