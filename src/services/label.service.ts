@@ -11,7 +11,8 @@ import User from "../models/user.model";
 const _createLabelInProperty = async (
   propId: Types.ObjectId,
   title: string,
-  description: string
+  description: string,
+  chatAgentIds?: Types.ObjectId[]
 ) => {
   const now = new Date();
   const existingLabel = await Label.findOne({
@@ -25,12 +26,18 @@ const _createLabelInProperty = async (
     );
   }
 
-  const newStatus = new Label({
+  const assignedAgents = (chatAgentIds || []).map((id) => ({
+    agent_id: id,
+    assigned_at: now,
+  }));
+
+  const newLabel = new Label({
     title,
     description,
     property_id: propId,
     meta: {
       is_active: true,
+      assigned_agents: assignedAgents,
     },
   });
 
@@ -41,9 +48,9 @@ const _createLabelInProperty = async (
       $push: {
         logs: {
           title: "A New Label created!",
-          description: `A new label named (${newStatus.title}) was created!`,
+          description: `A new label named (${newLabel.title}) was created!`,
           status: LogStatus.ACTION,
-          meta: { statusId: newStatus._id },
+          meta: { labelId: newLabel._id },
           createdAt: now,
           updatedAt: now,
         },
@@ -52,9 +59,8 @@ const _createLabelInProperty = async (
     { new: true }
   );
 
-  await newStatus.save();
-
-  return newStatus;
+  await newLabel.save();
+  return newLabel;
 };
 
 const _fetchLabelsInProperty = async (propId: Types.ObjectId) => {
@@ -88,7 +94,7 @@ const _fetchPaginatedLabels = async (
       .populate({
         path: "meta.assigned_agents.agent_id",
         model: User,
-        select: "name email", 
+        select: "name email",
       }),
     Label.countDocuments({ property_id: propId }),
   ]);
@@ -110,7 +116,6 @@ const _fetchPaginatedLabels = async (
   };
 };
 
-
 const _updateLabel = async (
   propId: Types.ObjectId,
   labelId: Types.ObjectId,
@@ -120,13 +125,29 @@ const _updateLabel = async (
     meta: any;
   }>
 ) => {
+  const updateDoc: any = {};
+
+  if (updates.title) updateDoc.title = updates.title;
+  if (updates.description) updateDoc.description = updates.description;
+
+  if (updates.meta) {
+    if (updates.meta.color_code) {
+      updateDoc["meta.color_code"] = updates.meta.color_code;
+    }
+
+    if (Array.isArray(updates.meta.assigned_agents)) {
+     
+      updateDoc["meta.assigned_agents"] = updates.meta.assigned_agents;
+    }
+  }
+
   const label = await Label.findOneAndUpdate(
     {
       _id: labelId,
       property_id: propId,
     },
     {
-      $set: updates,
+      $set: updateDoc,
     },
     {
       new: true,
@@ -137,7 +158,7 @@ const _updateLabel = async (
     throw new Error("label not found for the given property");
   }
 
-  // Optional: Log the update
+  // Optional logging
   const superadminRole = await Role.findOne({ name: "Superadmin" });
   if (superadminRole) {
     const superadmin = await User.findOne({
@@ -164,6 +185,7 @@ const _updateLabel = async (
 
   return label;
 };
+
 
 const _deleteLabel = async (
   propId: Types.ObjectId,

@@ -10,9 +10,16 @@ import {
 
 const CreateLabel = async (req: any, res: any) => {
   const propId = req.user.property_id;
-  const { title, description } = req.body;
+  const { title, description, chatAgentIds } = req.body;
+
   try {
-    const result = await _createLabelInProperty(propId, title, description);
+    const result = await _createLabelInProperty(
+      propId,
+      title,
+      description,
+      chatAgentIds
+    );
+
     return res
       .status(201)
       .json(new SuccessResponse("Created a label successfully!", 201, result));
@@ -61,7 +68,7 @@ const FetchPaginatedLabelsController = async (req: any, res: any) => {
 const UpdateLabelController = async (req: any, res: any) => {
   try {
     const { labelId } = req.params;
-    const { title, description, meta } = req.body;
+    const { title, description, chatAgentIds, color_code } = req.body;
     const user = req.user;
 
     const updates: {
@@ -72,7 +79,25 @@ const UpdateLabelController = async (req: any, res: any) => {
 
     if (title) updates.title = title;
     if (description) updates.description = description;
-    if (meta) updates.meta = meta;
+
+    // Handle meta updates
+    const metaUpdates: any = {};
+
+    if (Array.isArray(chatAgentIds) && chatAgentIds.length > 0) {
+      const now = new Date();
+      metaUpdates.assigned_agents = chatAgentIds.map((id: string) => ({
+        agent_id: new Types.ObjectId(id),
+        assigned_at: now,
+      }));
+    }
+
+    if (color_code) {
+      metaUpdates.color_code = color_code;
+    }
+
+    if (Object.keys(metaUpdates).length > 0) {
+      updates.meta = metaUpdates;
+    }
 
     if (Object.keys(updates).length === 0) {
       return res
@@ -97,6 +122,7 @@ const UpdateLabelController = async (req: any, res: any) => {
       .json(new SuccessResponse(error.message || "Something went wrong", 500));
   }
 };
+
 
 const DeleteLabelController = async (req: any, res: any) => {
   try {
