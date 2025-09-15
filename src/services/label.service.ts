@@ -12,6 +12,7 @@ const _createLabelInProperty = async (
   propId: Types.ObjectId,
   title: string,
   description: string,
+  color_code: string,
   chatAgentIds?: Types.ObjectId[]
 ) => {
   const now = new Date();
@@ -38,6 +39,7 @@ const _createLabelInProperty = async (
     meta: {
       is_active: true,
       assigned_agents: assignedAgents,
+      color_code: color_code || "",
     },
   });
 

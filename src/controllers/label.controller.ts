@@ -10,13 +10,14 @@ import {
 
 const CreateLabel = async (req: any, res: any) => {
   const propId = req.user.property_id;
-  const { title, description, chatAgentIds } = req.body;
+  const { title, description, color_code, chatAgentIds } = req.body;
 
   try {
     const result = await _createLabelInProperty(
       propId,
       title,
       description,
+      color_code,
       chatAgentIds
     );
 
