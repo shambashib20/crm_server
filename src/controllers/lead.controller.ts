@@ -133,6 +133,8 @@ const HomePageLeads = async (req: any, res: any) => {
       search = "",
       sortBy = "",
       is_table_view,
+      start_date,
+      end_date,
       page = 1,
       limit = 10,
     } = req.body;
@@ -150,6 +152,8 @@ const HomePageLeads = async (req: any, res: any) => {
       search,
       sortBy,
       is_table_view,
+      start_date,
+      end_date,
       parseInt(page),
       parseInt(limit),
       userPropId

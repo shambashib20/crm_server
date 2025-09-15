@@ -249,6 +249,8 @@ const _homePageLeadService = async (
   searchString: string,
   sortBy: string,
   is_table_view: boolean,
+  start_date: string, // Add start_date parameter
+  end_date: string, // Add end_date parameter
   page = 1,
   limit = 10,
   userPropId: Types.ObjectId
@@ -257,6 +259,25 @@ const _homePageLeadService = async (
     property_id: userPropId,
     "meta.status": { $nin: ["ARCHIVED", "CONVERTED TO CUSTOMER"] },
   };
+
+  // ✅ Date Range Filter
+  if (start_date || end_date) {
+    query.createdAt = {};
+
+    if (start_date) {
+      // Start of the day for start_date
+      const startDate = new Date(start_date);
+      startDate.setHours(0, 0, 0, 0);
+      query.createdAt.$gte = startDate;
+    }
+
+    if (end_date) {
+      // End of the day for end_date
+      const endDate = new Date(end_date);
+      endDate.setHours(23, 59, 59, 999);
+      query.createdAt.$lte = endDate;
+    }
+  }
 
   let validLabelIds: Types.ObjectId[] = [];
   if (labelIds.length > 0) {
@@ -406,7 +427,6 @@ const _homePageLeadService = async (
     }),
   };
 };
-
 const _createLeadService = async (data: CreateLeadDto, ip: string) => {
   const now = new Date();
 
