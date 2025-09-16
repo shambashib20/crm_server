@@ -344,20 +344,55 @@ const ImportLeadsController = async (req: any, res: any) => {
       req.socket.remoteAddress ||
       "0.0.0.0";
 
-    const leads = await _importLeadsFromExcel(
+    const {
+      status_id,
+      source_id,
+      label_ids = [],
+      assigned_to,
+    } = req.body;
+
+     const importResult = await _importLeadsFromExcel(
       req.file.path,
       ip,
-      propertyId as string
+      propertyId,
+      {
+        status_id: status_id ? new Types.ObjectId(status_id) : null,
+        source_id: source_id ? new Types.ObjectId(source_id) : null,
+        label_ids: Array.isArray(label_ids) 
+          ? label_ids.map((id: string) => new Types.ObjectId(id))
+          : [new Types.ObjectId(label_ids)],
+        assigned_to: assigned_to ? new Types.ObjectId(assigned_to) : null,
+        
+      }
     );
 
-    return res
-      .status(201)
-      .json(new SuccessResponse("Leads imported successfully", 201, leads));
+    return res.status(201).json(
+      new SuccessResponse("Leads imported successfully", 201, {
+        total: importResult.total,
+        imported: importResult.success,
+        failed: importResult.failed,
+        errors: importResult.errors,
+        leads: importResult.leads
+      })
+    );
+
   } catch (error: any) {
     console.error("Error importing leads:", error);
-    return res
-      .status(500)
-      .json(new SuccessResponse(error.message || "Something went wrong", 500));
+    
+    // Provide more specific error messages
+    let errorMessage = error.message || "Something went wrong during import";
+    let statusCode = 500;
+
+    if (error.message.includes("No data found")) {
+      statusCode = 400;
+    } else if (error.message.includes("Too many leads")) {
+      statusCode = 400;
+    } else if (error.message.includes("duplicate") || error.message.includes("already exist")) {
+      statusCode = 409;
+      errorMessage = "Some leads already exist in the system";
+    }
+
+    return res.status(statusCode).json(new SuccessResponse(errorMessage, statusCode));
   }
 };
 
@@ -367,7 +402,7 @@ export {
   UpdateLabelForLead,
   HomePageLeads,
   CreateLeadController,
-  GetMissedFollowUpsController,
+  GetMissedFollowUpsController, 
   GetTodaysLeadsGrouped,
   UpdateAssignmentForLead,
   DeleteOrArchiveForLead,

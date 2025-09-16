@@ -13,6 +13,10 @@ import { getLocationFromIP } from "../utils/get_location.util";
 import { startOfDay, endOfDay } from "date-fns";
 import * as XLSX from "xlsx";
 import fs from "fs";
+import {
+  bulkInsertLeadsWithValidation,
+  BulkLeadInputDto,
+} from "./bulk-lead-upload.service";
 
 function getEarliestFollowUpDate(followUps: any[] = []): Date | null {
   if (!Array.isArray(followUps) || followUps.length === 0) return null;
@@ -69,9 +73,17 @@ interface CreateLeadDto {
   assigned_to?: string;
   assigned_by?: string;
   property_id?: Types.ObjectId;
+  source?: Types.ObjectId;
   meta?: Record<string, any>;
 }
 
+interface ImportOptions {
+  status_id?: Types.ObjectId | null;
+  source_id?: Types.ObjectId | null;
+  label_ids?: Types.ObjectId[];
+  assigned_to?: Types.ObjectId | null;
+  source_name?: string;
+}
 const _fetchLeadDetails = async (leadId: Types.ObjectId) => {
   const existingLead = await Lead.findById(leadId)
     .populate("labels")
@@ -491,7 +503,7 @@ const _createLeadService = async (data: CreateLeadDto, ip: string) => {
     property_id: defaultStatus.property_id,
     meta: {
       ray_id,
-      source: defaultSource || "Landing Page Leads",
+      source: data.source || defaultSource,
       location: locationData,
       status: "ACTIVE",
       whatsapp: meta.whatsapp || "",
@@ -1002,55 +1014,115 @@ const _updateStatusForLead = async (
 const _importLeadsFromExcel = async (
   filePath: string,
   ip: string,
-  propertyId: string
+  propertyId: string,
+  options: ImportOptions = {}
 ) => {
-  const workbook = XLSX.readFile(filePath);
-  const sheetName = workbook.SheetNames[0];
-  const worksheet = workbook.Sheets[sheetName];
-  const rows = XLSX.utils.sheet_to_json<ExcelLeadRow>(worksheet);
+  try {
+    // Read and parse Excel file
+    const workbook = XLSX.readFile(filePath);
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
+    const rows = XLSX.utils.sheet_to_json<ExcelLeadRow>(worksheet);
 
- if (!rows.length) {
-   throw new Error("No data found in the sheet.");
- }
+    console.log(`Total rows found in Excel: ${rows.length}`);
+    if (!rows.length) {
+      throw new Error("No data found in the sheet.");
+    }
 
+    if (rows.length > 500) {
+      throw new Error(
+        `Too many leads in the sheet. Maximum allowed is 500, but got ${rows.length}.`
+      );
+    }
 
- if (rows.length > 500) {
-   throw new Error(
-     `Too many leads in the sheet. Maximum allowed is 500, but got ${rows.length}.`
-   );
- }
+    let sourceObject: any = null;
+    if (options.source_id) {
+      sourceObject = await Source.findOne({
+        _id: options.source_id,
+        property_id: new Types.ObjectId(propertyId),
+      }).lean();
 
-  const createdLeads: (Document & LeadDto)[] = [];
+      if (!sourceObject) {
+        throw new Error(
+          `Source with ID ${options.source_id} not found or doesn't belong to this property`
+        );
+      }
+    }
 
-  for (const row of rows) {
-    const dto = {
-      name: row.customer_name || "",
-      company_name: row.company_name || "",
-      phone_number: row.mobile ? String(row.mobile) : "",
-      email: row.email || "",
-      address: row.address || "",
-      comment: row.comment || "",
-      reference: row.reference || "",
-      logs: [],
-      follow_ups: [],
-      tasks: [],
-      status: null,
-      labels: [],
-      assigned_to: null,
-      assigned_by: null,
-      meta: {},
-      property_id: new Types.ObjectId(propertyId),
+    const leadDtos: BulkLeadInputDto[] = rows.map((row) => {
+      const meta: Record<string, any> = {
+        ...(sourceObject && {
+          source: {
+            _id: sourceObject._id,
+            title: sourceObject.title,
+            description: sourceObject.description,
+          },
+        }),
+        ...(options.source_name &&
+          !sourceObject && {
+            source: {
+              title: options.source_name,
+            },
+          }),
+      };
+
+      return {
+        name: row.customer_name?.toString().trim() || "",
+        company_name: row.company_name?.toString().trim() || "",
+        phone_number: row.mobile ? String(row.mobile).trim() : "",
+        email: row.email?.toString().trim() || "",
+        address: row.address?.toString().trim() || "",
+        comment: row.comment?.toString().trim() || "",
+        reference: row.reference?.toString().trim() || "",
+        logs: [],
+        follow_ups: [],
+        tasks: [],
+        status: options.status_id || null,
+        labels: options.label_ids || [],
+        assigned_to: options.assigned_to || null,
+        assigned_by: options.assigned_to
+          ? new Types.ObjectId(propertyId)
+          : null,
+        meta: meta,
+        property_id: new Types.ObjectId(propertyId),
+      };
+    });
+
+    // Use bulk insert service
+    const result = await bulkInsertLeadsWithValidation(
+      leadDtos,
+      ip,
+      new Types.ObjectId(propertyId)
+    );
+
+    console.log(
+      `Import completed: ${result.success} successful, ${result.failed} failed`
+    );
+
+    // Log errors if any
+    if (result.failed > 0) {
+      console.warn("Import errors:", result.errors);
+    }
+
+    // Clean up uploaded file
+    fs.unlinkSync(filePath);
+
+    return {
+      total: rows.length,
+      success: result.success,
+      failed: result.failed,
+      errors: result.errors,
+      leads: result.insertedLeads,
     };
-
-    const lead = await _createLeadService(dto as any, ip);
-    createdLeads.push(lead);
+  } catch (error: any) {
+    // Clean up file even if error occurs
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+    throw error;
   }
-
-  // clean up uploaded file
-  fs.unlinkSync(filePath);
-
-  return createdLeads;
 };
+
 
 export {
   _fetchLeadDetails,
