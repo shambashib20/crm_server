@@ -15,6 +15,7 @@ import {
   _getLeadSourceStatsService,
   _updateStatusForLead,
   _importLeadsFromExcel,
+  _exportLeadsFromDBToExcel,
 } from "../services/lead.service";
 import multer from "multer";
 
@@ -344,25 +345,19 @@ const ImportLeadsController = async (req: any, res: any) => {
       req.socket.remoteAddress ||
       "0.0.0.0";
 
-    const {
-      status_id,
-      source_id,
-      label_ids = [],
-      assigned_to,
-    } = req.body;
+    const { status_id, source_id, label_ids = [], assigned_to } = req.body;
 
-     const importResult = await _importLeadsFromExcel(
+    const importResult = await _importLeadsFromExcel(
       req.file.path,
       ip,
       propertyId,
       {
         status_id: status_id ? new Types.ObjectId(status_id) : null,
         source_id: source_id ? new Types.ObjectId(source_id) : null,
-        label_ids: Array.isArray(label_ids) 
+        label_ids: Array.isArray(label_ids)
           ? label_ids.map((id: string) => new Types.ObjectId(id))
           : [new Types.ObjectId(label_ids)],
         assigned_to: assigned_to ? new Types.ObjectId(assigned_to) : null,
-        
       }
     );
 
@@ -372,13 +367,12 @@ const ImportLeadsController = async (req: any, res: any) => {
         imported: importResult.success,
         failed: importResult.failed,
         errors: importResult.errors,
-        leads: importResult.leads
+        leads: importResult.leads,
       })
     );
-
   } catch (error: any) {
     console.error("Error importing leads:", error);
-    
+
     // Provide more specific error messages
     let errorMessage = error.message || "Something went wrong during import";
     let statusCode = 500;
@@ -387,15 +381,41 @@ const ImportLeadsController = async (req: any, res: any) => {
       statusCode = 400;
     } else if (error.message.includes("Too many leads")) {
       statusCode = 400;
-    } else if (error.message.includes("duplicate") || error.message.includes("already exist")) {
+    } else if (
+      error.message.includes("duplicate") ||
+      error.message.includes("already exist")
+    ) {
       statusCode = 409;
       errorMessage = "Some leads already exist in the system";
     }
 
-    return res.status(statusCode).json(new SuccessResponse(errorMessage, statusCode));
+    return res
+      .status(statusCode)
+      .json(new SuccessResponse(errorMessage, statusCode));
   }
 };
 
+const ExportLeadsController = async (req: any, res: any) => {
+  try {
+    const excelBuffer = await _exportLeadsFromDBToExcel();
+    res.setHeader(
+      "Content-Disposition",
+      "attachment; filename=leads_export.xlsx"
+    );
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+
+    return res.status(200).send(excelBuffer);
+  } catch (error: any) {
+    console.error("Error exporting leads:", error);
+    return res.status(500).json({
+      message: "Failed to export leads",
+      error: error.message || error,
+    });
+  }
+};
 export {
   FetchLeadDetails,
   NewFollowUp,
@@ -411,4 +431,5 @@ export {
   LeadsPerSource,
   UpdateStatusForLead,
   ImportLeadsController,
+  ExportLeadsController
 };

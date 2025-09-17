@@ -1115,7 +1115,6 @@ const _importLeadsFromExcel = async (
       leads: result.insertedLeads,
     };
   } catch (error: any) {
-    // Clean up file even if error occurs
     if (fs.existsSync(filePath)) {
       fs.unlinkSync(filePath);
     }
@@ -1123,6 +1122,33 @@ const _importLeadsFromExcel = async (
   }
 };
 
+const _exportLeadsFromDBToExcel = async () => {
+  // 1. Fetch all leads
+  const leads = await Lead.find().lean();
+
+  // 2. Map leads to desired column format
+  const data = leads.map((lead) => ({
+    customer_name: lead.name || "",
+    company_name: lead.company_name || "",
+    email: lead.email || "",
+    mobile: lead.phone_number || "",
+    address: lead.address || "",
+    reference: lead.reference || "",
+    comment: lead.comment || "",
+  }));
+
+  // 3. Create worksheet and workbook
+  const worksheet = XLSX.utils.json_to_sheet(data);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, "Leads");
+
+  const excelBuffer = XLSX.write(workbook, {
+    bookType: "xlsx",
+    type: "buffer",
+  });
+
+  return excelBuffer;
+};
 
 export {
   _fetchLeadDetails,
@@ -1139,4 +1165,5 @@ export {
   _getLeadSourceStatsService,
   _updateStatusForLead,
   _importLeadsFromExcel,
+  _exportLeadsFromDBToExcel,
 };

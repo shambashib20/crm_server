@@ -2,6 +2,7 @@ import {
   ArchiveSessionLeads,
   CreateLeadController,
   DeleteOrArchiveForLead,
+  ExportLeadsController,
   FetchLeadDetails,
   GetMissedFollowUpsController,
   ImportLeadsController,
@@ -106,5 +107,12 @@ leadRouter.post(
   // PermissionMiddleware("manage_leads"),
   ImportLeadsController
 );
+leadRouter.get(
+  "/export-leads",
+  AuthMiddleware,
+  PermissionMiddleware("manage_leads"),
+  ExportLeadsController
+);
+
 
 export default leadRouter;
