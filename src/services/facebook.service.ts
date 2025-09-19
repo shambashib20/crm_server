@@ -54,7 +54,10 @@ const _getLeadsFromForm = async (formId: string, accessToken: string) => {
   }
 };
 
-const _masterLeadService = async (userId: Types.ObjectId) => {
+const _masterLeadService = async (
+  userId: Types.ObjectId,
+  labelId: Types.ObjectId
+) => {
   const integration = await User.findById(userId);
 
   const facebookMeta = integration?.meta?.get("facebook");
@@ -64,6 +67,11 @@ const _masterLeadService = async (userId: Types.ObjectId) => {
     throw new Error(
       "Facebook is not connected. Please link your account first."
     );
+  }
+
+  const targetLabel = await Label.findById(labelId);
+  if (!targetLabel) {
+    throw new Error("Provided label not found");
   }
 
   const pagesRes = await axios.get(`${GRAPH_API_BASE}/me/accounts`, {
@@ -101,10 +109,14 @@ const _masterLeadService = async (userId: Types.ObjectId) => {
       if (Array.isArray(formDetails.tracking_parameters)) {
         for (const param of formDetails.tracking_parameters) {
           if (param.key === "labels") {
-            matchedLabel = await Label.findOne({
-              title: new RegExp(`^${param.value.trim()}$`, "i"),
-            });
-            if (matchedLabel) break;
+            
+            if (
+              targetLabel &&
+              new RegExp(`^${param.value.trim()}$`, "i").test(targetLabel.title)
+            ) {
+              matchedLabel = targetLabel as any;
+              break;
+            }
           }
         }
       }
@@ -135,10 +147,9 @@ const _masterLeadService = async (userId: Types.ObjectId) => {
             property_id: integration?.property_id,
             meta: { is_active: true },
           });
-          defaultStatus.markModified("meta"); 
+          defaultStatus.markModified("meta");
           await defaultStatus.save();
         }
-
 
         const existingLead = await Lead.findOne({
           "meta.fb_lead_id": fbLead.id,
