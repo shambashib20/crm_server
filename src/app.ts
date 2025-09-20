@@ -22,7 +22,9 @@ import { getLocationFromIP } from "./utils/get_location.util";
 import { LeadLogStatus } from "./dtos/lead.dto";
 import Property from "./models/property.model";
 import { LogStatus } from "./dtos/property.dto";
-import "./cron-jobs/cron";
+
+// TODO : Will Comment out this line later!
+// import "./cron-jobs/cron";
 import Label from "./models/label.model";
 import Role from "./models/role.model";
 const app: Application = express();
