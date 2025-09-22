@@ -13,30 +13,7 @@ export async function seedDefaultLabelStatuses() {
     return;
   }
 
-  const labels = [
-    "Pharmacy Lead Strategy 5",
-    "1st July Nursing Leads",
-    "2023-24 H.S Data",
-    "26th July Nursing Leads",
-    "Academic Counsellor Hiring",
-    "Associate",
-    "B.Pharm for WBJEE Students",
-    "B.Pharm Upto 50K for Scholarship",
-    "B.Pharm-Collegedunia",
-    "B.sc Nursing 1L 25K Discount",
-    "B.sc Nursing 2L 25k",
-    "Call",
-    "Career Guidance",
-    "Content Writer",
-    "Krishnagar Pharmacy Lead",
-    "Medinipur Nursing Lead",
-    "Medinipur Pharmacy Lead",
-    "Mother Mary Institute of Nursing",
-    "Mother Rijiya Institue of Nursing",
-    "Mother Teresa Institute of Nursing",
-    "Murshidabad Nursing Lead",
-    "Murshidabad Pharmacy Lead",
-  ];
+  const labels = ["Test Label 1", "Test Label 2"];
 
   for (const rawTitle of labels) {
     const normalizedTitle = rawTitle.trim().toLowerCase();
@@ -55,6 +32,7 @@ export async function seedDefaultLabelStatuses() {
           is_active: true,
           assigned_agents: [],
           color_code: "",
+          is_editable: false,
         },
       });
 

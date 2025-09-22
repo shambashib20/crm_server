@@ -26,7 +26,7 @@ let ACCESS_TOKEN: string = "";
 const facebookLogin = (req: any, res: any) => {
   const user_id = req.user._id;
 
-  const authUrl = `${FB_AUTH_URL}?client_id=${APP_ID}&redirect_uri=${REDIRECT_URI}&state=${user_id}${user_id}&scope=pages_show_list,pages_read_engagement,leads_retrieval`;
+  const authUrl = `${FB_AUTH_URL}?client_id=${APP_ID}&redirect_uri=${REDIRECT_URI}&state=${user_id}&scope=pages_show_list,pages_read_engagement,leads_retrieval`;
   return res.json({ login_url: authUrl });
 };
 
@@ -65,9 +65,9 @@ const facebookCallback = async (req: any, res: any) => {
     return res.status(400).json({ error: "Missing code or user ID" });
   }
 
-  const user_id = state.toString().slice(0, 24);
+  const user_id = state.toString();
 
-  const redirectUri = process.env.FB_REDIRECT_URI;
+  const redirectUri = REDIRECT_URI;
   const appId = process.env.FB_APP_ID;
   const appSecret = process.env.FB_APP_SECRET;
 
@@ -157,8 +157,14 @@ const facebookCallback = async (req: any, res: any) => {
       // updatedUser,
     });
   } catch (error: any) {
-    console.error("Facebook Callback Error:", error.response?.data || error);
-    return res.status(500).json({ error: "Facebook authentication failed" });
+    console.error(
+      "Facebook Callback Error Response:",
+      error.response?.data || error.message || error
+    );
+    return res.status(500).json({
+      error: "Facebook authentication failed",
+      details: error.response?.data || error.message,
+    });
   }
 };
 

@@ -27,6 +27,7 @@ import { LogStatus } from "./dtos/property.dto";
 // import "./cron-jobs/cron";
 import Label from "./models/label.model";
 import Role from "./models/role.model";
+import { seedDefaultSources } from "./seeders/source.seeder";
 const app: Application = express();
 app.use(
   cors({
@@ -111,6 +112,17 @@ app.listen(PORT, async () => {
         const statusCount = await Status.countDocuments({
           property_id: finalProperty._id,
         });
+
+        const sourceCount = await Source.countDocuments({
+          property_id: finalProperty._id,
+        });
+
+        if (sourceCount === 0) {
+          console.log("🔨 Seeding sources...");
+          await seedDefaultSources();
+        } else {
+          console.log("ℹ️ Sources already exist. Skipping source seeder.");
+        }
 
         if (labelCount === 0) {
           console.log("🔨 Seeding labels...");

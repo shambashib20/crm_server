@@ -156,6 +156,22 @@ const _masterLeadService = async (
         });
         if (existingLead) continue;
 
+        let source = await Source.findOne({
+          title: "Facebook",
+          property_id: integration?.property_id,
+        });
+
+        if (!source) {
+          source = new Source({
+            title: "Facebook",
+            description: "Facebook Lead Ads",
+            property_id: integration?.property_id,
+            meta: { is_active: true, is_editable: false },
+          });
+          source.markModified("meta");
+          await source.save();
+        }
+
         await Lead.create({
           name: fields.full_name || fields.name,
           phone_number: fields.phone_number,
@@ -167,6 +183,7 @@ const _masterLeadService = async (
             fb_lead_id: fbLead.id,
             form_id: form.id,
             page_id: page.id,
+            source: source._id,
           },
           logs: [
             {
