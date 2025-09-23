@@ -2,6 +2,24 @@ import Property from "../models/property.model";
 import { LogStatus, PropertyDto, PropertyStatus } from "../dtos/property.dto";
 import { Types } from "mongoose";
 import Role from "../models/role.model";
+import dotenv from "dotenv";
+dotenv.config();
+import crypto from "crypto";
+
+const ALGORITHM = "aes-256-cbc";
+
+const SECRET_KEY = crypto
+  .createHash("sha256")
+  .update(process.env.API_KEY_SECRET || "default_secret")
+  .digest(); // 32-byte key
+const IV_LENGTH = 16;
+
+function encrypt(text: string): string {
+  const iv = crypto.randomBytes(IV_LENGTH);
+  const cipher = crypto.createCipheriv(ALGORITHM, SECRET_KEY, iv);
+  const encrypted = Buffer.concat([cipher.update(text), cipher.final()]);
+  return iv.toString("hex") + ":" + encrypted.toString("hex");
+}
 
 const _fetchPropertyLogs = async (propId: Types.ObjectId) => {
   try {
@@ -187,10 +205,53 @@ const _markPropertyLogAsRead = async (
   }
 };
 
+const _createApiKeyService = async (
+  propertyId: Types.ObjectId,
+  keyData: {
+    purpose: string;
+  }
+) => {
+  const property = await Property.findById(propertyId);
+  if (!property) {
+    throw new Error("Property not found");
+  }
+
+  // Generate raw key with propertyId + random string
+  const rawKey = `${propertyId}-${crypto.randomBytes(16).toString("hex")}`;
+
+  // Encrypt the raw key
+  const encryptedKey = encrypt(rawKey);
+
+  const newKey = {
+    title: keyData.purpose,
+    description: keyData.purpose,
+    value: encryptedKey,
+    created_at: new Date(),
+    expiry_at: new Date() || null,
+    purpose: keyData.purpose,
+    status: "ACTIVE" as const,
+  };
+
+  // Push into meta.keys
+  const keys = property.meta?.keys || [];
+  keys.push(newKey);
+
+  property.meta = {
+    ...property.meta,
+    keys,
+  };
+  property.markModified("meta");
+
+  await property.save();
+
+  return newKey;
+};
+
 export {
   _fetchPropertyLogs,
   _fetchPropertyDetails,
   _createPropertyForOnboarding,
   _updatePropertyById,
   _markPropertyLogAsRead,
+  _createApiKeyService,
 };

@@ -2,6 +2,7 @@ import { Types } from "mongoose";
 import SuccessResponse from "../middlewares/success.middleware";
 import { _createNewUserForOnboarding } from "../services/onboarding.service";
 import {
+  _createApiKeyService,
   _createPropertyForOnboarding,
   _fetchPropertyDetails,
   _fetchPropertyLogs,
@@ -156,10 +157,37 @@ const TogglePropertyLogReadStatus = async (req: any, res: any) => {
   }
 };
 
+const CreateApiKeyController = async (req: any, res: any) => {
+  try {
+    const propId = req.user.property_id;
+    const existingProperty = await Property.findById(propId);
+
+    if (!existingProperty) {
+      return res
+        .status(404)
+        .json(new SuccessResponse("Property not found", 404));
+    }
+
+    const { purpose } = req.body;
+
+    const apiKey = await _createApiKeyService(propId, {
+      purpose,
+    });
+
+    return res
+      .status(200)
+      .json(new SuccessResponse(`Api key created successfully`, 200, apiKey));
+  } catch (err: any) {
+    return res
+      .status(500)
+      .json(new SuccessResponse(err.message || "Something went wrong", 500));
+  }
+};
 export {
   FetchPropertyLogs,
   PropertyDetails,
   CreatePropertyForOnboarding,
   UpdatePropertyById,
   TogglePropertyLogReadStatus,
+  CreateApiKeyController,
 };
