@@ -357,7 +357,10 @@ const _homePageLeadService = async (
     })
     .populate("assigned_to", "name")
     .populate("assigned_by", "name")
-    .populate("labels", "title")
+    .populate({
+      path: "labels",
+      select: "_id title description meta",
+    })
     .lean();
 
   fullLeads = (fullLeads || [])
