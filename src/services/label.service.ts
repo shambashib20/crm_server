@@ -40,6 +40,7 @@ const _createLabelInProperty = async (
       is_active: true,
       assigned_agents: assignedAgents,
       color_code: color_code || "",
+      is_editable: true,
     },
   });
 

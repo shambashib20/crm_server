@@ -135,6 +135,16 @@ const _masterLeadService = async (
           return acc;
         }, {});
 
+        // 🔹 Build formatted comment string
+        let commentLines: string[] = [];
+        commentLines.push(`label::${targetLabel.title}`); // add label first
+
+        for (const field of fbLead.field_data) {
+          commentLines.push(`${field.name}::${field.values[0]}`);
+        }
+
+        const formattedComment = commentLines.join("\n");
+
         let defaultStatus = await Status.findOne({
           title: "New",
           property_id: integration?.property_id,
@@ -176,7 +186,7 @@ const _masterLeadService = async (
           name: fields.full_name || fields.name,
           phone_number: fields.phone_number,
           email: fields.email,
-          comment: "Imported from Facebook",
+          comment: formattedComment, 
           labels: [matchedLabel._id],
           status: defaultStatus._id,
           meta: {
@@ -198,6 +208,7 @@ const _masterLeadService = async (
           property_id: integration?.property_id,
         });
       }
+
 
       summary.push({
         page: page.name,

@@ -89,10 +89,21 @@ const _fetchLeadDetails = async (leadId: Types.ObjectId) => {
     .populate("labels")
     .populate("status")
     .populate("assigned_to", "name email")
-    .populate("assigned_by", "name email");
+    .populate("assigned_by", "name email")
+    .populate({
+      path: "meta.source",
+      select: "title description meta",
+    });
 
   if (!existingLead) {
     throw new Error("Lead not found!");
+  }
+
+  if (existingLead.meta?.source) {
+    const sourceDoc = await Source.findById(existingLead.meta.source).select(
+      "title description meta"
+    );
+    existingLead.meta.source = sourceDoc;
   }
 
   return existingLead;
@@ -439,6 +450,8 @@ const _homePageLeadService = async (
     }),
   };
 };
+
+
 const _createLeadService = async (data: CreateLeadDto, ip: string) => {
   const now = new Date();
 
