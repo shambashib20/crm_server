@@ -186,7 +186,8 @@ const _masterLeadService = async (
           name: fields.full_name || fields.name,
           phone_number: fields.phone_number,
           email: fields.email,
-          comment: formattedComment, 
+          comment: formattedComment,
+          reference: "From Facebook",
           labels: [matchedLabel._id],
           status: defaultStatus._id,
           meta: {
