@@ -454,35 +454,54 @@ const _homePageLeadService = async (
 
 const _createLeadService = async (data: CreateLeadDto, ip: string) => {
   const now = new Date();
-
   const meta: Record<string, any> = data.meta || {};
   const locationData = await getLocationFromIP(ip);
 
-  let createdById = meta.created_by || null;
+  let assignedToId: Types.ObjectId | null = null;
 
-  if (!createdById) {
-    const chatAgentRole = await Role.findOne({ name: "Chat Agent" });
+  // 🔹 Handle round-robin assignment from label
+  if (data.labels && data.labels.length > 0) {
+    const firstLabelId = data.labels[0]; // take the first label
+    const label = await Label.findById(firstLabelId);
 
-    if (!chatAgentRole) {
-      throw new Error('No role named "Chat Agent" found.');
+    if (!label) {
+      throw new Error(`Label with ID ${firstLabelId} not found`);
     }
 
-    const chatAgents = await User.find({ role: chatAgentRole._id }).sort({
-      createdAt: 1,
-    });
-
-    if (!chatAgents.length) {
-      throw new Error("No chat agents found in the system.");
+    // ✅ Ensure meta is always an object
+    if (!label.meta) {
+      label.meta = {};
     }
 
-    createdById = chatAgents[0]._id;
-    meta.created_by = createdById;
+    const assignedAgents = (label.meta.assigned_agents || []) as {
+      agent_id: Types.ObjectId;
+      assigned_at: Date;
+    }[];
 
-    if (!data.assigned_to) {
-      data.assigned_to = createdById.toString();
+    if (assignedAgents.length > 0) {
+      // 🔹 Round-robin assignment
+      const lastIndex =
+        (label.meta.last_assigned_index as number | undefined) ?? 0;
+      const nextIndex = (lastIndex + 1) % assignedAgents.length;
+
+      assignedToId = assignedAgents[nextIndex].agent_id;
+
+      label.meta.last_assigned_index = nextIndex;
+      label.markModified("meta");
+      await label.save();
     }
   }
 
+  // 🔹 Fallback: assign to Superadmin
+  if (!assignedToId) {
+    const superAdmin = await User.findOne({ role: "Superadmin" });
+    if (!superAdmin) {
+      throw new Error("No Superadmin found in the system.");
+    }
+    assignedToId = superAdmin._id;
+  }
+
+  // 🔹 Fetch defaults
   const defaultSource = await Source.findOne({
     title: "Landing Page Leads",
   });
@@ -495,23 +514,12 @@ const _createLeadService = async (data: CreateLeadDto, ip: string) => {
 
   const ray_id = `ray-id-${uuidv4()}`;
 
-  if (data.labels && data.labels.length > 0) {
-    const validLabels = await Label.find({
-      _id: { $in: data.labels.map((id) => new Types.ObjectId(id)) },
-    });
-
-    if (validLabels.length !== data.labels.length) {
-      const validIds = validLabels.map((label) => label._id.toString());
-      const invalidIds = data.labels.filter((id) => !validIds.includes(id));
-      throw new Error(`This Labels does not exists: ${invalidIds.join(", ")}`);
-    }
-  }
-
+  // 🔹 Create lead
   const lead = await Lead.create({
     ...data,
     labels: data.labels?.map((id) => new Types.ObjectId(id)) || [],
     status: data.status || defaultStatus._id,
-    assigned_to: data.assigned_to ? new Types.ObjectId(data.assigned_to) : null,
+    assigned_to: assignedToId,
     assigned_by: data.assigned_by ? new Types.ObjectId(data.assigned_by) : null,
     property_id: defaultStatus.property_id,
     meta: {
@@ -522,9 +530,7 @@ const _createLeadService = async (data: CreateLeadDto, ip: string) => {
       whatsapp: meta.whatsapp || "",
       course: meta.course || "",
       stream: meta.stream || "",
-      // comment: data.comment,
     },
-
     logs: [
       {
         title: "Lead created",
@@ -539,6 +545,7 @@ const _createLeadService = async (data: CreateLeadDto, ip: string) => {
     ],
   });
 
+  // 🔹 Update property usage + logs
   await Property.findByIdAndUpdate(
     defaultStatus.property_id,
     {
@@ -985,7 +992,7 @@ const _updateStatusForLead = async (
 
   const logEntry = {
     title: "Lead Status updated",
-    description: `${updatedLead.name} named lead updated the lead status to ${existingStatus.title}!`,
+    description: `${updatedLead.name} named lead got updated to status of ${existingStatus.title}!`,
     status: LogStatus.INFO,
     meta: {
       leadId,
@@ -995,7 +1002,7 @@ const _updateStatusForLead = async (
 
   const leadLogEntry = {
     title: "Lead Status updated",
-    description: `${updatedLead.name} named lead updated the lead status!`,
+    description: `${updatedLead.name} named lead has its status updated to ${existingStatus.title}!`,
     status: LeadLogStatus.ACTION,
     meta: {
       leadId,
