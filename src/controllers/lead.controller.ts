@@ -17,6 +17,7 @@ import {
   _importLeadsFromExcel,
   _exportLeadsFromDBToExcel,
   _createExternalLeadService,
+  _getMissedFollowUpsForDay,
 } from "../services/lead.service";
 import multer from "multer";
 
@@ -418,7 +419,6 @@ const ExportLeadsController = async (req: any, res: any) => {
   }
 };
 
-
 const CreateExternalLeadsController = async (req: any, res: any) => {
   try {
     const property = (req as any).property;
@@ -472,6 +472,21 @@ const CreateExternalLeadsController = async (req: any, res: any) => {
   }
 };
 
+const FetchMissedFollowupsForADay = async (req: any, res: any) => {
+  try {
+    const propId = req.user.property_id;
+    const userId = req.user._id;
+
+    const leads = await _getMissedFollowUpsForDay(userId, propId);
+
+    return res
+      .status(200)
+      .json(new SuccessResponse("Missed follow-ups fetched", 200, leads));
+  } catch (err: any) {
+    return res.status(500).json(new SuccessResponse(err.message, 500));
+  }
+};
+
 export {
   FetchLeadDetails,
   NewFollowUp,
@@ -489,4 +504,5 @@ export {
   ImportLeadsController,
   ExportLeadsController,
   CreateExternalLeadsController,
+  FetchMissedFollowupsForADay,
 };

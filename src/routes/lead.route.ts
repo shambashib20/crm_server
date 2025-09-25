@@ -4,6 +4,7 @@ import {
   DeleteOrArchiveForLead,
   ExportLeadsController,
   FetchLeadDetails,
+  FetchMissedFollowupsForADay,
   GetMissedFollowUpsController,
   ImportLeadsController,
   LeadsPerSource,
@@ -23,6 +24,12 @@ import Lead from "../models/lead.model";
 import { BasicAuthMiddleware } from "../middlewares/basic_auth.middleware";
 
 const leadRouter = express.Router();
+
+leadRouter.get(
+  "/overdue-followups",
+  AuthMiddleware,
+  FetchMissedFollowupsForADay
+);
 
 leadRouter.post(
   "/create",
@@ -101,6 +108,10 @@ leadRouter.get(
   ArchiveSessionLeads
 );
 
+leadRouter.get("/overdue", AuthMiddleware, (req, res) => {
+  res.send("ok");
+});
+
 leadRouter.post(
   "/import-leads",
   AuthMiddleware,
@@ -115,14 +126,8 @@ leadRouter.get(
   ExportLeadsController
 );
 
+leadRouter.post("/create/external", BasicAuthMiddleware, CreateLeadController);
 
-
-
-leadRouter.post(
-  "/create/external",
-  BasicAuthMiddleware,
-  CreateLeadController
-)
 
 
 export default leadRouter;

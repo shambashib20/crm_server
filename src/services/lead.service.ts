@@ -1253,6 +1253,43 @@ const _createExternalLeadService = async (
   return newLead;
 };
 
+const _getMissedFollowUpsForDay = async (
+  userId: Types.ObjectId,
+  propertyId?: string
+) => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const query: any = {
+    "follow_ups.next_followup_date": { $lt: today },
+  };
+
+  if (propertyId) {
+    query.property_id = new Types.ObjectId(propertyId);
+  }
+  if (userId) {
+    query.assigned_to = new Types.ObjectId(userId);
+  }
+
+  const leads = await Lead.find(query)
+    .populate("assigned_to", "name email")
+    .populate("status", "name")
+    .populate("labels", "name")
+    .lean();
+
+  const filteredLeads = leads.map((lead) => {
+    const missedFollowUps = lead.follow_ups.filter(
+      (fu: any) => fu.next_followup_date && fu.next_followup_date < today
+    );
+    return {
+      ...lead,
+      missed_follow_ups: missedFollowUps,
+    };
+  });
+
+  return filteredLeads.filter((l) => l.missed_follow_ups.length > 0);
+};
+
 export {
   _fetchLeadDetails,
   _createNewFollowUp,
@@ -1270,4 +1307,5 @@ export {
   _importLeadsFromExcel,
   _exportLeadsFromDBToExcel,
   _createExternalLeadService,
+  _getMissedFollowUpsForDay,
 };
