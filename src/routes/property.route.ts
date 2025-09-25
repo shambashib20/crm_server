@@ -1,4 +1,5 @@
 import {
+  CreateApiKeyController,
   CreatePropertyForOnboarding,
   FetchPropertyLogs,
   PropertyDetails,
@@ -36,5 +37,12 @@ propertyRouter.put(
   PermissionMiddleware("manage_leads"),
   TogglePropertyLogReadStatus
 );
+
+
+propertyRouter.post(
+  "/generate/api-key",
+  AuthMiddleware,
+  CreateApiKeyController
+)
 
 export default propertyRouter;

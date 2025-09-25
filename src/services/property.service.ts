@@ -5,6 +5,7 @@ import Role from "../models/role.model";
 import dotenv from "dotenv";
 dotenv.config();
 import crypto from "crypto";
+import Label from "../models/label.model";
 
 const ALGORITHM = "aes-256-cbc";
 
@@ -206,9 +207,11 @@ const _markPropertyLogAsRead = async (
 };
 
 const _createApiKeyService = async (
-  propertyId: Types.ObjectId,
+  propertyId: string,
   keyData: {
     purpose: string;
+    expiry_at?: Date;
+    label_id: Types.ObjectId;
   }
 ) => {
   const property = await Property.findById(propertyId);
@@ -216,36 +219,59 @@ const _createApiKeyService = async (
     throw new Error("Property not found");
   }
 
-  // Generate raw key with propertyId + random string
-  const rawKey = `${propertyId}-${crypto.randomBytes(16).toString("hex")}`;
+  const usageLimit = property.usage_limits || 0;
+  const usageCount = property.usage_count || 0;
 
-  // Encrypt the raw key
+  if (usageLimit - usageCount < 20) {
+    throw new Error(
+      "Not enough credits to generate API Key (requires 20 credits)"
+    );
+  }
+
+  const rawKey = `${propertyId}-${crypto.randomBytes(16).toString("hex")}`;
   const encryptedKey = encrypt(rawKey);
 
+  const title = `${keyData.purpose} API Key`;
+  const description = `API key for ${keyData.purpose}`;
+
+  const existingLabel = await Label.findById(keyData.label_id);
+  if (!existingLabel) {
+    throw new Error("Label not found");
+  }
   const newKey = {
-    title: keyData.purpose,
-    description: keyData.purpose,
+    title,
+    description,
     value: encryptedKey,
     created_at: new Date(),
-    expiry_at: new Date() || null,
+    expiry_at: keyData.expiry_at || null,
     purpose: keyData.purpose,
     status: "ACTIVE" as const,
+    label_id: existingLabel._id,
   };
 
-  // Push into meta.keys
-  const keys = property.meta?.keys || [];
-  keys.push(newKey);
-
-  property.meta = {
-    ...property.meta,
-    keys,
+  const logEntry = {
+    title: "API Key Created",
+    description: `New API Key created for purpose: ${keyData.purpose}`,
+    created_at: new Date(),
+    meta: {
+      api_key_title: title,
+      api_key_purpose: keyData.purpose,
+    },
   };
-  property.markModified("meta");
 
-  await property.save();
+  const updatedProperty = await Property.findByIdAndUpdate(
+    propertyId,
+    {
+      $inc: { usage_count: 20 },
+      $push: { "meta.keys": newKey, logs: logEntry },
+    },
+    { new: true }
+  );
 
-  return newKey;
+  return updatedProperty;
 };
+
+
 
 export {
   _fetchPropertyLogs,

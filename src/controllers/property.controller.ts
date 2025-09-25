@@ -168,10 +168,11 @@ const CreateApiKeyController = async (req: any, res: any) => {
         .json(new SuccessResponse("Property not found", 404));
     }
 
-    const { purpose } = req.body;
+    const { purpose, label_id } = req.body;
 
     const apiKey = await _createApiKeyService(propId, {
       purpose,
+      label_id
     });
 
     return res
