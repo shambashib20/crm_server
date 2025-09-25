@@ -84,6 +84,21 @@ interface ImportOptions {
   assigned_to?: Types.ObjectId | null;
   source_name?: string;
 }
+
+
+
+
+interface ExternalLeadGenerationDto {
+  customer_name: string;
+  company_name: string;
+  phone_number: string;
+  email: string;
+  address: string;
+  reference?: string;
+  comment?: string;
+  property_id: Types.ObjectId;
+}
+
 const _fetchLeadDetails = async (leadId: Types.ObjectId) => {
   const existingLead = await Lead.findById(leadId)
     .populate("labels")
@@ -453,7 +468,6 @@ const _homePageLeadService = async (
     }),
   };
 };
-
 
 const _createLeadService = async (data: CreateLeadDto, ip: string) => {
   const now = new Date();
@@ -1173,6 +1187,72 @@ const _exportLeadsFromDBToExcel = async () => {
   return excelBuffer;
 };
 
+const _createExternalLeadService = async (
+  leadData: ExternalLeadGenerationDto
+) => {
+  const {
+    customer_name,
+    company_name,
+    phone_number,
+    email,
+    address,
+    reference,
+    comment,
+    property_id,
+  } = leadData;
+
+  const property = await Property.findById(property_id);
+  if (!property) {
+    throw new Error("Property not found");
+  }
+
+  const source = await Source.findOne({
+    title: "Website",
+  });
+
+  if (!source) {
+    throw new Error("Default source 'Website' not found in the system");
+  }
+
+  if (property.usage_count >= property.usage_limits) {
+    throw new Error("Not enough credits to create a lead via API");
+  }
+  // Create lead
+  const newLead = await Lead.create({
+    name: customer_name,
+    company_name,
+    phone_number, // matches your schema
+    email,
+    address,
+    reference,
+    comment,
+    property_id,
+    logs: [
+      {
+        title: "Lead Created via API",
+        description: `(${customer_name}) named lead created externally through API.`,
+        status: "INFO",
+        meta: { source: "API" },
+      },
+    ],
+    source: source._id,
+  });
+
+  // Also log in property logs (optional but recommended)
+  await Property.findByIdAndUpdate(property_id, {
+    $push: {
+      logs: {
+        title: "New Lead Created",
+        description: `(${customer_name}) named created via API.`,
+        status: "INFO",
+        meta: { leadId: newLead._id, source: "API" },
+      },
+    },
+  });
+
+  return newLead;
+};
+
 export {
   _fetchLeadDetails,
   _createNewFollowUp,
@@ -1189,4 +1269,5 @@ export {
   _updateStatusForLead,
   _importLeadsFromExcel,
   _exportLeadsFromDBToExcel,
+  _createExternalLeadService,
 };

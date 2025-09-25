@@ -16,6 +16,7 @@ import {
   _updateStatusForLead,
   _importLeadsFromExcel,
   _exportLeadsFromDBToExcel,
+  _createExternalLeadService,
 } from "../services/lead.service";
 import multer from "multer";
 
@@ -416,13 +417,68 @@ const ExportLeadsController = async (req: any, res: any) => {
     });
   }
 };
+
+
+const CreateExternalLeadsController = async (req: any, res: any) => {
+  try {
+    const property = (req as any).property;
+    if (!property) {
+      return res.status(401).json(new SuccessResponse("Invalid API Key", 401));
+    }
+
+    const {
+      customer_name,
+      company_name,
+      phone_number,
+      email,
+      address,
+      reference,
+      comment,
+    } = req.body;
+
+    if (!customer_name || !phone_number) {
+      return res
+        .status(400)
+        .json(
+          new SuccessResponse(
+            "customer_name and phone_number are required",
+            400
+          )
+        );
+    }
+
+    const leadData = {
+      customer_name,
+      company_name,
+      phone_number,
+      email,
+      address,
+      reference,
+      comment,
+      property_id: property._id,
+    };
+
+    const newLead = await _createExternalLeadService(leadData);
+
+    return res
+      .status(201)
+      .json(
+        new SuccessResponse("Lead created successfully via API", 201, newLead)
+      );
+  } catch (err: any) {
+    return res
+      .status(500)
+      .json(new SuccessResponse(err.message || "Something went wrong", 500));
+  }
+};
+
 export {
   FetchLeadDetails,
   NewFollowUp,
   UpdateLabelForLead,
   HomePageLeads,
   CreateLeadController,
-  GetMissedFollowUpsController, 
+  GetMissedFollowUpsController,
   GetTodaysLeadsGrouped,
   UpdateAssignmentForLead,
   DeleteOrArchiveForLead,
@@ -431,5 +487,6 @@ export {
   LeadsPerSource,
   UpdateStatusForLead,
   ImportLeadsController,
-  ExportLeadsController
+  ExportLeadsController,
+  CreateExternalLeadsController,
 };

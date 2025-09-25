@@ -8,16 +8,19 @@ import crypto from "crypto";
 import Label from "../models/label.model";
 
 const ALGORITHM = "aes-256-cbc";
-
-const SECRET_KEY = crypto
-  .createHash("sha256")
-  .update(process.env.API_KEY_SECRET || "default_secret")
-  .digest(); // 32-byte key
 const IV_LENGTH = 16;
+
+const getSecretKey = (): Buffer => {
+  return crypto
+    .createHash("sha256")
+    .update(process.env.API_KEY_SECRET || "default_secret")
+    .digest();
+};
 
 function encrypt(text: string): string {
   const iv = crypto.randomBytes(IV_LENGTH);
-  const cipher = crypto.createCipheriv(ALGORITHM, SECRET_KEY, iv);
+  const secretKey = getSecretKey();
+  const cipher = crypto.createCipheriv(ALGORITHM, secretKey, iv);
   const encrypted = Buffer.concat([cipher.update(text), cipher.final()]);
   return iv.toString("hex") + ":" + encrypted.toString("hex");
 }
@@ -228,8 +231,12 @@ const _createApiKeyService = async (
     );
   }
 
-  const rawKey = `${propertyId}-${crypto.randomBytes(16).toString("hex")}`;
-  const encryptedKey = encrypt(rawKey);
+  // Generate only the random part as the API key
+  const apiKey = crypto.randomBytes(16).toString("hex");
+
+  
+  const storageKey = `${propertyId}-${apiKey}`;
+  const encryptedKey = encrypt(storageKey);
 
   const title = `${keyData.purpose} API Key`;
   const description = `API key for ${keyData.purpose}`;
@@ -238,6 +245,7 @@ const _createApiKeyService = async (
   if (!existingLabel) {
     throw new Error("Label not found");
   }
+
   const newKey = {
     title,
     description,
@@ -247,6 +255,8 @@ const _createApiKeyService = async (
     purpose: keyData.purpose,
     status: "ACTIVE" as const,
     label_id: existingLabel._id,
+
+    plain_key: apiKey,
   };
 
   const logEntry = {
@@ -268,7 +278,8 @@ const _createApiKeyService = async (
     { new: true }
   );
 
-  return updatedProperty;
+
+  return { property: updatedProperty, apiKey };
 };
 
 
