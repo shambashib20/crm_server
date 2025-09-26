@@ -28,10 +28,15 @@ const FetchStatuses = async (req: any, res: any) => {
 
 const CreateStatusInProperty = async (req: any, res: any) => {
   const propId = req.user.property_id;
-  const { title, description } = req.body;
+  const { title, description, color_code } = req.body;
 
   try {
-    const result = await _createStatusInProperty(title, description, propId);
+    const result = await _createStatusInProperty(
+      title,
+      description,
+      color_code,
+      propId
+    );
     return res
       .status(201)
       .json(new SuccessResponse("Created a status succesfully!", 201, result));
@@ -50,7 +55,8 @@ const UpdateStatusInProperty = async (req: any, res: any) => {
       title,
       description,
       propId,
-      meta?.is_active
+      meta?.is_active,
+      meta?.color_code
     );
     return res
       .status(200)

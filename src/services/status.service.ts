@@ -23,6 +23,7 @@ const _fetchStatusInProperty = async (propId: Types.ObjectId) => {
 const _createStatusInProperty = async (
   title: string,
   description: string,
+  color_code: string,
   propertyId: Types.ObjectId
 ) => {
   const now = new Date();
@@ -43,6 +44,8 @@ const _createStatusInProperty = async (
     property_id: propertyId,
     meta: {
       is_active: true,
+      color_code,
+      is_editable: true,
     },
   });
 
@@ -74,7 +77,8 @@ const _editStatusInProperty = async (
   title: string,
   description: string,
   propertyId: Types.ObjectId,
-  is_active?: boolean // <-- Add this
+  is_active?: boolean,
+  color_code?: string
 ) => {
   const now = new Date();
 
@@ -88,10 +92,11 @@ const _editStatusInProperty = async (
     description,
     updatedAt: now,
   };
-
   if (typeof is_active === "boolean") {
     updatePayload["meta.is_active"] = is_active;
   }
+
+  updatePayload["meta.color_code"] = color_code;
 
   const updatedStatus = await Status.findByIdAndUpdate(
     statusId,
@@ -177,8 +182,8 @@ const _getStatusesPaginated = async (
     Status.find(filter)
       .sort({ createdAt: -1 })
       .skip(skip)
-      .limit(limit)
-      .populate("property_id"),
+      .limit(limit),
+      // .populate("property_id"),
     Status.countDocuments(),
   ]);
 
