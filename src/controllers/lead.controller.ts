@@ -19,6 +19,7 @@ import {
   _createExternalLeadService,
   _getMissedFollowUpsForDay,
   _fetchPaginatedArchivedLeads,
+  _getTodaysFollowups,
 } from "../services/lead.service";
 import multer from "multer";
 
@@ -506,6 +507,23 @@ const FetchArchivedPaginatedLeads = async (req: any, res: any) => {
   }
 };
 
+const FetchTodaysFollowups = async (req: any, res: any) => {
+  try {
+    const propId = req.user.property_id;
+    const userId = req.user._id;
+
+    const leads = await _getTodaysFollowups(userId, propId);
+
+    return res
+      .status(200)
+      .json(
+        new SuccessResponse("Today's pending follow-ups fetched", 200, leads)
+      );
+  } catch (err: any) {
+    return res.status(500).json(new SuccessResponse(err.message, 500));
+  }
+};
+
 export {
   FetchLeadDetails,
   NewFollowUp,
@@ -525,4 +543,5 @@ export {
   CreateExternalLeadsController,
   FetchMissedFollowupsForADay,
   FetchArchivedPaginatedLeads,
+  FetchTodaysFollowups,
 };

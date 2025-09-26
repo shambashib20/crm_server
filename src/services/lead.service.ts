@@ -1340,6 +1340,59 @@ const _fetchPaginatedArchivedLeads = async (
   };
 };
 
+
+
+
+
+const _getTodaysFollowups = async (
+  userId: Types.ObjectId,
+  propertyId?: string
+) => {
+  // today range (00:00:00 to 23:59:59)
+  const startOfDay = new Date();
+  startOfDay.setHours(0, 0, 0, 0);
+
+  const endOfDay = new Date();
+  endOfDay.setHours(23, 59, 59, 999);
+
+  const query: any = {
+    "follow_ups.next_followup_date": {
+      $gte: startOfDay,
+      $lte: endOfDay,
+    },
+  };
+
+  if (propertyId) {
+    query.property_id = new Types.ObjectId(propertyId);
+  }
+  if (userId) {
+    query.assigned_to = new Types.ObjectId(userId);
+  }
+
+  const leads = await Lead.find(query)
+    .populate("assigned_to", "name email")
+    .populate("status", "name")
+    .populate("labels", "name")
+    .lean();
+
+  // Filter followups to only today's
+  const filteredLeads = leads.map((lead) => {
+    const todaysFollowUps = lead.follow_ups.filter(
+      (fu: any) =>
+        fu.next_followup_date &&
+        new Date(fu.next_followup_date) >= startOfDay &&
+        new Date(fu.next_followup_date) <= endOfDay
+    );
+    return {
+      ...lead,
+      todays_follow_ups: todaysFollowUps,
+    };
+  });
+
+  // Return only leads that have today's followups
+  return filteredLeads.filter((l) => l.todays_follow_ups.length > 0);
+};
+
 export {
   _fetchLeadDetails,
   _createNewFollowUp,
@@ -1359,4 +1412,5 @@ export {
   _createExternalLeadService,
   _getMissedFollowUpsForDay,
   _fetchPaginatedArchivedLeads,
+  _getTodaysFollowups,
 };

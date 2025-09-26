@@ -6,24 +6,7 @@ import dotenv from "dotenv";
 dotenv.config();
 import crypto from "crypto";
 import Label from "../models/label.model";
-
-const ALGORITHM = "aes-256-cbc";
-const IV_LENGTH = 16;
-
-const getSecretKey = (): Buffer => {
-  return crypto
-    .createHash("sha256")
-    .update(process.env.API_KEY_SECRET || "default_secret")
-    .digest();
-};
-
-function encrypt(text: string): string {
-  const iv = crypto.randomBytes(IV_LENGTH);
-  const secretKey = getSecretKey();
-  const cipher = crypto.createCipheriv(ALGORITHM, secretKey, iv);
-  const encrypted = Buffer.concat([cipher.update(text), cipher.final()]);
-  return iv.toString("hex") + ":" + encrypted.toString("hex");
-}
+import { encodePropertyId, randomString } from "../utils/api_key.util";
 
 const _fetchPropertyLogs = async (propId: Types.ObjectId) => {
   try {
@@ -231,12 +214,10 @@ const _createApiKeyService = async (
     );
   }
 
-  // Generate only the random part as the API key
-  const apiKey = crypto.randomBytes(16).toString("hex");
-
-  
-  const storageKey = `${propertyId}-${apiKey}`;
-  const encryptedKey = encrypt(storageKey);
+  const encodedId = encodePropertyId(propertyId);
+  const prefix = randomString(8);
+  const suffix = randomString(8);
+  const apiKey = `${prefix}${encodedId}${suffix}`;
 
   const title = `${keyData.purpose} API Key`;
   const description = `API key for ${keyData.purpose}`;
@@ -249,14 +230,12 @@ const _createApiKeyService = async (
   const newKey = {
     title,
     description,
-    value: encryptedKey,
+    value: apiKey,
     created_at: new Date(),
     expiry_at: keyData.expiry_at || null,
     purpose: keyData.purpose,
     status: "ACTIVE" as const,
     label_id: existingLabel._id,
-
-    plain_key: apiKey,
   };
 
   const logEntry = {
@@ -277,7 +256,6 @@ const _createApiKeyService = async (
     },
     { new: true }
   );
-
 
   return { property: updatedProperty, apiKey };
 };
