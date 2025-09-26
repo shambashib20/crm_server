@@ -18,6 +18,7 @@ import {
   _exportLeadsFromDBToExcel,
   _createExternalLeadService,
   _getMissedFollowUpsForDay,
+  _fetchPaginatedArchivedLeads,
 } from "../services/lead.service";
 import multer from "multer";
 
@@ -487,6 +488,24 @@ const FetchMissedFollowupsForADay = async (req: any, res: any) => {
   }
 };
 
+const FetchArchivedPaginatedLeads = async (req: any, res: any) => {
+  try {
+    const { page = 1, limit = 10 } = req.body;
+    const propertyId = req.user.property_id;
+    const result = await _fetchPaginatedArchivedLeads(
+      propertyId,
+      parseInt(page),
+      parseInt(limit)
+    );
+
+    return res
+      .status(200)
+      .json(new SuccessResponse("Archived leads fetched", 200, result));
+  } catch (err: any) {
+    return res.status(500).json(new SuccessResponse(err.message, 500));
+  }
+};
+
 export {
   FetchLeadDetails,
   NewFollowUp,
@@ -505,4 +524,5 @@ export {
   ExportLeadsController,
   CreateExternalLeadsController,
   FetchMissedFollowupsForADay,
+  FetchArchivedPaginatedLeads,
 };

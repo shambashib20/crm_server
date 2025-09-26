@@ -1290,6 +1290,56 @@ const _getMissedFollowUpsForDay = async (
   return filteredLeads.filter((l) => l.missed_follow_ups.length > 0);
 };
 
+
+
+
+
+
+
+
+
+
+const _fetchPaginatedArchivedLeads = async (
+  propId: Types.ObjectId,
+  page: number = 1,
+  limit: number = 10
+) => {
+  const skip = (page - 1) * limit;
+
+  const filter = {
+    property_id: propId,
+    "meta.status": "ARCHIVED",
+  };
+
+  const [leads, total] = await Promise.all([
+    Lead.find(filter)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .populate("assigned_to", "name email")
+      .populate("status", "name")
+      .populate("labels", "name")
+      .lean(),
+    Lead.countDocuments(filter),
+  ]);
+
+  const totalPages = Math.ceil(total / limit);
+  const hasNextPage = page < totalPages;
+  const hasPrevPage = page > 1;
+
+  return {
+    leads,
+    pagination: {
+      totalItems: total,
+      totalPages,
+      currentPage: page,
+      limit,
+      hasNextPage,
+      hasPrevPage,
+    },
+  };
+};
+
 export {
   _fetchLeadDetails,
   _createNewFollowUp,
@@ -1308,4 +1358,5 @@ export {
   _exportLeadsFromDBToExcel,
   _createExternalLeadService,
   _getMissedFollowUpsForDay,
+  _fetchPaginatedArchivedLeads,
 };

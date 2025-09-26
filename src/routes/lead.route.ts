@@ -3,6 +3,7 @@ import {
   CreateLeadController,
   DeleteOrArchiveForLead,
   ExportLeadsController,
+  FetchArchivedPaginatedLeads,
   FetchLeadDetails,
   FetchMissedFollowupsForADay,
   GetMissedFollowUpsController,
@@ -128,6 +129,11 @@ leadRouter.get(
 
 leadRouter.post("/create/external", BasicAuthMiddleware, CreateLeadController);
 
-
+leadRouter.post(
+  "/archived-leads",
+  AuthMiddleware,
+  PermissionMiddleware("manage_leads"),
+  FetchArchivedPaginatedLeads
+);
 
 export default leadRouter;
