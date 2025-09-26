@@ -26,7 +26,5 @@ mainRouter.use("/property", propertyRouter);
 mainRouter.use("/permission", permissionRouter);
 mainRouter.use("/file", fileRouter);
 mainRouter.use("/customer", customerRouter);
-// mainRouter.get("/overdue", (req, res) => {
-//   res.send("API is working!");
-// });
+
 export default mainRouter;

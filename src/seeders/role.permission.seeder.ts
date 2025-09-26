@@ -27,6 +27,10 @@ export async function seedRolesAndPermissions() {
       name: "manage_user_permissions",
       description: "Managing user permissions in the platform",
     },
+    {
+      name: "convert_lead_to_customer",
+      description: "Convert a lead into a customer",
+    },
   ];
 
   const existingPermissions = await Permission.countDocuments();

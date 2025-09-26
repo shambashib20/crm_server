@@ -211,7 +211,7 @@ app.post("/lead/webhook", async (req: any, res: any) => {
       if (exists) continue;
 
       const defaultSource = await Source.findOne({
-        title: "Landing Page Leads",
+        title: "Facebook",
       });
       const defaultStatus = await Status.findOne({ title: "New" });
 
@@ -231,7 +231,7 @@ app.post("/lead/webhook", async (req: any, res: any) => {
         meta: {
           fb_lead_id: lead.id,
           ray_id,
-          source: defaultSource || "Landing Page Leads",
+          source: defaultSource || "Facebook",
           location: locationData,
           created_by: superadmin._id,
         },
