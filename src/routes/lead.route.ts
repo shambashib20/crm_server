@@ -22,7 +22,7 @@ import express from "express";
 
 import AuthMiddleware from "../middlewares/authentication.middleware";
 import PermissionMiddleware from "../middlewares/permission.middleware";
-import Lead from "../models/lead.model";
+
 import { BasicAuthMiddleware } from "../middlewares/basic_auth.middleware";
 
 const leadRouter = express.Router();

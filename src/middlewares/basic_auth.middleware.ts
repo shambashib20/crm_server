@@ -24,17 +24,14 @@ export const BasicAuthMiddleware = async (
     const base64Credentials = authHeader.split(" ")[1];
 
     if (!base64Credentials) {
-      return res
-        .status(401)
-        .json({
-          success: false,
-          message: "Invalid Authorization header format",
-        });
+      return res.status(401).json({
+        success: false,
+        message: "Invalid Authorization header format",
+      });
     }
 
     console.log("API Key (Base64):", base64Credentials);
 
-    
     const properties = await Property.find({
       "meta.keys.value": base64Credentials,
     });
@@ -82,6 +79,8 @@ export const BasicAuthMiddleware = async (
     // Attach property + API key
     (req as any).property = property;
     (req as any).apiKey = matchedKey;
+
+    console.log(property, "prop in middleware");
 
     return next();
   } catch (err: any) {
