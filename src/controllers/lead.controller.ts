@@ -20,6 +20,7 @@ import {
   _getMissedFollowUpsForDay,
   _fetchPaginatedArchivedLeads,
   _getTodaysFollowups,
+  _getLeadsBySourceAndAgentService,
 } from "../services/lead.service";
 import multer from "multer";
 
@@ -524,6 +525,32 @@ const FetchTodaysFollowups = async (req: any, res: any) => {
   }
 };
 
+const GetLeadsBySourceAndChatAgentController = async (req: any, res: any) => {
+  try {
+    const { sourceTitle } = req.body;
+    const propId = req.user.property_id;
+
+    if (!sourceTitle) {
+      return res
+        .status(400)
+        .json(new SuccessResponse("sourceTitle is required!", 400));
+    }
+
+    const result = await _getLeadsBySourceAndAgentService(sourceTitle, propId);
+    return res
+      .status(200)
+      .json(
+        new SuccessResponse(
+          "Leads by Source and Chat Agent fetched",
+          200,
+          result
+        )
+      );
+  } catch (error: any) {
+    return res.status(500).json(new SuccessResponse(error.message, 500));
+  }
+};
+
 export {
   FetchLeadDetails,
   NewFollowUp,
@@ -544,4 +571,5 @@ export {
   FetchMissedFollowupsForADay,
   FetchArchivedPaginatedLeads,
   FetchTodaysFollowups,
+  GetLeadsBySourceAndChatAgentController,
 };

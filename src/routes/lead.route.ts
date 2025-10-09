@@ -7,6 +7,7 @@ import {
   FetchLeadDetails,
   FetchMissedFollowupsForADay,
   FetchTodaysFollowups,
+  GetLeadsBySourceAndChatAgentController,
   GetMissedFollowUpsController,
   ImportLeadsController,
   LeadsPerSource,
@@ -137,12 +138,16 @@ leadRouter.post(
   FetchArchivedPaginatedLeads
 );
 
-
-
 leadRouter.get(
   "/todays-followups",
   AuthMiddleware,
   PermissionMiddleware("manage_leads"),
   FetchTodaysFollowups
-)
+);
+
+leadRouter.post(
+  "/statistics-by-source-agent",
+  AuthMiddleware,
+  GetLeadsBySourceAndChatAgentController
+);
 export default leadRouter;
