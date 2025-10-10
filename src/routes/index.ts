@@ -13,6 +13,7 @@ import propertyRouter from "./property.route";
 import permissionRouter from "./permission.route";
 import fileRouter from "./file.route";
 import customerRouter from "./customer.route";
+import packageRouter from "./package.route";
 
 mainRouter.use("/auth", authRouter);
 
@@ -26,5 +27,6 @@ mainRouter.use("/property", propertyRouter);
 mainRouter.use("/permission", permissionRouter);
 mainRouter.use("/file", fileRouter);
 mainRouter.use("/customer", customerRouter);
+mainRouter.use("/package", packageRouter);
 
 export default mainRouter;
