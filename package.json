@@ -38,5 +38,8 @@
     "uuid": "^11.1.0",
     "vercel": "^44.2.11",
     "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@types/bcrypt": "^6.0.0"
   }
 }
