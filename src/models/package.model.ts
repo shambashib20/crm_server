@@ -78,7 +78,7 @@ const PackageSchema = new Schema<PackageDto & Document>(
     createdBy: {
       type: Schema.Types.ObjectId,
       ref: "User",
-      required: true,
+      default: null,
     },
 
     logs: {
@@ -101,4 +101,5 @@ const PackageSchema = new Schema<PackageDto & Document>(
   }
 );
 
-export const Feature = model<PackageDto & Document>("Package", PackageSchema);
+const Package = model<PackageDto & Document>("Package", PackageSchema);
+export default Package;

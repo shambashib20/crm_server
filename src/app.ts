@@ -28,6 +28,8 @@ import { LogStatus } from "./dtos/property.dto";
 import Label from "./models/label.model";
 import Role from "./models/role.model";
 import { seedDefaultSources } from "./seeders/source.seeder";
+import { seedFeaturesAndPackages } from "./seeders/pricingpackages.seeder";
+import Package from "./models/package.model";
 const app: Application = express();
 app.use(
   cors({
@@ -76,6 +78,14 @@ app.listen(PORT, async () => {
   if (process.env.SEED_DB === "true") {
     try {
       console.log("🌱 Checking if seeding is necessary...");
+
+      const packagesCount = await Package.countDocuments();
+      if (packagesCount === 0) {
+        console.log("🔨 Seeding pricing packages and features...");
+        await seedFeaturesAndPackages();
+      } else {
+        console.log("ℹ️ Packages already exist. Skipping package seeder.");
+      }
 
       // 1️⃣ Seed roles and permissions first
       const rolesCount = await Role.countDocuments();
