@@ -7,6 +7,8 @@ dotenv.config();
 import crypto from "crypto";
 import Label from "../models/label.model";
 import { encodePropertyId, randomString } from "../utils/api_key.util";
+import PurchaseRecordsModel from "../models/purchaserecords.model";
+import { PurchaseRecordsDto } from "../dtos/purchaserecords.dto";
 
 const _fetchPropertyLogs = async (propId: Types.ObjectId) => {
   try {
@@ -36,10 +38,24 @@ const _fetchPropertyDetails = async (propId: Types.ObjectId) => {
       throw new Error("Property not found");
     }
 
+    let activePackageData: PurchaseRecordsDto | null = null;
+
+    const activePackageId = property.meta?.active_package;
+    console.log("Active Package ID:", activePackageId);
+
+    if (activePackageId) {
+      const raw = await PurchaseRecordsModel.findById(activePackageId);
+      console.log("Active Package Data:", raw);
+      activePackageData = raw ? raw.toObject() : null;
+      console.log("Active Package Data after toObject:", activePackageData);
+    }
+
+    // Filter unread logs
     const unreadLogs = (property.logs || []).filter(
       (log: any) => !(log.meta && log.meta.readStatus === "READ")
     );
 
+    // Sort logs by latest first
     const sortedLogs = [...unreadLogs].sort(
       (a: any, b: any) =>
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
@@ -47,12 +63,17 @@ const _fetchPropertyDetails = async (propId: Types.ObjectId) => {
 
     return {
       ...property.toObject(),
+      meta: {
+        ...(property.meta ? property.meta.toJSON?.() ?? property.meta : {}),
+        active_package: activePackageData, 
+      },
       logs: sortedLogs,
-    } as PropertyDto;
+    };
   } catch (error: any) {
     throw new Error(`Failed to fetch property details: ${error.message}`);
   }
 };
+
 
 const _createPropertyForOnboarding = async (
   name: string,

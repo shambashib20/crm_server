@@ -14,7 +14,7 @@ const _fetchPricingPlans = async () => {
 const _createPuchaseRecord = async (data: PurchaseRecordsDto, session: any) => {
   const newRecord = new PurchaseRecordsModel(data);
   await newRecord.save({ session });
-  return newRecord;
+  return newRecord; 
 };
 
 export { _fetchPricingPlans, _createPuchaseRecord };

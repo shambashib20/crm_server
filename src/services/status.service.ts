@@ -176,19 +176,35 @@ const _getStatusesPaginated = async (
 ) => {
   const skip = (page - 1) * limit;
 
+  const defaultStatusTitles = ["New", "Processing", "Confirm", "Cancel"];
+
+  const defaultStatusesPromise = Status.find({
+    title: { $in: defaultStatusTitles },
+  }).sort({ createdAt: -1 });
+
   const filter = { property_id: propId };
 
-  const [statuses, total] = await Promise.all([
-    Status.find(filter)
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit),
-      // .populate("property_id"),
-    Status.countDocuments(),
-  ]);
+  const propertyStatusesPromise = Status.find(filter)
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(limit);
+  const totalPropertyStatusesPromise = Status.countDocuments(filter);
+
+  const [defaultStatuses, propertyStatuses, totalPropertyStatuses] =
+    await Promise.all([
+      defaultStatusesPromise,
+      propertyStatusesPromise,
+      totalPropertyStatusesPromise,
+    ]);
+
+  // 4️⃣ Combine both (default first, then property-specific)
+  const allStatuses = [...defaultStatuses, ...propertyStatuses];
+
+  // 5️⃣ Total count = default statuses + property-specific count
+  const total = defaultStatuses.length + totalPropertyStatuses;
 
   return {
-    statuses,
+    statuses: allStatuses,
     pagination: {
       total,
       currentPage: page,

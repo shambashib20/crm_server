@@ -14,7 +14,7 @@ export async function seedDefaultLeadStatuses() {
 
   for (const statusTitle of statuses) {
     const exists = await Status.findOne({
-      title: statusTitle,
+      title: statusTitle, 
       property_id: existingProperty._id,
     });
 

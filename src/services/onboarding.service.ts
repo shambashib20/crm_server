@@ -12,6 +12,7 @@ import {
 } from "../dtos/property.dto";
 import Permission from "../models/permission.model";
 import { PermissionDocument } from "../models/permission.model";
+import Package from "../models/package.model";
 
 const _createNewUserForOnboarding = async (
   roleName: string,
@@ -39,8 +40,19 @@ const _createNewUserForOnboarding = async (
       throw new Error("User with same email or name already exists.");
     }
 
+    const pricingPlans = await Package.findOne({
+      title: "Free Plan",
+    });
+
+    if (!pricingPlans) {
+      throw new Error("Default pricing plan not found.");
+    }
+
     const newProperty = new Property({
-      meta: { ray_id: `ray-id-${uuidv4()}` },
+      meta: {       
+        ray_id: `ray-id-${uuidv4()}`, 
+        active_package: pricingPlans._id
+      },
       name: orgName,
       description: orgDescription,
       usage_limits: 100,
