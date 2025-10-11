@@ -174,7 +174,7 @@ const _getStatusesPaginated = async (
   limit = 10,
   propId: Types.ObjectId
 ) => {
-  const skip = (page - 1) * limit;
+  const skip = (page - 1) * limit;    
 
   const defaultStatusTitles = ["New", "Processing", "Confirm", "Cancel"];
 
