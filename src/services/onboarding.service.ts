@@ -13,6 +13,8 @@ import {
 import Permission from "../models/permission.model";
 import { PermissionDocument } from "../models/permission.model";
 import Package from "../models/package.model";
+import PurchaseRecordsModel from "../models/purchaserecords.model";
+import { PurchaseStatus } from "../dtos/purchaserecords.dto";
 
 const _createNewUserForOnboarding = async (
   roleName: string,
@@ -49,9 +51,8 @@ const _createNewUserForOnboarding = async (
     }
 
     const newProperty = new Property({
-      meta: {       
-        ray_id: `ray-id-${uuidv4()}`, 
-        active_package: pricingPlans._id
+      meta: {
+        ray_id: `ray-id-${uuidv4()}`,
       },
       name: orgName,
       description: orgDescription,
@@ -74,7 +75,27 @@ const _createNewUserForOnboarding = async (
       is_banned: false,
       status: PropertyStatus.ACTIVE,
     });
+
     await newProperty.save();
+
+    const newPurchaseRecord = new PurchaseRecordsModel({
+      property_id: newProperty._id,
+      package_id: pricingPlans._id,
+      status: PurchaseStatus.COMPLETED,
+    });
+
+    await newPurchaseRecord.save();
+
+    const updatedProperty = await Property.findByIdAndUpdate(
+      newProperty._id,
+      {
+        $set: {
+          "meta.active_package": newPurchaseRecord._id,
+        },
+      },
+      { new: true }
+    );
+
     const role = await Role.findOne({
       name: roleName,
     });
@@ -89,7 +110,7 @@ const _createNewUserForOnboarding = async (
       phone_number,
       password,
       role: role._id,
-      property_id: newProperty._id,
+      property_id: updatedProperty?._id,
       meta: {
         onboardingCompleted: false,
         onboardingStep: 1,
@@ -102,7 +123,7 @@ const _createNewUserForOnboarding = async (
 
     return {
       user: newUser,
-      property: newProperty,
+      property: updatedProperty,
     };
   } catch (error: any) {
     throw new Error(`Error creating user for organization: ${error.message}`);

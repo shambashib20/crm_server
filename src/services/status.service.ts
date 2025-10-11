@@ -197,10 +197,10 @@ const _getStatusesPaginated = async (
       totalPropertyStatusesPromise,
     ]);
 
-  // 4️⃣ Combine both (default first, then property-specific)
+  
   const allStatuses = [...defaultStatuses, ...propertyStatuses];
 
-  // 5️⃣ Total count = default statuses + property-specific count
+  
   const total = defaultStatuses.length + totalPropertyStatuses;
 
   return {

@@ -40,22 +40,27 @@ const _fetchPropertyDetails = async (propId: Types.ObjectId) => {
 
     let activePackageData: PurchaseRecordsDto | null = null;
 
-    const activePackageId = property.meta?.active_package;
-    console.log("Active Package ID:", activePackageId);
+    const activePackageId = property.meta?.get("active_package");
 
     if (activePackageId) {
-      const raw = await PurchaseRecordsModel.findById(activePackageId);
-      console.log("Active Package Data:", raw);
+      const raw = await PurchaseRecordsModel.findById(activePackageId).populate(
+        {
+          path: "package_id",
+          populate: {
+            path: "features",
+            model: "Feature",
+            select: "title description meta",
+          },
+        }
+      );
       activePackageData = raw ? raw.toObject() : null;
-      console.log("Active Package Data after toObject:", activePackageData);
     }
 
-    // Filter unread logs
     const unreadLogs = (property.logs || []).filter(
       (log: any) => !(log.meta && log.meta.readStatus === "READ")
     );
 
-    // Sort logs by latest first
+    
     const sortedLogs = [...unreadLogs].sort(
       (a: any, b: any) =>
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
