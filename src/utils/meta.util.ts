@@ -1,4 +1,7 @@
-export const getMetaValue = (meta: any, key: string) => {
+export const getMetaValue = <T = any>(
+  meta: Map<string, T> | Record<string, T> | null | undefined,
+  key: string
+): T | undefined => {
   if (!meta) return undefined;
-  return typeof meta.get === "function" ? meta.get(key) : meta[key];
+  return meta instanceof Map ? meta.get(key) : meta[key];
 };

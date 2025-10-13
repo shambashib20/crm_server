@@ -8,23 +8,16 @@ const PricingMiddleware = (featureTitle: string) => {
     try {
       const property = req.property;
       if (!property) {
-        return res
-          .status(401)
-          .json({ message: "Workspace not found in the space!" });
+        return res.status(404).json({ message: "Workspace not found." });
       }
-
       const activePackageId = getMetaValue(property.meta, "active_package");
       if (!activePackageId) {
-        return res.status(403).json({ message: "No active package found." });
+        return res.status(404).json({ message: "No active package found." });
       }
       const activePackage = await PurchaseRecordsModel.findById(
         activePackageId
       );
-      if (!activePackage) {
-        return res.status(403).json({
-          message: "No package has been purchased for this workspace!",
-        });
-      }
+
       if (!activePackage) {
         return res
           .status(403)
@@ -73,7 +66,7 @@ const PricingMiddleware = (featureTitle: string) => {
           message: `Limit reached for '${featureTitle}'. You have used ${used}/${limit}.`,
         });
       }
-      next();
+      return next();
     } catch (error: any) {
       console.error("FeatureLimitMiddleware Error:", error);
       return res.status(500).json({
@@ -83,5 +76,6 @@ const PricingMiddleware = (featureTitle: string) => {
     }
   };
 };
+
 
 export default PricingMiddleware;
