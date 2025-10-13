@@ -5,6 +5,8 @@ enum PurchaseStatus {
   COMPLETED = "COMPLETED",
   FAILED = "FAILED",
   REFUNDED = "REFUNDED",
+  CANCELLED = "CANCELLED",
+  EXPIRED = "EXPIRED",
 }
 
 interface PurchaseRecordsDto {

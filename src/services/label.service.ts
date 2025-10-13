@@ -7,6 +7,8 @@ import Property from "../models/property.model";
 import { LogStatus } from "../dtos/property.dto";
 import Role from "../models/role.model";
 import User from "../models/user.model";
+import PurchaseRecordsModel from "../models/purchaserecords.model";
+import { getMetaValue } from "../utils/meta.util";
 
 const _createLabelInProperty = async (
   propId: Types.ObjectId,
@@ -16,17 +18,17 @@ const _createLabelInProperty = async (
   chatAgentIds?: Types.ObjectId[]
 ) => {
   const now = new Date();
+
+  // Prevent duplicate labels
   const existingLabel = await Label.findOne({
     title: { $regex: new RegExp(`^${title}$`, "i") },
     property_id: propId,
   });
-
   if (existingLabel) {
-    throw new Error(
-      `Label with title "${title}" already exists in this property.`
-    );
+    throw new Error(`Label "${title}" already exists in this property.`);
   }
 
+  // Prepare label
   const assignedAgents = (chatAgentIds || []).map((id) => ({
     agent_id: id,
     assigned_at: now,
@@ -44,27 +46,55 @@ const _createLabelInProperty = async (
     },
   });
 
-  await Property.findByIdAndUpdate(
-    propId,
+  
+  const property = await Property.findById(propId);
+  const activePackageId = getMetaValue(property?.meta, "active_package");
+  console.log("Active Package ID in Service:", activePackageId);
+  if (!activePackageId) {
+    throw new Error("No active package found.");
+  }
+
+  // ✅ Step 2: Update usage_count in Property
+  await Property.findByIdAndUpdate(propId, {
+    $inc: {
+      usage_count: 1,
+    },
+    $push: {
+      logs: {
+        title: "A New Label created!",
+        description: `A new label named (${newLabel.title}) was created!`,
+        status: LogStatus.ACTION,
+        meta: { labelId: newLabel._id },
+        createdAt: now,
+        updatedAt: now,
+      },
+    },
+  });
+
+  // ✅ Step 3: Update used count in PurchaseRecordsModel
+  const updatedPackage = await PurchaseRecordsModel.findOneAndUpdate(
     {
-      $inc: { usage_count: 1 },
-      $push: {
-        logs: {
-          title: "A New Label created!",
-          description: `A new label named (${newLabel.title}) was created!`,
-          status: LogStatus.ACTION,
-          meta: { labelId: newLabel._id },
-          createdAt: now,
-          updatedAt: now,
-        },
+      _id: activePackageId,
+      "meta.activated_features.title": "Labels Limit",
+    },
+    {
+      $inc: {
+        "meta.activated_features.$.used": 1,
       },
     },
     { new: true }
   );
 
+  if (!updatedPackage) {
+    throw new Error("Failed to update feature usage in package.");
+  }
+
+  // ✅ Save label last
   await newLabel.save();
+
   return newLabel;
 };
+
 
 const _fetchLabelsInProperty = async (propId: Types.ObjectId) => {
   const labels = await Label.find({
