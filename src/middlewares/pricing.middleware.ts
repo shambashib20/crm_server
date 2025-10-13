@@ -12,7 +12,7 @@ const PricingMiddleware = (featureTitle: string) => {
       }
       const activePackageId = getMetaValue(property.meta, "active_package");
       if (!activePackageId) {
-        return res.status(403).json({ message: "No active package found." });
+        return res.status(404).json({ message: "No active package found." });
       }
       const activePackage = await PurchaseRecordsModel.findById(
         activePackageId
@@ -76,5 +76,6 @@ const PricingMiddleware = (featureTitle: string) => {
     }
   };
 };
+
 
 export default PricingMiddleware;

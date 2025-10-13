@@ -47,14 +47,15 @@ const _createLabelInProperty = async (
   });
 
   
-  const property = await Property.findById(propId);
-  const activePackageId = getMetaValue(property?.meta, "active_package");
-  console.log("Active Package ID in Service:", activePackageId);
-  if (!activePackageId) {
-    throw new Error("No active package found.");
-  }
-
-  // ✅ Step 2: Update usage_count in Property
+  const property = await Property.findById(propId).lean();
+  if (!property) throw new Error("Property not found.");
+  const activePackageIdRaw = getMetaValue(property.meta, "active_package");
+  if (!activePackageIdRaw)
+    throw new Error("No active package found for this property.");
+  const activePackageId =
+    typeof activePackageIdRaw === "string"
+      ? new Types.ObjectId(activePackageIdRaw)
+      : activePackageIdRaw;
   await Property.findByIdAndUpdate(propId, {
     $inc: {
       usage_count: 1,
@@ -71,7 +72,6 @@ const _createLabelInProperty = async (
     },
   });
 
-  // ✅ Step 3: Update used count in PurchaseRecordsModel
   const updatedPackage = await PurchaseRecordsModel.findOneAndUpdate(
     {
       _id: activePackageId,
@@ -89,7 +89,7 @@ const _createLabelInProperty = async (
     throw new Error("Failed to update feature usage in package.");
   }
 
-  // ✅ Save label last
+  
   await newLabel.save();
 
   return newLabel;
