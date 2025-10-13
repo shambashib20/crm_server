@@ -9,6 +9,7 @@ import {
 import express from "express";
 import AuthMiddleware from "../middlewares/authentication.middleware";
 import PermissionMiddleware from "../middlewares/permission.middleware";
+import PricingMiddleware from "../middlewares/pricing.middleware";
 
 const   labelRouter = express.Router();
 
@@ -23,6 +24,7 @@ labelRouter.post(
   "/create",
   AuthMiddleware,
   PermissionMiddleware("manage_leads"),
+  PricingMiddleware("Labels Limit"),
   CreateLabel
 );
 
