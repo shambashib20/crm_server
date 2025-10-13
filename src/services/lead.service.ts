@@ -17,6 +17,9 @@ import {
   bulkInsertLeadsWithValidation,
   BulkLeadInputDto,
 } from "./bulk-lead-upload.service";
+import { getMetaValue } from "../utils/meta.util";
+import PurchaseRecordsModel from "../models/purchaserecords.model";
+import { PurchaseStatus } from "../dtos/purchaserecords.dto";
 
 function getEarliestFollowUpDate(followUps: any[] = []): Date | null {
   if (!Array.isArray(followUps) || followUps.length === 0) return null;
@@ -84,9 +87,6 @@ interface ImportOptions {
   assigned_to?: Types.ObjectId | null;
   source_name?: string;
 }
-
-
-
 
 interface ExternalLeadGenerationDto {
   customer_name: string;
@@ -532,7 +532,7 @@ const _createLeadService = async (data: CreateLeadDto, ip: string) => {
   const ray_id = `ray-id-${uuidv4()}`;
 
   // 🔹 Create lead
-  const lead = await Lead.create({
+  const lead = new Lead({
     ...data,
     labels: data.labels?.map((id) => new Types.ObjectId(id)) || [],
     status: data.status || defaultStatus._id,
@@ -562,6 +562,45 @@ const _createLeadService = async (data: CreateLeadDto, ip: string) => {
     ],
   });
 
+  const property = await Property.findById(defaultStatus.property_id).lean();
+
+  if (!property) throw new Error("Workspace Linkage not found.");
+
+  const activePackageIdRaw = getMetaValue(property.meta, "active_package");
+
+  if (!activePackageIdRaw)
+    throw new Error("No active package found for this property.");
+  const activePackageId =
+    typeof activePackageIdRaw === "string"
+      ? new Types.ObjectId(activePackageIdRaw)
+      : activePackageIdRaw;
+
+  const activePackage = await PurchaseRecordsModel.findById(activePackageId);
+  if (!activePackage) {
+    throw new Error("Active package not found for this property.");
+  }
+  if (activePackage.status !== PurchaseStatus.COMPLETED) {
+    throw new Error(
+      `Your current package is ${activePackage.status}. Please renew or upgrade your package.`
+    );
+  }
+
+  const activatedFeatures =
+    getMetaValue(activePackage.meta, "activated_features") || [];
+
+  const leadsFeature = activatedFeatures.find(
+    (f: any) => f.title === "Leads Limit"
+  );
+
+  if (!leadsFeature) {
+    throw new Error("Your plan does not include Leads Limit. Please upgrade.");
+  }
+
+  if (leadsFeature.used >= leadsFeature.limit) {
+    throw new Error(
+      `Leads creation limit reached. You have used ${leadsFeature.used}/${leadsFeature.limit}.`
+    );
+  }
   // 🔹 Update property usage + logs
   await Property.findByIdAndUpdate(
     defaultStatus.property_id,
@@ -569,7 +608,7 @@ const _createLeadService = async (data: CreateLeadDto, ip: string) => {
       $inc: { usage_count: 1 },
       $push: {
         logs: {
-          title: "Lead Assigned",
+          title: "Lead Created",
           description: `A new lead named (${lead.name}) was assigned to this property.`,
           status: LogStatus.INFO,
           meta: { leadId: lead._id },
@@ -581,6 +620,24 @@ const _createLeadService = async (data: CreateLeadDto, ip: string) => {
     { new: true }
   );
 
+  const updatedPackage = await PurchaseRecordsModel.findOneAndUpdate(
+    {
+      _id: activePackageId,
+      "meta.activated_features.title": "Leads Limit",
+    },
+    {
+      $inc: {
+        "meta.activated_features.$.used": 1,
+      },
+    },
+    { new: true }
+  );
+
+  if (!updatedPackage) {
+    throw new Error("Failed to update feature usage in package.");
+  }
+
+  await lead.save();
   return lead;
 };
 
@@ -1290,15 +1347,6 @@ const _getMissedFollowUpsForDay = async (
   return filteredLeads.filter((l) => l.missed_follow_ups.length > 0);
 };
 
-
-
-
-
-
-
-
-
-
 const _fetchPaginatedArchivedLeads = async (
   propId: Types.ObjectId,
   page: number = 1,
@@ -1339,10 +1387,6 @@ const _fetchPaginatedArchivedLeads = async (
     },
   };
 };
-
-
-
-
 
 const _getTodaysFollowups = async (
   userId: Types.ObjectId,
@@ -1393,18 +1437,28 @@ const _getTodaysFollowups = async (
   return filteredLeads.filter((l) => l.todays_follow_ups.length > 0);
 };
 
-
 const _getLeadsBySourceAndAgentService = async (
   sourceTitle: string,
   propId: Types.ObjectId
 ) => {
   const source = await Source.findOne({ title: sourceTitle });
+
   if (!source) {
     throw new Error(`Source with title "${sourceTitle}" not found.`);
   }
 
+  const test = await Lead.find({
+    "meta.source": source._id,
+    property_id: propId,
+  });
+
   const result = await Lead.aggregate([
-    { $match: { "meta.source": source._id, property_id: propId } },
+    {
+      $match: {
+        "meta.source": source._id,
+        property_id: new Types.ObjectId(propId),
+      },
+    },
     {
       $lookup: {
         from: "users",
