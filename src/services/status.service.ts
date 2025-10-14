@@ -5,19 +5,30 @@ import { LogStatus } from "../dtos/property.dto";
 import User from "../models/user.model";
 
 const _fetchStatusInProperty = async (propId: Types.ObjectId) => {
-  const statuses = await Status.find({
+  const propertyStatuses = await Status.find({
     property_id: propId,
   });
 
-  const property = await Property.findOne({
-    _id: propId,
+  const defaultStatuses = await Status.find({
+    title: { $in: ["New", "Processing", "Confirm", "Cancel"] },
   });
 
-  if (!statuses) {
-    throw new Error(`No statuses found for ${property?.name}!`);
+  const allStatuses = [
+    ...propertyStatuses,
+    ...defaultStatuses.filter(
+      (def) => !propertyStatuses.some((p) => p._id.equals(def._id))
+    ),
+  ];
+
+  if (!allStatuses.length) {
+    const property = await Property.findById(propId).lean();
+    throw new Error(
+      `No statuses found for ${property?.name || "this property"}!`
+    );
   }
 
-  return statuses;
+  return allStatuses;
+  
 };
 
 const _createStatusInProperty = async (
