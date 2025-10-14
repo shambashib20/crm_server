@@ -1549,6 +1549,90 @@ const _getLeadsBySourceAndAgentService = async (
   };
 };
 
+
+
+
+const _getLeadsByLabelAndAgentService = async (
+  labelTitle: string,
+  propId: Types.ObjectId
+) => {
+  const label = await Label.findOne({ title: labelTitle });
+
+  if (!label) {
+    throw new Error(`Label with title "${labelTitle}" not found.`);
+  }
+
+  const result = await Lead.aggregate([
+    {
+      $match: {
+        labels: label._id,
+        property_id: new Types.ObjectId(propId),
+      },
+    },
+    {
+      $lookup: {
+        from: "users",
+        localField: "assigned_to",
+        foreignField: "_id",
+        as: "assignedUser",
+      },
+    },
+    { $unwind: { path: "$assignedUser", preserveNullAndEmptyArrays: true } },
+
+    {
+      $lookup: {
+        from: "roles",
+        localField: "assignedUser.role",
+        foreignField: "_id",
+        as: "role",
+      },
+    },
+
+    { $unwind: { path: "$role", preserveNullAndEmptyArrays: true } },
+
+    {
+      $group: {
+        _id: {
+          agentId: "$assigned_to",
+          agentName: "$assignedUser.name",
+          roleName: "$role.name",
+        },
+        count: { $sum: 1 },
+      },
+    },
+  ]);
+
+  let agents: any[] = [];
+  let unassignedCount = 0;
+  let totalLeads = 0;
+
+  result.forEach((item) => {
+    totalLeads += item.count;
+
+    if (!item._id.agentId) {
+      unassignedCount += item.count;
+      return;
+    }
+
+    if (item._id.roleName === "Chat Agent") {
+      agents.push({
+        agent_id: item._id.agentId,
+        agent_name: item._id.agentName,
+        lead_count: item.count,
+      });
+    }
+  });
+
+  return {
+    label: labelTitle,
+    totalLeads,
+    agents,
+    unassigned: {
+      lead_count: unassignedCount,
+    },
+  };
+};
+
 export {
   _fetchLeadDetails,
   _createNewFollowUp,
@@ -1570,4 +1654,5 @@ export {
   _fetchPaginatedArchivedLeads,
   _getTodaysFollowups,
   _getLeadsBySourceAndAgentService,
+  _getLeadsByLabelAndAgentService,
 };

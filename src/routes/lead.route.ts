@@ -7,6 +7,7 @@ import {
   FetchLeadDetails,
   FetchMissedFollowupsForADay,
   FetchTodaysFollowups,
+  GetLeadsByLabelAndChatAgentController,
   GetLeadsBySourceAndChatAgentController,
   GetMissedFollowUpsController,
   ImportLeadsController,
@@ -149,5 +150,13 @@ leadRouter.post(
   "/statistics-by-source-agent",
   AuthMiddleware,
   GetLeadsBySourceAndChatAgentController
+);
+
+
+
+leadRouter.post(
+  "/statistics-by-label-agent",
+  AuthMiddleware,
+  GetLeadsByLabelAndChatAgentController
 );
 export default leadRouter;
