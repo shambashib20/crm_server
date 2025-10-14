@@ -1,9 +1,6 @@
 import { Types } from "mongoose";
-
 import Label from "../models/label.model";
-
 import Property from "../models/property.model";
-
 import { LogStatus } from "../dtos/property.dto";
 import Role from "../models/role.model";
 import User from "../models/user.model";

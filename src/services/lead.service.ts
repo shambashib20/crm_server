@@ -447,11 +447,25 @@ const _homePageLeadService = async (
     paginatedLeads = fullLeads.slice(startIndex, endIndex);
   }
 
-  // ✅ Fetch statuses scoped to current property
-  const statuses = await Status.find({
+
+  const propertyStatuses = await Status.find({
     property_id: userPropId,
     "meta.is_active": true,
   }).lean();
+
+
+  const defaultStatuses = await Status.find({
+    title: { $in: ["New", "Processing", "Confirm", "Cancel"] },
+    "meta.is_active": true,
+  }).lean();
+
+
+  const statuses = [
+    ...propertyStatuses,
+    ...defaultStatuses.filter(
+      (def) => !propertyStatuses.some((p) => p._id.toString() === def._id.toString())
+    ),
+  ];
 
   return {
     leads: paginatedLeads,
@@ -511,11 +525,21 @@ const _createLeadService = async (data: CreateLeadDto, ip: string) => {
 
   // 🔹 Fallback: assign to Superadmin
   if (!assignedToId) {
-    const superAdmin = await User.findOne({ role: "Superadmin" });
-    if (!superAdmin) {
-      throw new Error("No Superadmin found in the system.");
+    const superAdminRole = await Role.findOne({ name: "Superadmin" });
+    if (!superAdminRole) {
+      throw new Error("Superadmin role not found in this property!");
     }
-    assignedToId = superAdmin._id;
+
+    const superAdminUser = await User.findOne({
+      property_id: data.property_id,
+      role: superAdminRole._id,
+    });
+
+    if (!superAdminUser) {
+      throw new Error("No Superadmin user found in this property!");
+    }
+
+    assignedToId = superAdminUser._id;
   }
 
   // 🔹 Fetch defaults
@@ -531,14 +555,14 @@ const _createLeadService = async (data: CreateLeadDto, ip: string) => {
 
   const ray_id = `ray-id-${uuidv4()}`;
 
-  // 🔹 Create lead
+
   const lead = new Lead({
     ...data,
     labels: data.labels?.map((id) => new Types.ObjectId(id)) || [],
     status: data.status || defaultStatus._id,
     assigned_to: assignedToId,
     assigned_by: data.assigned_by ? new Types.ObjectId(data.assigned_by) : null,
-    property_id: defaultStatus.property_id,
+    property_id: data.property_id || defaultStatus.property_id,
     meta: {
       ray_id,
       source: data.source || defaultSource,
@@ -551,9 +575,8 @@ const _createLeadService = async (data: CreateLeadDto, ip: string) => {
     logs: [
       {
         title: "Lead created",
-        description: `Lead created by the name of ${
-          data?.name || "Unknown"
-        } and assigned the status of ${defaultStatus.title}`,
+        description: `Lead created by the name of ${data?.name || "Unknown"
+          } and assigned the status of ${defaultStatus.title}`,
         status: LeadLogStatus.ACTION,
         meta: {},
         createdAt: now,
@@ -562,7 +585,8 @@ const _createLeadService = async (data: CreateLeadDto, ip: string) => {
     ],
   });
 
-  const property = await Property.findById(defaultStatus.property_id).lean();
+  const property = await Property.findById(data.property_id).lean();
+
 
   if (!property) throw new Error("Workspace Linkage not found.");
 
@@ -576,6 +600,8 @@ const _createLeadService = async (data: CreateLeadDto, ip: string) => {
       : activePackageIdRaw;
 
   const activePackage = await PurchaseRecordsModel.findById(activePackageId);
+
+
   if (!activePackage) {
     throw new Error("Active package not found for this property.");
   }
@@ -1154,10 +1180,10 @@ const _importLeadsFromExcel = async (
         }),
         ...(options.source_name &&
           !sourceObject && {
-            source: {
-              title: options.source_name,
-            },
-          }),
+          source: {
+            title: options.source_name,
+          },
+        }),
       };
 
       return {
