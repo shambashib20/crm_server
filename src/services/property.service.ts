@@ -1,10 +1,10 @@
 import Property from "../models/property.model";
 import { LogStatus, PropertyDto, PropertyStatus } from "../dtos/property.dto";
 import { Types } from "mongoose";
-import Role from "../models/role.model";
+
 import dotenv from "dotenv";
 dotenv.config();
-import crypto from "crypto";
+
 import Label from "../models/label.model";
 import { encodePropertyId, randomString } from "../utils/api_key.util";
 import PurchaseRecordsModel from "../models/purchaserecords.model";
@@ -285,6 +285,13 @@ const _createApiKeyService = async (
 
   return { property: updatedProperty, apiKey };
 };
+
+
+
+// CUSTOMER LEADS WHO NOT YET REGISTERED WITH US! jUST HAVE RAISED PRODUCT REQUSTS
+
+
+
 
 
 

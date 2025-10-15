@@ -14,6 +14,7 @@ import permissionRouter from "./permission.route";
 import fileRouter from "./file.route";
 import customerRouter from "./customer.route";
 import packageRouter from "./package.route";
+import clientRouter from "./client.route";
 
 mainRouter.use("/auth", authRouter);
 
@@ -28,5 +29,6 @@ mainRouter.use("/permission", permissionRouter);
 mainRouter.use("/file", fileRouter);
 mainRouter.use("/customer", customerRouter);
 mainRouter.use("/package", packageRouter);
+mainRouter.use("/client", clientRouter)
 
 export default mainRouter;

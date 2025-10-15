@@ -1418,7 +1418,7 @@ const _getTodaysFollowups = async (
   userId: Types.ObjectId,
   propertyId?: string
 ) => {
-  // today range (00:00:00 to 23:59:59)
+ 
   const startOfDay = new Date();
   startOfDay.setHours(0, 0, 0, 0);
 
@@ -1548,8 +1548,6 @@ const _getLeadsBySourceAndAgentService = async (
     },
   };
 };
-
-
 
 
 const _getLeadsByLabelAndAgentService = async (
