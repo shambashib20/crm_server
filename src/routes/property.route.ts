@@ -1,6 +1,7 @@
 import {
   CreateApiKeyController,
   CreatePropertyForOnboarding,
+  FetchProperties,
   FetchPropertyLogs,
   PropertyDetails,
   TogglePropertyLogReadStatus,
@@ -38,11 +39,16 @@ propertyRouter.put(
   TogglePropertyLogReadStatus
 );
 
-
 propertyRouter.post(
   "/generate/api-key",
   AuthMiddleware,
   CreateApiKeyController
-)
+);
 
+propertyRouter.post(
+  "/all",
+  AuthMiddleware,
+  PermissionMiddleware("manage_leads"),
+  FetchProperties
+);
 export default propertyRouter;
