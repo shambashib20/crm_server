@@ -4,6 +4,7 @@ import { _createNewUserForOnboarding } from "../services/onboarding.service";
 import {
   _createApiKeyService,
   _createPropertyForOnboarding,
+  _fetchPaginatedProperties,
   _fetchPropertyDetails,
   _fetchPropertyLogs,
   _updatePropertyById,
@@ -172,7 +173,7 @@ const CreateApiKeyController = async (req: any, res: any) => {
 
     const apiKey = await _createApiKeyService(propId, {
       purpose,
-      label_id
+      label_id,
     });
 
     return res
@@ -185,8 +186,20 @@ const CreateApiKeyController = async (req: any, res: any) => {
   }
 };
 
+const FetchProperties = async (req: any, res: any) => {
+  try {
+    const { page = 1, limit = 10 } = req.body;
 
-
+    const clients = await _fetchPaginatedProperties(page, limit);
+    return res
+      .status(200)
+      .json(
+        new SuccessResponse("Workspaces fetched successfully", 200, clients)
+      );
+  } catch (error: any) {
+    return res.status(500).json(new SuccessResponse(error.message, 500));
+  }
+};
 
 export {
   FetchPropertyLogs,
@@ -195,4 +208,5 @@ export {
   UpdatePropertyById,
   TogglePropertyLogReadStatus,
   CreateApiKeyController,
+  FetchProperties,
 };

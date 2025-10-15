@@ -290,10 +290,33 @@ const _createApiKeyService = async (
 
 // CUSTOMER LEADS WHO NOT YET REGISTERED WITH US! jUST HAVE RAISED PRODUCT REQUSTS
 
+const _fetchPaginatedProperties = async (
+  page: number = 1,
+  limit: number = 10
+) => {
+  const skip = (page - 1) * limit;
 
+  const [properties, total] = await Promise.all([
+    Property.find().sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+    Property.countDocuments(),
+  ]);
 
+  const totalPages = Math.ceil(total / limit);
+  const hasNextPage = page < totalPages;
+  const hasPrevPage = page > 1;
 
-
+  return {
+    properties,
+    pagination: {
+      totalItems: total,
+      totalPages,
+      currentPage: page,
+      limit,
+      hasNextPage,
+      hasPrevPage,
+    },
+  };
+};
 
 export {
   _fetchPropertyLogs,
@@ -302,4 +325,5 @@ export {
   _updatePropertyById,
   _markPropertyLogAsRead,
   _createApiKeyService,
+  _fetchPaginatedProperties,
 };
