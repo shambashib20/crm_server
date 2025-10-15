@@ -7,6 +7,7 @@ import { LogStatus, PropertyStatus } from "../dtos/property.dto";
 import Package from "../models/package.model";
 import PurchaseRecordsModel from "../models/purchaserecords.model";
 import { PurchaseStatus } from "../dtos/purchaserecords.dto";
+import Client from "../models/client.model";
 
 // const _createNewUserForOnboarding = async (
 //   roleName: string,
@@ -154,10 +155,18 @@ const _createNewUserForOnboarding = async (
   }
 
   try {
-    // --- Check if user already exists ---
     const existingUser = await User.findOne({ $or: [{ email }, { name }] });
     if (existingUser)
       throw new Error("User with same email or name already exists.");
+
+    const existingClient = await Client.findOne({ name });
+
+    let rayId: string;
+    if (existingClient && existingClient.meta?.get("ray_id")) {
+      rayId = existingClient.meta.get("ray_id");
+    } else {
+      rayId = `ray-id-${uuidv4()}`;
+    }
 
     // --- Get default package with features ---
     const pricingPlan = await Package.findOne({ title: "Free Plan" }).populate(
@@ -173,11 +182,10 @@ const _createNewUserForOnboarding = async (
       used: 0, // initial usage
     }));
 
-    
     const newProperty = await Property.create({
       meta: {
-        ray_id: `ray-id-${uuidv4()}`,
-        active_package: null, 
+        ray_id: rayId,
+        active_package: null,
       },
       name: orgName,
       description: orgDescription,
@@ -209,9 +217,8 @@ const _createNewUserForOnboarding = async (
       newProperty.meta = new Map();
     }
     newProperty.meta.set("active_package", newPurchaseRecord._id);
-    await newProperty.save(); 
+    await newProperty.save();
 
-    
     const role = await Role.findOne({ name: roleName });
     if (!role) throw new Error(`Role '${roleName}' not found.`);
 
@@ -226,7 +233,7 @@ const _createNewUserForOnboarding = async (
         onboardingCompleted: false,
         onboardingStep: 1,
         createdAt: new Date(),
-        ray_id: `ray-id-${uuidv4()}`,
+        ray_id: rayId,
       },
     });
 
