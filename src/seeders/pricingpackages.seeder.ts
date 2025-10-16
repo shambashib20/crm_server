@@ -3,6 +3,7 @@ import Package from "../models/package.model";
 import { FeatureStatus, FeatureLogsStatus } from "../dtos/feature.dto";
 import { PackageStatus } from "../dtos/package.dto";
 import { Types } from "mongoose";
+import { _createRazorpayPaymentLink } from "../services/payment.service";
 
 export async function seedFeaturesAndPackages() {
   console.log("🌱 Checking if Packages and Features need seeding...");
@@ -16,7 +17,7 @@ export async function seedFeaturesAndPackages() {
   }
 
   const now = new Date();
-  const validityDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // +7 days
+  const validityDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
   /** ------------------------
    * 1️⃣ CREATE FREE PLAN
@@ -138,7 +139,125 @@ export async function seedFeaturesAndPackages() {
   await Package.findByIdAndUpdate(basicPackage._id, {
     features: basicFeatureIds,
   });
-  console.log("✅ Basic Plan seeded successfully.");
+  try {
+    const rpResponse = await _createRazorpayPaymentLink({
+      amountInINR: basicPackage.price,
+      referenceId: basicPackage._id.toString(),
+      description: `Purchase ${basicPackage.title}`,
+      validityInDays: basicPackage.validity_in_days,
+    });
+
+    // rpResponse includes id, short_url, status, expire_by, created_at etc.
+    const metaUpdate: any = {
+      payment_link: rpResponse.short_url || null,
+      payment_link_id: rpResponse.id || null,
+      payment_link_status: rpResponse.status || null,
+      payment_link_expire_by: rpResponse.expire_by
+        ? new Date(rpResponse.expire_by * 1000)
+        : null,
+      payment_link_last_generated_at: new Date(),
+      package_code: "BASIC_01",
+    };
+
+    // Use Map or object depending on your package.meta type
+    await Package.findByIdAndUpdate(basicPackage._id, {
+      $set: { meta: metaUpdate },
+    });
+
+    console.log("✅ Basic Plan seeded with Razorpay payment link.");
+  } catch (err) {
+    console.error("❌ Failed to create payment link for Basic Plan:", err);
+    // we still seeded the package; operator can regenerate later via cron
+  }
+
+  console.log("🔨 Creating Super Plan package...");
+  const superPackage = await Package.create({
+    title: "Super Plan",
+    description: "Super plan with extended features",
+    validity: validityDate,
+    validity_in_days: 7,
+    price: 500,
+    features: [],
+    status: PackageStatus.ACTIVE,
+    logs: [
+      {
+        title: "Package Created",
+        description: `Super Plan created at ${now.toISOString()}`,
+        status: "ACTIVE",
+        meta: { source: "seeder" },
+      },
+    ],
+    meta: {
+      package_code: "SUPER_01",
+    },
+  });
+
+  /** Features for Basic Plan */
+  const superFeaturesData = [
+    { title: "Labels Limit", desc: "Max number of labels", limit: 20 },
+    { title: "Statuses Limit", desc: "Max number of statuses", limit: 26 },
+    { title: "Leads Limit", desc: "Max number of leads", limit: 50 },
+  ];
+
+  const superFeatureIds: Types.ObjectId[] = [];
+
+  console.log("🔨 Creating Basic Plan features...");
+  for (const feature of superFeaturesData) {
+    const createdFeature = await Feature.create({
+      title: feature.title,
+      description: feature.desc,
+      status: FeatureStatus.ACTIVE,
+      meta: {
+        package_id: superPackage._id,
+        limit: feature.limit,
+      },
+      logs: [
+        {
+          title: "Feature Created",
+          description: `${
+            feature.title
+          } for Super Plan at ${now.toISOString()}`,
+          status: FeatureLogsStatus.ACTIVE,
+          meta: { source: "seeder" },
+        },
+      ],
+    });
+    superFeatureIds.push(createdFeature._id);
+  }
+
+  await Package.findByIdAndUpdate(superPackage._id, {
+    features: basicFeatureIds,
+  });
+  try {
+    const rpResponse = await _createRazorpayPaymentLink({
+      amountInINR: superPackage.price,
+      referenceId: superPackage._id.toString(),
+      description: `Purchase ${superPackage.title}`,
+      validityInDays: superPackage.validity_in_days,
+    });
+
+    // rpResponse includes id, short_url, status, expire_by, created_at etc.
+    const metaUpdate: any = {
+      payment_link: rpResponse.short_url || null,
+      payment_link_id: rpResponse.id || null,
+      payment_link_status: rpResponse.status || null,
+      payment_link_expire_by: rpResponse.expire_by
+        ? new Date(rpResponse.expire_by * 1000)
+        : null,
+      payment_link_last_generated_at: new Date(),
+      package_code: "SUPER_01",
+    };
+
+    // Use Map or object depending on your package.meta type
+    await Package.findByIdAndUpdate(superPackage._id, {
+      $set: { meta: metaUpdate },
+    });
+
+    console.log("✅ Super Plan seeded with Razorpay payment link.");
+  } catch (err) {
+    console.error("❌ Failed to create payment link for Super Plan:", err);
+    // we still seeded the package; operator can regenerate later via cron
+  }
 
   console.log("✅ All packages & features seeded.");
 }
