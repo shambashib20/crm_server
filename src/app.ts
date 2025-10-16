@@ -22,7 +22,7 @@ import { getLocationFromIP } from "./utils/get_location.util";
 import { LeadLogStatus } from "./dtos/lead.dto";
 import Property from "./models/property.model";
 import { LogStatus } from "./dtos/property.dto";
-
+import { razorpayWebhookHandler } from "./webhooks/payment.webhook";
 
 import "./cron-jobs/cron";
 import Label from "./models/label.model";
@@ -44,7 +44,10 @@ app.use(
 app.use(cookieParser());
 const PORT = process.env.PORT || 5000;
 
-app.use(express.json());
+app.use((req, res, next) => {
+  if (req.originalUrl === "/webhook/razorpay") return next();
+  express.json()(req, res, next);
+});
 app.use("/api/facebook", facebookRoutes);
 app.use("/api", mainRouter);
 export enum MongoStatusEnums {
@@ -52,6 +55,11 @@ export enum MongoStatusEnums {
   CONNECTION_ERROR = "Mongodb connection Error!",
 }
 
+app.post(
+  "/webhook/razorpay",
+  express.raw({ type: "application/json" }),
+  razorpayWebhookHandler
+);
 app.get("/status", async (req: any, res: any) => {
   try {
     const dbStatus = await getDbStatus();
@@ -174,7 +182,6 @@ app.listen(PORT, async () => {
 
 app.post("/lead/webhook", async (req: any, res: any) => {
   try {
-   
     const users = await User.find({});
 
     let superadmin: (typeof users)[0] | null = null;
@@ -285,4 +292,7 @@ app.post("/lead/webhook", async (req: any, res: any) => {
       .json({ message: "Error syncing leads", error: err.message });
   }
 });
+
+
+
  

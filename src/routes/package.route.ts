@@ -1,4 +1,4 @@
-import { CreatePurchaseRecord, FetchPricingPlans } from "../controllers/package.controller";
+import { CreatePaymentProcessForPackage, CreatePurchaseRecord, FetchPricingPlans } from "../controllers/package.controller";
 import express from "express";
 
 import AuthMiddleware from "../middlewares/authentication.middleware";
@@ -9,5 +9,13 @@ const packageRouter = express.Router();
 packageRouter.get("/pricing-plans", FetchPricingPlans);
 
 packageRouter.post("/purchase", AuthMiddleware, CreatePurchaseRecord);
+
+
+
+packageRouter.post(
+  "/create-payment-link",
+  AuthMiddleware,
+  CreatePaymentProcessForPackage
+);
 
 export default packageRouter;

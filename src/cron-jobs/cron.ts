@@ -43,6 +43,54 @@ cron.schedule("0 0 * * *", async () => {
   await sendMarketingEmails();
 });
 
+// cron.schedule("0 0 * * *", async () => {
+//   console.log("⏰ Running daily feature validity update job...");
+
+//   try {
+//     // 1. Fetch all properties
+//     const properties = await Property.find();
+
+//     for (const property of properties) {
+//       const propertyId = property._id;
+
+//       const purchaseRecord = await PurchaseRecordsModel.findOne({
+//         property_id: propertyId,
+//         status: PurchaseStatus.COMPLETED,
+//       }).sort({ createdAt: -1 });
+
+//       if (!purchaseRecord) continue;
+//       if (!purchaseRecord.meta?.activated_features) continue;
+
+//       let isUpdated = false;
+
+
+//       purchaseRecord.meta.activated_features =
+//         purchaseRecord.meta.activated_features.map((feature: { validity: string | number | Date; validity_left_till_expiration: number; }) => {
+//           if (feature.validity) {
+//             const daysLeft = getDaysLeft(new Date(feature.validity));
+
+//             if (feature.validity_left_till_expiration !== daysLeft) {
+//               feature.validity_left_till_expiration = daysLeft;
+//               isUpdated = true;
+//             }
+//           }
+//           return feature;
+//         });
+
+//       if (isUpdated) {
+//         await purchaseRecord.save();
+//         console.log(
+//           `✅ Updated validity_left_till_expiration for property ${propertyId}`
+//         );
+//       }
+//     }
+
+//     console.log("🎉 Daily feature validity job completed!");
+//   } catch (error) {
+//     console.error("❌ Error in daily feature validity job:", error);
+//   }
+// });
+
 cron.schedule("0 0 * * *", async () => {
   console.log("⏰ Running daily feature validity update job...");
 
@@ -63,7 +111,7 @@ cron.schedule("0 0 * * *", async () => {
 
       let isUpdated = false;
 
-      
+
       purchaseRecord.meta.activated_features =
         purchaseRecord.meta.activated_features.map((feature: { validity: string | number | Date; validity_left_till_expiration: number; }) => {
           if (feature.validity) {
@@ -78,10 +126,9 @@ cron.schedule("0 0 * * *", async () => {
         });
 
       if (isUpdated) {
+        purchaseRecord.markModified("meta.activated_features"); 
         await purchaseRecord.save();
-        console.log(
-          `✅ Updated validity_left_till_expiration for property ${propertyId}`
-        );
+        console.log(`✅ Updated validity_left_till_expiration for property ${propertyId}`);
       }
     }
 
@@ -90,3 +137,4 @@ cron.schedule("0 0 * * *", async () => {
     console.error("❌ Error in daily feature validity job:", error);
   }
 });
+
