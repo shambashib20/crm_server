@@ -91,7 +91,8 @@ const PackageSchema = new Schema<PackageDto & Document>(
     },
 
     meta: {
-      type: Schema.Types.Mixed,
+      type: Map,
+      of: Schema.Types.Mixed,
       default: {},
     },
   },

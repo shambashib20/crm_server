@@ -22,6 +22,7 @@ import {
   _getTodaysFollowups,
   _getLeadsBySourceAndAgentService,
   _getLeadsByLabelAndAgentService,
+  _getLeadsByStatusAndAgentService,
 } from "../services/lead.service";
 import multer from "multer";
 
@@ -578,6 +579,31 @@ const GetLeadsByLabelAndChatAgentController = async (req: any, res: any) => {
   }
 };
 
+const GetLeadsByStatusAndChatAgentController = async (req: any, res: any) => {
+  try {
+    const { statusTitle } = req.body;
+    const propId = req.user.property_id;
+
+    if (!statusTitle) {
+      return res
+        .status(400)
+        .json(new SuccessResponse("statusTitle is required!", 400));
+    }
+
+    const result = await _getLeadsByStatusAndAgentService(statusTitle, propId);
+    return res
+      .status(200)
+      .json(
+        new SuccessResponse(
+          "Leads by Status and Chat Agent fetched",
+          200,
+          result
+        )
+      );
+  } catch (error: any) {
+    return res.status(500).json(new SuccessResponse(error.message, 500));
+  }
+};
 export {
   FetchLeadDetails,
   NewFollowUp,
@@ -600,4 +626,5 @@ export {
   FetchTodaysFollowups,
   GetLeadsBySourceAndChatAgentController,
   GetLeadsByLabelAndChatAgentController,
+  GetLeadsByStatusAndChatAgentController,
 };
