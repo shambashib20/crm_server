@@ -23,8 +23,8 @@ import { LeadLogStatus } from "./dtos/lead.dto";
 import Property from "./models/property.model";
 import { LogStatus } from "./dtos/property.dto";
 
-// TODO : Will Comment out this line later!
-// import "./cron-jobs/cron";
+
+import "./cron-jobs/cron";
 import Label from "./models/label.model";
 import Role from "./models/role.model";
 import { seedDefaultSources } from "./seeders/source.seeder";
@@ -174,7 +174,7 @@ app.listen(PORT, async () => {
 
 app.post("/lead/webhook", async (req: any, res: any) => {
   try {
-    // Step 1: Get all potential superadmins (filter further if needed)
+   
     const users = await User.find({});
 
     let superadmin: (typeof users)[0] | null = null;
@@ -182,7 +182,6 @@ app.post("/lead/webhook", async (req: any, res: any) => {
     for (const user of users) {
       const meta = user.meta;
 
-      // For Map-based `meta`
       const fbMeta =
         typeof meta?.get === "function"
           ? meta?.get("facebook")

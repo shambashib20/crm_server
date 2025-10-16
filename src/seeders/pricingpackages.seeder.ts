@@ -97,7 +97,9 @@ export async function seedFeaturesAndPackages() {
         meta: { source: "seeder" },
       },
     ],
-    meta: {},
+    meta: {
+      package_code: "BASIC_01",
+    },
   });
 
   /** Features for Basic Plan */
