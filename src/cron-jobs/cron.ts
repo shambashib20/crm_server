@@ -22,11 +22,16 @@ const getDaysLeft = (validityDate: Date): number => {
 //     console.error("Error fetching leads:", error);
 //   }
 // });
-
-cron.schedule("*/15 * * * *", async () => {
+const BASE_URL =
+  process.env.NODE_ENV === "production"
+    ? "https://crm-server-tsnj.onrender.com"
+    : "http://localhost:8850"; // 👈 LOCAL
+cron.schedule("*/2  * * * *", async () => {
   console.log("Running FB sync task...");
   try {
-    await axios.post("https://crm-server-tsnj.onrender.com/lead/webhook", {});
+    await axios.post(`${BASE_URL}/lead/webhook`, {});
+
+    console.log(BASE_URL, "Base");
     console.log("Facebook leads fetched successfully.");
   } catch (error) {
     console.error("Error fetching leads:", error);

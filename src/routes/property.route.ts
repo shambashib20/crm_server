@@ -47,8 +47,9 @@ propertyRouter.post(
 
 propertyRouter.post(
   "/all",
-  AuthMiddleware,
-  PermissionMiddleware("manage_leads"),
+  // ,
+  // AuthMiddleware,
+  // PermissionMiddleware("manage_leads"),
   FetchProperties
 );
 export default propertyRouter;

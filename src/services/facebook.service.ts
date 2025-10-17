@@ -9,6 +9,7 @@ import { Types } from "mongoose";
 import { LeadLogStatus } from "../dtos/lead.dto";
 import Source from "../models/source.model";
 import { v4 as uuidv4 } from "uuid";
+import Role from "../models/role.model";
 const FB_AUTH_URL = "https://www.facebook.com/v21.0/dialog/oauth";
 const FB_TOKEN_URL = "https://graph.facebook.com/v21.0/oauth/access_token";
 
@@ -109,7 +110,6 @@ const _masterLeadService = async (
       if (Array.isArray(formDetails.tracking_parameters)) {
         for (const param of formDetails.tracking_parameters) {
           if (param.key === "labels") {
-            
             if (
               targetLabel &&
               new RegExp(`^${param.value.trim()}$`, "i").test(targetLabel.title)
@@ -137,7 +137,7 @@ const _masterLeadService = async (
 
         // 🔹 Build formatted comment string
         let commentLines: string[] = [];
-        commentLines.push(`label::${targetLabel.title}`); // add label first
+        commentLines.push(`label::${targetLabel.title}`);
 
         for (const field of fbLead.field_data) {
           commentLines.push(`${field.name}::${field.values[0]}`);
@@ -182,6 +182,54 @@ const _masterLeadService = async (
           await source.save();
         }
 
+        // ✅ ROUND-ROBIN LOGIC (EXACTLY from _createLeadService)
+        let assignedToId: Types.ObjectId | null = null;
+
+        const label = await Label.findById(matchedLabel._id);
+
+        if (label) {
+          if (!label.meta) {
+            label.meta = {};
+          }
+
+          const assignedAgents = (label.meta.assigned_agents || []) as {
+            agent_id: Types.ObjectId;
+            assigned_at: Date;
+          }[];
+
+          if (assignedAgents.length > 0) {
+            const lastIndex =
+              (label.meta.last_assigned_index as number | undefined) ?? -1;
+            const nextIndex = (lastIndex + 1) % assignedAgents.length;
+
+            assignedToId = assignedAgents[nextIndex].agent_id;
+
+            label.meta.last_assigned_index = nextIndex;
+            label.markModified("meta");
+            await label.save();
+          }
+        }
+
+        // ✅ Fallback: Superadmin (same as _createLeadService)
+        if (!assignedToId) {
+          const superAdminRole = await Role.findOne({ name: "Superadmin" });
+          if (!superAdminRole) {
+            throw new Error("Superadmin role not found in this property!");
+          }
+
+          const superAdminUser = await User.findOne({
+            property_id: integration?.property_id,
+            role: superAdminRole._id,
+          });
+
+          if (!superAdminUser) {
+            throw new Error("No Superadmin user found in this property!");
+          }
+
+          assignedToId = superAdminUser._id;
+        }
+
+        // ✅ Create the Lead with correct assigned_to
         await Lead.create({
           name: fields.full_name || fields.name,
           phone_number: fields.phone_number,
@@ -205,11 +253,10 @@ const _masterLeadService = async (
               status: LeadLogStatus.INFO,
             },
           ],
-          assigned_to: integration?._id,
+          assigned_to: assignedToId,
           property_id: integration?.property_id,
         });
       }
-
 
       summary.push({
         page: page.name,
