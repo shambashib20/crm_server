@@ -209,11 +209,18 @@ app.post("/lead/webhook", async (req: any, res: any) => {
       });
     }
 
-    const access_token = superadmin?.meta?.facebook.token;
+    const pageToken = superadmin?.meta?.facebook.page_token;
+    console.log("pageToken", pageToken);   
     const form_id = superadmin?.meta?.facebook.form_id;
 
     const response = await axios.get(
-      `https://graph.facebook.com/v18.0/${form_id}/leads?access_token=${access_token}`
+      `https://graph.facebook.com/v18.0/${form_id}/leads`,
+      {
+        params: {
+          access_token: pageToken,
+          fields: "created_time,field_data",
+        },
+      }
     );
 
     const leads = response.data.data;
