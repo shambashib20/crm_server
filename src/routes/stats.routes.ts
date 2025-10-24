@@ -10,6 +10,7 @@ import express from "express";
 
 import AuthMiddleware from "../middlewares/authentication.middleware";
 import PermissionMiddleware from "../middlewares/permission.middleware";
+import PricingMiddleware from "../middlewares/pricing.middleware";
 
 const statusRouter = express.Router();
 
@@ -24,6 +25,7 @@ statusRouter.post(
   "/create",
   AuthMiddleware,
   PermissionMiddleware("view_dashboard"),
+  PricingMiddleware("Statuses Limit"),
   CreateStatusInProperty
 );
 
