@@ -621,12 +621,20 @@ const _createLeadService = async (data: CreateLeadDto, ip: string) => {
   if (!leadsFeature) {
     throw new Error("Your plan does not include Leads Limit. Please upgrade.");
   }
+const validityDate = new Date(leadsFeature.validity);
+const currentDate = new Date();
 
-  if (leadsFeature.used >= leadsFeature.limit) {
-    throw new Error(
-      `Leads creation limit reached. You have used ${leadsFeature.used}/${leadsFeature.limit}.`
-    );
-  }
+if (currentDate > validityDate) {
+  throw new Error(
+    `The validity for lead creation expired on ${validityDate.toLocaleDateString()}. Please renew your plan.`
+  );
+}
+
+if (leadsFeature.used >= leadsFeature.limit) {
+  throw new Error(
+    `Leads creation limit reached. Used ${leadsFeature.used}/${leadsFeature.limit}.`
+  );
+}
   // 🔹 Update property usage + logs
   await Property.findByIdAndUpdate(
     defaultStatus.property_id,
