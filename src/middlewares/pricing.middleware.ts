@@ -54,6 +54,17 @@ const PricingMiddleware = (featureTitle: string) => {
           message: `Your plan does not include '${featureTitle}'. Please upgrade.`,
         });
       }
+      if (feature.validity) {
+        const validityDate = new Date(feature.validity);
+        const currentDate = new Date();
+
+        if (currentDate > validityDate) {
+          return res.status(403).json({
+            message: `The validity for '${featureTitle}' expired on ${validityDate.toLocaleDateString()}. Please renew your plan.`,
+          });
+        }
+      }
+
       const { used = 0, limit = 0 } = feature;
       if (limit === 0) {
         return res.status(403).json({
