@@ -189,9 +189,30 @@ const CreateLeadController = async (req: any, res: any) => {
       .status(201)
       .json(new SuccessResponse("Lead created successfully", 201, lead));
   } catch (error: any) {
-    return res
-      .status(500)
-      .json(new SuccessResponse(error.message || "Something went wrong", 500));
+    // 🔹 Business/Validation errors
+    const clientErrorMessages = [
+      "No Superadmin user found",
+      "Superadmin role not found",
+      "Label with ID",
+      "Workspace Linkage not found",
+      "Active package not found",
+      "Your plan does not include Leads Limit",
+      "Leads creation limit reached",
+      "The validity for lead creation expired",
+      "Status must contain a Status named New",
+    ];
+
+    const statusCode = clientErrorMessages.some((msg) =>
+      error.message?.includes(msg)
+    )
+      ? 400
+      : 500;
+
+    return res.status(statusCode).json({
+      message: error.message || "Something went wrong",
+      status: statusCode === 400 ? "BAD_REQUEST" : "SERVER_ERROR",
+      data: null,
+    });
   }
 };
 
