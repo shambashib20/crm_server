@@ -13,15 +13,7 @@ const getDaysLeft = (validityDate: Date): number => {
   return diffDays > 0 ? diffDays : 0;
 };
 
-// cron.schedule("* * * * *", async () => {
-//   console.log("Running FB sync task...");
-//   try {
-//     await axios.post("https://crm-server-tsnj.onrender.com/lead/webhook", {});
-//     console.log("Facebook leads fetched successfully.");
-//   } catch (error) {
-//     console.error("Error fetching leads:", error);
-//   }
-// });
+
 const BASE_URL =
   process.env.NODE_ENV === "production"
     ? "https://crm-server-tsnj.onrender.com"
@@ -31,72 +23,18 @@ cron.schedule("*/2  * * * *", async () => {
   try {
     await axios.post(`${BASE_URL}/lead/webhook`, {});
 
-    console.log(BASE_URL, "Base");
     console.log("Facebook leads fetched successfully.");
   } catch (error) {
     console.error("Error fetching leads:", error);
   }
 });
 
-// cron.schedule("0 * * * *", async () => {
-//   console.log("⏰ Running hourly email campaign job...");
-//   await sendMarketingEmails();
-// });
-
 cron.schedule("0 0 * * *", async () => {
   console.log("⏰ Running daily email campaign job at midnight...");
   await sendMarketingEmails();
 });
 
-// cron.schedule("0 0 * * *", async () => {
-//   console.log("⏰ Running daily feature validity update job...");
-
-//   try {
-//     // 1. Fetch all properties
-//     const properties = await Property.find();
-
-//     for (const property of properties) {
-//       const propertyId = property._id;
-
-//       const purchaseRecord = await PurchaseRecordsModel.findOne({
-//         property_id: propertyId,
-//         status: PurchaseStatus.COMPLETED,
-//       }).sort({ createdAt: -1 });
-
-//       if (!purchaseRecord) continue;
-//       if (!purchaseRecord.meta?.activated_features) continue;
-
-//       let isUpdated = false;
-
-
-//       purchaseRecord.meta.activated_features =
-//         purchaseRecord.meta.activated_features.map((feature: { validity: string | number | Date; validity_left_till_expiration: number; }) => {
-//           if (feature.validity) {
-//             const daysLeft = getDaysLeft(new Date(feature.validity));
-
-//             if (feature.validity_left_till_expiration !== daysLeft) {
-//               feature.validity_left_till_expiration = daysLeft;
-//               isUpdated = true;
-//             }
-//           }
-//           return feature;
-//         });
-
-//       if (isUpdated) {
-//         await purchaseRecord.save();
-//         console.log(
-//           `✅ Updated validity_left_till_expiration for property ${propertyId}`
-//         );
-//       }
-//     }
-
-//     console.log("🎉 Daily feature validity job completed!");
-//   } catch (error) {
-//     console.error("❌ Error in daily feature validity job:", error);
-//   }
-// });
-
-cron.schedule("0 0 * * *", async () => {
+cron.schedule("*/2  * * * *", async () => {
   console.log("⏰ Running daily feature validity update job...");
 
   try {
@@ -116,24 +54,32 @@ cron.schedule("0 0 * * *", async () => {
 
       let isUpdated = false;
 
-
       purchaseRecord.meta.activated_features =
-        purchaseRecord.meta.activated_features.map((feature: { validity: string | number | Date; validity_left_till_expiration: number; }) => {
-          if (feature.validity) {
-            const daysLeft = getDaysLeft(new Date(feature.validity));
+        purchaseRecord.meta.activated_features.map(
+          (feature: {
+            validity: string | number | Date;
+            validity_left_till_expiration: number;
+          }) => {
+            if (feature.validity) {
+              let daysLeft = getDaysLeft(new Date(feature.validity));
+              // Ensure negative values are set to zero
+              daysLeft = Math.max(daysLeft, 0);
 
-            if (feature.validity_left_till_expiration !== daysLeft) {
-              feature.validity_left_till_expiration = daysLeft;
-              isUpdated = true;
+              if (feature.validity_left_till_expiration !== daysLeft) {
+                feature.validity_left_till_expiration = daysLeft;
+                isUpdated = true;
+              }
             }
+            return feature;
           }
-          return feature;
-        });
+        );
 
       if (isUpdated) {
-        purchaseRecord.markModified("meta.activated_features"); 
+        purchaseRecord.markModified("meta.activated_features");
         await purchaseRecord.save();
-        console.log(`✅ Updated validity_left_till_expiration for property ${propertyId}`);
+        console.log(
+          `✅ Updated validity_left_till_expiration for property ${propertyId}`
+        );
       }
     }
 
