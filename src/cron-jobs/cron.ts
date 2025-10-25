@@ -12,20 +12,29 @@ const getDaysLeft = (validityDate: Date): number => {
 
   return diffDays > 0 ? diffDays : 0;
 };
-
+let isFbSyncRunning = false;
 
 const BASE_URL =
   process.env.NODE_ENV === "production"
     ? "https://crm-server-tsnj.onrender.com"
     : "http://localhost:8850"; // 👈 LOCAL
-cron.schedule("*/2  * * * *", async () => {
-  console.log("Running FB sync task...");
+
+// running every hour!
+cron.schedule("0 * * * *", async () => {
+  if (isFbSyncRunning) {
+    console.log("⚠️ FB sync already running, skipping this cycle.");
+    return;
+  }
+  isFbSyncRunning = true;
+  console.log("🚀 Running Facebook sync job...");
   try {
     await axios.post(`${BASE_URL}/lead/webhook`, {});
 
     console.log("Facebook leads fetched successfully.");
   } catch (error) {
     console.error("Error fetching leads:", error);
+  } finally {
+    isFbSyncRunning = false;
   }
 });
 
@@ -38,7 +47,7 @@ cron.schedule("*/2  * * * *", async () => {
   console.log("⏰ Running daily feature validity update job...");
 
   try {
-    // 1. Fetch all properties
+    
     const properties = await Property.find();
 
     for (const property of properties) {
@@ -62,7 +71,7 @@ cron.schedule("*/2  * * * *", async () => {
           }) => {
             if (feature.validity) {
               let daysLeft = getDaysLeft(new Date(feature.validity));
-              // Ensure negative values are set to zero
+              
               daysLeft = Math.max(daysLeft, 0);
 
               if (feature.validity_left_till_expiration !== daysLeft) {

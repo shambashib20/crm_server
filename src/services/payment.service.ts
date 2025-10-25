@@ -37,7 +37,6 @@ export async function _createRazorpayPaymentLink({
 }) {
   try {
     const amountPaise = Math.max(0, Math.round(amountInINR * 100));
-    console.log(notes, "notes");
 
     const userDetails = await User.findById(defaultMRId);
 
