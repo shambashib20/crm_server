@@ -51,6 +51,8 @@ app.use((req, res, next) => {
 });
 app.use("/api/facebook", facebookRoutes);
 app.use("/api", mainRouter);
+
+
 export enum MongoStatusEnums {
   CONNECTED = "Connected to mongodb",
   CONNECTION_ERROR = "Mongodb connection Error!",
@@ -167,12 +169,12 @@ app.listen(PORT, async () => {
         property_id: finalProperty?._id,
       });
 
-      if (!superadmin) {
+      await (!superadmin
+      ? (async () => {
         console.log("🔨 Seeding superadmin user...");
-        await seedSuperadminUser();
-      } else {
-        console.log("ℹ️ Superadmin user already exists. Skipping seeder.");
-      }
+         await seedSuperadminUser();
+      })()
+      : console.log("ℹ️ Superadmin user already exists. Skipping seeder."));
 
       console.log("✅ Seeder checks completed.");
     } catch (error) {
@@ -181,125 +183,6 @@ app.listen(PORT, async () => {
   }
 });
 
-// app.post("/lead/webhook", async (req: any, res: any) => {
-//   try {
-//     const users = await User.find({});
-
-//     let superadmin: (typeof users)[0] | null = null;
-
-//     for (const user of users) {
-//       const meta = user.meta;
-
-//       const fbMeta =
-//         typeof meta?.get === "function"
-//           ? meta?.get("facebook")
-//           : meta?.facebook;
-
-//       if (fbMeta?.token && fbMeta?.form_id) {
-//         superadmin = user;
-//         (superadmin.meta ??= {}).facebook = fbMeta;
-//         break;
-//       }
-//     }
-
-//     console.log(superadmin, "superadmin object");
-
-//     if (!superadmin) {
-//       return res.status(404).json({
-//         message: "Superadmin with Facebook token and form ID not found",
-//       });
-//     }
-
-//     const pageToken = superadmin?.meta?.facebook.page_token;
-//     console.log("pageToken", pageToken);
-//     const form_id = superadmin?.meta?.facebook.form_id;
-
-//     const response = await axios.get(
-//       `https://graph.facebook.com/v18.0/${form_id}/leads`,
-//       {
-//         params: {
-//           access_token: pageToken,
-//           fields: "created_time,field_data",
-//         },
-//       }
-//     );
-
-//     const leads = response.data.data;
-//     console.log(`✅ Leads fetched from Facebook:`, leads);
-//     const now = new Date();
-
-//     const createdLeads: any[] = [];
-
-//     for (const lead of leads) {
-//       const exists = await Lead.findOne({ "meta.fb_lead_id": lead.id });
-//       if (exists) continue;
-
-//       const defaultSource = await Source.findOne({
-//         title: "Facebook",
-//       });
-//       const defaultStatus = await Status.findOne({ title: "New" });
-
-//       const ray_id = `ray-id-${uuidv4()}`;
-//       const ip = req.ip || "::1";
-//       const locationData = await getLocationFromIP(ip);
-
-//       const leadDoc = await Lead.create({
-//         name: lead.full_name || lead.name || "",
-//         email: lead.email || "",
-//         phone_number: lead.phone_number || "",
-//         labels: [],
-//         assigned_to: superadmin._id,
-//         assigned_by: superadmin._id,
-//         property_id: defaultStatus?.property_id,
-//         status: defaultStatus?._id,
-//         meta: {
-//           fb_lead_id: lead.id,
-//           ray_id,
-//           source: defaultSource || "Facebook",
-//           location: locationData,
-//           created_by: superadmin._id,
-//         },
-//         logs: [
-//           {
-//             title: "Lead created",
-//             description: `Lead fetched from Facebook and assigned status: ${defaultStatus?.title}`,
-//             status: LeadLogStatus.ACTION,
-//             meta: {},
-//             createdAt: now,
-//             updatedAt: now,
-//           },
-//         ],
-//       });
-//       createdLeads.push(leadDoc);
-
-//       await Property.findByIdAndUpdate(
-//         defaultStatus?.property_id,
-//         {
-//           $inc: { usage_count: 1 },
-//           $push: {
-//             logs: {
-//               title: "Lead Assigned",
-//               description: `A new lead named (${leadDoc.name}) was assigned to this property.`,
-//               status: LogStatus.INFO,
-//               meta: { leadId: leadDoc._id },
-//               createdAt: now,
-//               updatedAt: now,
-//             },
-//           },
-//         },
-//         { new: true }
-//       );
-//     }
-//     console.log(`✅ Leads inserted into MongoDB:`, createdLeads);
-
-//     res.status(200).json({ message: "Facebook leads synced successfully." });
-//   } catch (err: any) {
-//     console.error("Error syncing Facebook leads:", err);
-//     res
-//       .status(500)
-//       .json({ message: "Error syncing leads", error: err.message });
-//   }
-// });
 
 const GRAPH_API_VERSION = "v22.0";
 const GRAPH_API_BASE = `https://graph.facebook.com/${GRAPH_API_VERSION}`;
