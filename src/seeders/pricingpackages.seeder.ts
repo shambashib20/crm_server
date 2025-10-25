@@ -4,6 +4,7 @@ import { FeatureStatus, FeatureLogsStatus } from "../dtos/feature.dto";
 import { PackageStatus } from "../dtos/package.dto";
 import { Types } from "mongoose";
 import { _createRazorpayPaymentLink } from "../services/payment.service";
+import User from "../models/user.model";
 
 export async function seedFeaturesAndPackages() {
   console.log("🌱 Checking if Packages and Features need seeding...");
@@ -19,6 +20,11 @@ export async function seedFeaturesAndPackages() {
   const now = new Date();
   const validityDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
+  const MR_USER_ID = await User.findOne({
+    name: "MR Superadmin",
+  });
+
+  console.log("mr user id", MR_USER_ID?._id);
   /** ------------------------
    * 1️⃣ CREATE FREE PLAN
    * ------------------------ */
@@ -145,6 +151,7 @@ export async function seedFeaturesAndPackages() {
       referenceId: basicPackage._id.toString(),
       description: `Purchase ${basicPackage.title}`,
       validityInDays: basicPackage.validity_in_days,
+      defaultMRId: MR_USER_ID?._id!,
     });
 
     // rpResponse includes id, short_url, status, expire_by, created_at etc.
@@ -234,6 +241,7 @@ export async function seedFeaturesAndPackages() {
       referenceId: superPackage._id.toString(),
       description: `Purchase ${superPackage.title}`,
       validityInDays: superPackage.validity_in_days,
+      defaultMRId: MR_USER_ID?._id!,
     });
 
     // rpResponse includes id, short_url, status, expire_by, created_at etc.

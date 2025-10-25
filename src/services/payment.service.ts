@@ -1,5 +1,6 @@
 import axios from "axios";
 import User from "../models/user.model";
+import { Types } from "mongoose";
 
 const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID!;
 const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET!;
@@ -24,18 +25,21 @@ export async function _createRazorpayPaymentLink({
   referenceId,
   description,
   validityInDays,
+  defaultMRId,
   notes,
 }: {
   amountInINR: number;
   referenceId: string;
   description?: string;
   validityInDays?: number;
+  defaultMRId: Types.ObjectId;
   notes?: any;
 }) {
   try {
     const amountPaise = Math.max(0, Math.round(amountInINR * 100));
+    console.log(notes, "notes");
 
-    const userDetails = await User.findById(notes.user_id);
+    const userDetails = await User.findById(defaultMRId);
 
     const payload: any = {
       amount: amountPaise,
