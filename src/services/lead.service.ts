@@ -218,6 +218,111 @@ const _createNewFollowUp = async (
   };
 };
 
+
+const _editFollowUp = async (
+  leadId: Types.ObjectId,
+  followUpId: Types.ObjectId,
+  userId: Types.ObjectId,
+  nextFollowUp?: string,
+  comment?: string,
+  attachmentUrl?: string,
+  audioAttachmentUrl?: string
+) => {
+  const existingUser = await User.findById(userId).select("name");
+  if (!existingUser) {
+    throw new Error("User not found");
+  }
+
+  const lead = await Lead.findById(leadId);
+  if (!lead) {
+    throw new Error("Lead not found");
+  }
+
+  const followUpIndex = lead.follow_ups.findIndex(
+    (f: any) => f._id.toString() === followUpId.toString()
+  );
+
+  if (followUpIndex === -1) {
+    throw new Error("Follow-up not found for this lead");
+  }
+
+  // Prepare updated follow-up fields
+  const updatedFollowUp = {
+    ...(comment && { comment: comment.trim() }),
+    ...(nextFollowUp && { next_followup_date: new Date(nextFollowUp) }),
+    ...(attachmentUrl && { "meta.attachment_url": attachmentUrl }),
+    ...(audioAttachmentUrl && {
+      "meta.audio_attachment_url": audioAttachmentUrl,
+    }),
+    "meta.updated_by": userId,
+    "meta.updated_at": new Date(),
+  };
+
+  // Update follow-up entry using positional operator
+  const updatedLead = await Lead.findOneAndUpdate(
+    { _id: leadId, "follow_ups._id": followUpId },
+    {
+      $set: Object.entries(updatedFollowUp).reduce(
+        (acc, [key, val]) => ({
+          ...acc,
+          [`follow_ups.$.${key}`]: val,
+        }),
+        {}
+      ),
+    },
+    { new: true }
+  ).select("name follow_ups property_id");
+
+  if (!updatedLead) {
+    throw new Error("Failed to update follow-up");
+  }
+
+  // Log entry for lead & property
+  const logEntry = {
+    title: "Lead Follow-up updated",
+    description: `${existingUser.name} edited a follow-up for lead ${updatedLead.name}`,
+    status: LogStatus.INFO,
+    meta: {
+      leadId,
+      userId,
+      followUpId,
+    },
+  };
+
+  // Update property logs
+  await Property.findByIdAndUpdate(
+    updatedLead.property_id,
+    { $push: { logs: logEntry } },
+    { new: true }
+  );
+
+  // Add lead-specific log
+  const leadLogEntry = {
+    title: "Lead Follow-up updated",
+    description: `${existingUser.name} updated a follow-up for this lead`,
+    status: LeadLogStatus.ACTION,
+    meta: {
+      leadId,
+      userId,
+      followUpId,
+    },
+  };
+
+  await Lead.findByIdAndUpdate(leadId, {
+    $push: { logs: leadLogEntry },
+  });
+
+  // ✅ FIX HERE
+  const updatedFollowUpObj = updatedLead.follow_ups.find(
+    (f: any) => f._id.toString() === followUpId.toString()
+  );
+
+  return {
+    followUp: updatedFollowUpObj,
+  };
+};
+
+
 const _updateLabelForLead = async (
   leadId: Types.ObjectId,
   propId: Types.ObjectId,
@@ -447,23 +552,21 @@ const _homePageLeadService = async (
     paginatedLeads = fullLeads.slice(startIndex, endIndex);
   }
 
-
   const propertyStatuses = await Status.find({
     property_id: userPropId,
     "meta.is_active": true,
   }).lean();
-
 
   const defaultStatuses = await Status.find({
     title: { $in: ["New", "Processing", "Confirm", "Cancel"] },
     "meta.is_active": true,
   }).lean();
 
-
   const statuses = [
     ...propertyStatuses,
     ...defaultStatuses.filter(
-      (def) => !propertyStatuses.some((p) => p._id.toString() === def._id.toString())
+      (def) =>
+        !propertyStatuses.some((p) => p._id.toString() === def._id.toString())
     ),
   ];
 
@@ -513,19 +616,25 @@ const _createLeadService = async (data: CreateLeadDto, ip: string) => {
   // 🔹 Fallback to Superadmin
   if (!assignedToId) {
     const superAdminRole = await Role.findOne({ name: "Superadmin" });
-    if (!superAdminRole) throw new Error("Superadmin role not found in this property!");
+    if (!superAdminRole)
+      throw new Error("Superadmin role not found in this property!");
 
-    const superAdminUser = await User.findOne({ property_id: data.property_id, role: superAdminRole._id });
-    if (!superAdminUser) throw new Error("No Superadmin user found in this property!");
+    const superAdminUser = await User.findOne({
+      property_id: data.property_id,
+      role: superAdminRole._id,
+    });
+    if (!superAdminUser)
+      throw new Error("No Superadmin user found in this property!");
     assignedToId = superAdminUser._id;
   }
 
   // 🔹 Defaults
   const [defaultSource, defaultStatus] = await Promise.all([
     Source.findOne({ title: "Landing Page Leads" }),
-    Status.findOne({ title: "New" })
+    Status.findOne({ title: "New" }),
   ]);
-  if (!defaultStatus) throw new Error("Status must contain a Status named New!");
+  if (!defaultStatus)
+    throw new Error("Status must contain a Status named New!");
 
   const ray_id = `ray-id-${uuidv4()}`;
 
@@ -545,71 +654,93 @@ const _createLeadService = async (data: CreateLeadDto, ip: string) => {
       course: meta.course || "",
       stream: meta.stream || "",
     },
-    logs: [{
-      title: "Lead created",
-      description: `Lead created by ${data?.name || "Unknown"} with status ${defaultStatus.title}`,
-      status: LeadLogStatus.ACTION,
-      meta: {},
-      createdAt: now,
-      updatedAt: now,
-    }],
+    logs: [
+      {
+        title: "Lead created",
+        description: `Lead created by ${data?.name || "Unknown"} with status ${
+          defaultStatus.title
+        }`,
+        status: LeadLogStatus.ACTION,
+        meta: {},
+        createdAt: now,
+        updatedAt: now,
+      },
+    ],
   });
 
   const property = await Property.findById(data.property_id).lean();
   if (!property) throw new Error("Workspace Linkage not found.");
 
   const activePackageIdRaw = getMetaValue(property.meta, "active_package");
-  if (!activePackageIdRaw) throw new Error("No active package found for this property.");
+  if (!activePackageIdRaw)
+    throw new Error("No active package found for this property.");
 
   const activePackageId =
-    typeof activePackageIdRaw === "string" ? new Types.ObjectId(activePackageIdRaw) : activePackageIdRaw;
+    typeof activePackageIdRaw === "string"
+      ? new Types.ObjectId(activePackageIdRaw)
+      : activePackageIdRaw;
   const activePackage = await PurchaseRecordsModel.findById(activePackageId);
-  if (!activePackage) throw new Error("Active package not found for this property.");
+  if (!activePackage)
+    throw new Error("Active package not found for this property.");
 
   switch (activePackage.status) {
     case PurchaseStatus.COMPLETED:
       break;
     default:
-      throw new Error(`Your current package is ${activePackage.status}. Please renew or upgrade your package.`);
+      throw new Error(
+        `Your current package is ${activePackage.status}. Please renew or upgrade your package.`
+      );
   }
 
-  const activatedFeatures = getMetaValue(activePackage.meta, "activated_features") || [];
-  const leadsFeature = activatedFeatures.find((f: any) => f.title === "Leads Limit");
-  if (!leadsFeature) throw new Error("Your plan does not include Leads Limit. Please upgrade.");
+  const activatedFeatures =
+    getMetaValue(activePackage.meta, "activated_features") || [];
+  const leadsFeature = activatedFeatures.find(
+    (f: any) => f.title === "Leads Limit"
+  );
+  if (!leadsFeature)
+    throw new Error("Your plan does not include Leads Limit. Please upgrade.");
 
   const validityDate = new Date(leadsFeature.validity);
   if (new Date() > validityDate)
-    throw new Error(`The validity for lead creation expired on ${validityDate.toLocaleDateString()}. Please renew your plan.`);
+    throw new Error(
+      `The validity for lead creation expired on ${validityDate.toLocaleDateString()}. Please renew your plan.`
+    );
 
   if (leadsFeature.used >= leadsFeature.limit)
-    throw new Error(`Leads creation limit reached. Used ${leadsFeature.used}/${leadsFeature.limit}.`);
+    throw new Error(
+      `Leads creation limit reached. Used ${leadsFeature.used}/${leadsFeature.limit}.`
+    );
 
   // 🔹 Update property usage + logs
-  await Property.findByIdAndUpdate(defaultStatus.property_id, {
-    $inc: { usage_count: 1 },
-    $push: {
-      logs: {
-        title: "Lead Created",
-        description: `A new lead named (${lead.name}) was assigned to this property.`,
-        status: LogStatus.INFO,
-        meta: { leadId: lead._id },
-        createdAt: now,
-        updatedAt: now,
+  await Property.findByIdAndUpdate(
+    defaultStatus.property_id,
+    {
+      $inc: { usage_count: 1 },
+      $push: {
+        logs: {
+          title: "Lead Created",
+          description: `A new lead named (${lead.name}) was assigned to this property.`,
+          status: LogStatus.INFO,
+          meta: { leadId: lead._id },
+          createdAt: now,
+          updatedAt: now,
+        },
       },
     },
-  }, { new: true });
+    { new: true }
+  );
 
   const updatedPackage = await PurchaseRecordsModel.findOneAndUpdate(
     { _id: activePackageId, "meta.activated_features.title": "Leads Limit" },
     { $inc: { "meta.activated_features.$.used": 1 } },
     { new: true }
   );
-  if (!updatedPackage) throw new Error("Failed to update feature usage in package.");
+  if (!updatedPackage)
+    throw new Error("Failed to update feature usage in package.");
 
   await lead.save();
   return lead;
 };
-
 
 const _getMissedFollowUpsService = async (
   propId: Types.ObjectId
@@ -1124,10 +1255,10 @@ const _importLeadsFromExcel = async (
         }),
         ...(options.source_name &&
           !sourceObject && {
-          source: {
-            title: options.source_name,
-          },
-        }),
+            source: {
+              title: options.source_name,
+            },
+          }),
       };
 
       return {
@@ -1362,7 +1493,6 @@ const _getTodaysFollowups = async (
   userId: Types.ObjectId,
   propertyId?: string
 ) => {
- 
   const startOfDay = new Date();
   startOfDay.setHours(0, 0, 0, 0);
 
@@ -1493,7 +1623,6 @@ const _getLeadsBySourceAndAgentService = async (
   };
 };
 
-
 const _getLeadsByLabelAndAgentService = async (
   labelTitle: string,
   propId: Types.ObjectId
@@ -1574,8 +1703,6 @@ const _getLeadsByLabelAndAgentService = async (
     },
   };
 };
-
-
 
 const _getLeadsByStatusAndAgentService = async (
   statusTitle: string,
@@ -1680,5 +1807,6 @@ export {
   _getTodaysFollowups,
   _getLeadsBySourceAndAgentService,
   _getLeadsByLabelAndAgentService,
-  _getLeadsByStatusAndAgentService
+  _getLeadsByStatusAndAgentService,
+  _editFollowUp,
 };

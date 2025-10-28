@@ -2,6 +2,7 @@ import {
   ArchiveSessionLeads,
   CreateLeadController,
   DeleteOrArchiveForLead,
+  EditFollowUp,
   ExportLeadsController,
   FetchArchivedPaginatedLeads,
   FetchLeadDetails,
@@ -55,6 +56,14 @@ leadRouter.post(
   AuthMiddleware,
   PermissionMiddleware("manage_leads"),
   NewFollowUp
+);
+
+
+leadRouter.patch(
+  "/update/follow-up",
+  AuthMiddleware,
+  PermissionMiddleware("manage_leads"),
+  EditFollowUp
 );
 
 leadRouter.get(

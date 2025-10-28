@@ -23,6 +23,7 @@ import {
   _getLeadsBySourceAndAgentService,
   _getLeadsByLabelAndAgentService,
   _getLeadsByStatusAndAgentService,
+  _editFollowUp,
 } from "../services/lead.service";
 import multer from "multer";
 
@@ -71,6 +72,28 @@ const NewFollowUp = async (req: any, res: any) => {
     return res
       .status(201)
       .json(new SuccessResponse("Followup created successfully", 201, result));
+  } catch (error: any) {
+    return res.status(500).json(new SuccessResponse(error.message, 500));
+  }
+};
+
+const EditFollowUp = async (req: any, res: any) => {
+  try {
+    const userId = req.user._id;
+
+    const result = await _editFollowUp(
+      req.body.leadId,
+      req.body.followUpId,
+      userId,
+      req.body.nextFollowUp,
+      req.body.comment,
+      req.body.attachmentUrl,
+      req.body.audioAttachmentUrl
+    );
+
+    return res
+      .status(200)
+      .json(new SuccessResponse("Follow-up updated successfully", 200, result));
   } catch (error: any) {
     return res.status(500).json(new SuccessResponse(error.message, 500));
   }
@@ -648,4 +671,5 @@ export {
   GetLeadsBySourceAndChatAgentController,
   GetLeadsByLabelAndChatAgentController,
   GetLeadsByStatusAndChatAgentController,
+  EditFollowUp,
 };
