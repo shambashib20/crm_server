@@ -177,7 +177,7 @@ const HomePageLeads = async (req: any, res: any) => {
       (id: string) => new Types.ObjectId(id)
     );
 
-    const assignedByUserIds = assignedTo.map(
+    const assignedByUserIds = assignedBy.map(
       (id: string) => new Types.ObjectId(id)
     );
 
