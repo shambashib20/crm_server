@@ -160,6 +160,7 @@ const HomePageLeads = async (req: any, res: any) => {
     const {
       labelIds,
       assignedTo,
+      assignedBy,
       sourceNames,
       search = "",
       sortBy = "",
@@ -176,9 +177,14 @@ const HomePageLeads = async (req: any, res: any) => {
       (id: string) => new Types.ObjectId(id)
     );
 
+    const assignedByUserIds = assignedTo.map(
+      (id: string) => new Types.ObjectId(id)
+    );
+
     const leads = await _homePageLeadService(
       labelObjectIds,
       assignedToObjectIds,
+      assignedByUserIds,
       sourceNames || [],
       search,
       sortBy,

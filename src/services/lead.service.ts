@@ -388,6 +388,7 @@ const _updateLabelForLead = async (
 const _homePageLeadService = async (
   labelIds: Types.ObjectId[],
   assignedToUserIds: Types.ObjectId[],
+  assignedByUserIds: Types.ObjectId[],
   sourceNames: string[],
   searchString: string,
   sortBy: string,
@@ -444,6 +445,17 @@ const _homePageLeadService = async (
     validUserIds = existingUsers.map((user) => user._id);
     if (validUserIds.length > 0) {
       query.assigned_to = { $in: validUserIds };
+    }
+  }
+
+  if (assignedByUserIds.length > 0) {
+    const existingUsers = await User.find({
+      _id: { $in: assignedByUserIds },
+      property_id: userPropId,
+    }).lean();
+    validUserIds = existingUsers.map((user) => user._id);
+    if (validUserIds.length > 0) {
+      query.assigned_by = { $in: validUserIds };
     }
   }
 
