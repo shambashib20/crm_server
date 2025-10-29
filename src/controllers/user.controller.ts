@@ -78,7 +78,7 @@ const FetchChatAgents = async (req: any, res: any) => {
       .status(200)
       .json(
         new SuccessResponse(
-          "Chat agents fetched in this organization",
+          "Telecallers fetched in this organization",
           200,
           result
         )
@@ -102,7 +102,7 @@ const FetchPaginatedChatAgents = async (req: any, res: any) => {
       .status(200)
       .json(
         new SuccessResponse(
-          "Chat agents fetched in this organization",
+          "Telecallers fetched in this organization",
           200,
           result
         )

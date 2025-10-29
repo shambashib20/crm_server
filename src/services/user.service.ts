@@ -48,7 +48,7 @@ const _createUserForOrganization = async (
   property_id: Types.ObjectId,
   userId: Types.ObjectId
 ) => {
-  const validRoles = new Set(["Admin", "Lead Manager", "Chat Agent"]);
+  const validRoles = new Set(["Admin", "Lead Manager", "Telecaller"]);
   if (!validRoles.has(roleName)) {
     throw new Error(`Unsupported role: ${roleName}`);
   }
@@ -130,7 +130,7 @@ const _createUserForOrganization = async (
 };
 
 const _allChatAgents = async (propertyId: Types.ObjectId) => {
-  const chatAgentRole = await Role.findOne({ name: "Chat Agent" });
+  const chatAgentRole = await Role.findOne({ name: "Telecaller" });
 
   if (!chatAgentRole) {
     return [];
@@ -149,7 +149,7 @@ const _allPaginatedChatAgents = async (
   page = 1,
   limit = 10
 ) => {
-  const chatAgentRole = await Role.findOne({ name: "Chat Agent" });
+  const chatAgentRole = await Role.findOne({ name: "Telecaller" });
 
   if (!chatAgentRole) {
     return {

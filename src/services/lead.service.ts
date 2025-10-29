@@ -861,7 +861,7 @@ const _updateAssignedAgentForLead = async (
   });
 
   if (!existingChatAgent) {
-    throw new Error("Chat Agent not found");
+    throw new Error("Telecaller not found");
   }
 
   const updatedLead = await Lead.findByIdAndUpdate(
@@ -875,7 +875,7 @@ const _updateAssignedAgentForLead = async (
   }
 
   const logEntry = {
-    title: "A new Chat agent assigned!",
+    title: "A new Telecaller assigned!",
     description: `${existingUser.name} changed lead's assignment to ${existingChatAgent?.name}`,
     status: LogStatus.INFO,
     meta: {
@@ -885,7 +885,7 @@ const _updateAssignedAgentForLead = async (
   };
 
   const leadLogEntry = {
-    title: "A new Chat agent assigned!",
+    title: "A new Telecaller assigned!",
     description: `${existingUser.name} changed lead's assignment to ${existingChatAgent?.name}`,
     status: LeadLogStatus.ACTION,
     meta: {
@@ -1559,11 +1559,6 @@ const _getLeadsBySourceAndAgentService = async (
     throw new Error(`Source with title "${sourceTitle}" not found.`);
   }
 
-  const test = await Lead.find({
-    "meta.source": source._id,
-    property_id: propId,
-  });
-
   const result = await Lead.aggregate([
     {
       $match: {
@@ -1616,7 +1611,7 @@ const _getLeadsBySourceAndAgentService = async (
       return;
     }
 
-    if (item._id.roleName === "Chat Agent") {
+    if (item._id.roleName === "Telecaller") {
       agents.push({
         agent_id: item._id.agentId,
         agent_name: item._id.agentName,
@@ -1697,7 +1692,7 @@ const _getLeadsByLabelAndAgentService = async (
       return;
     }
 
-    if (item._id.roleName === "Chat Agent") {
+    if (item._id.roleName === "Telecaller") {
       agents.push({
         agent_id: item._id.agentId,
         agent_name: item._id.agentName,
@@ -1778,7 +1773,7 @@ const _getLeadsByStatusAndAgentService = async (
       return;
     }
 
-    if (item._id.roleName === "Chat Agent") {
+    if (item._id.roleName === "Telecaller") {
       agents.push({
         agent_id: item._id.agentId,
         agent_name: item._id.agentName,

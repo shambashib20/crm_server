@@ -147,7 +147,7 @@ const _createNewUserForOnboarding = async (
     "Superadmin",
     "Admin",
     "Lead Manager",
-    "Chat Agent",
+    "Telecaller",
   ]);
 
   if (!validRoles.has(roleName)) {

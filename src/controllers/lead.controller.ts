@@ -304,7 +304,7 @@ const UpdateAssignmentForLead = async (req: any, res: any) => {
 
     return res
       .status(200)
-      .json(new SuccessResponse("Chat Agent assigned successfully!", 201));
+      .json(new SuccessResponse("Telecaller assigned successfully!", 201));
   } catch (error: any) {
     return res.status(500).json(new SuccessResponse(error.message, 500));
   }
@@ -593,7 +593,7 @@ const GetLeadsBySourceAndChatAgentController = async (req: any, res: any) => {
       .status(200)
       .json(
         new SuccessResponse(
-          "Leads by Source and Chat Agent fetched",
+          "Leads by Source and Telecaller fetched",
           200,
           result
         )
@@ -619,7 +619,7 @@ const GetLeadsByLabelAndChatAgentController = async (req: any, res: any) => {
       .status(200)
       .json(
         new SuccessResponse(
-          "Leads by Label and Chat Agent fetched",
+          "Leads by Label and Telecaller fetched",
           200,
           result
         )

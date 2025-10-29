@@ -76,7 +76,7 @@ export async function seedRolesAndPermissions() {
       ],
     },
     {
-      name: "Chat Agent",
+      name: "Telecaller",
       description: "Staff who interact directly with leads",
       permissions: [
         permissionMap["view_leads"],
