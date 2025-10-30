@@ -31,6 +31,7 @@ import { seedDefaultSources } from "./seeders/source.seeder";
 import { seedFeaturesAndPackages } from "./seeders/pricingpackages.seeder";
 import Package from "./models/package.model";
 import { Types } from "mongoose";
+import { checkRazorpayWebhookStatus } from "./health-checkers/razorpay-webhook-checker";
 const app: Application = express();
 app.use(
   cors({
@@ -51,7 +52,6 @@ app.use((req, res, next) => {
 });
 app.use("/api/facebook", facebookRoutes);
 app.use("/api", mainRouter);
-
 
 export enum MongoStatusEnums {
   CONNECTED = "Connected to mongodb",
@@ -85,6 +85,8 @@ app.get("/status", async (req: any, res: any) => {
 app.listen(PORT, async () => {
   console.log(`Server Started Listening at ${PORT}`);
   await connect();
+
+  await checkRazorpayWebhookStatus();
 
   if (process.env.SEED_DB === "true") {
     try {
@@ -170,11 +172,11 @@ app.listen(PORT, async () => {
       });
 
       await (!superadmin
-      ? (async () => {
-        console.log("🔨 Seeding superadmin user...");
-         await seedSuperadminUser();
-      })()
-      : console.log("ℹ️ Superadmin user already exists. Skipping seeder."));
+        ? (async () => {
+            console.log("🔨 Seeding superadmin user...");
+            await seedSuperadminUser();
+          })()
+        : console.log("ℹ️ Superadmin user already exists. Skipping seeder."));
 
       console.log("✅ Seeder checks completed.");
     } catch (error) {
