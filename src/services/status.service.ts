@@ -189,33 +189,40 @@ const _getStatusesPaginated = async (
 
   const defaultStatusTitles = ["New", "Processing", "Confirm", "Cancel"];
 
-  const defaultStatusesPromise = Status.find({
-    title: { $in: defaultStatusTitles },
-  }).sort({ createdAt: -1 });
 
-  const filter = { property_id: propId };
-
-  const propertyStatusesPromise = Status.find(filter)
+  const propertyStatusesPromise = Status.find({
+    property_id: propId,
+  })
     .sort({ createdAt: -1 })
     .skip(skip)
     .limit(limit);
-  const totalPropertyStatusesPromise = Status.countDocuments(filter);
 
-  const [defaultStatuses, propertyStatuses, totalPropertyStatuses] =
+  const totalPropertyStatusesPromise = Status.countDocuments({
+    property_id: propId,
+  });
+
+  const defaultStatusesPromise = Status.find({
+    title: { $in: defaultStatusTitles },
+    $or: [{ property_id: { $exists: false } }, { property_id: null }],
+  });
+
+  const [propertyStatuses, totalPropertyStatuses, defaultStatuses] =
     await Promise.all([
-      defaultStatusesPromise,
       propertyStatusesPromise,
       totalPropertyStatusesPromise,
+      defaultStatusesPromise,
     ]);
 
-  
-  const allStatuses = [...defaultStatuses, ...propertyStatuses];
+  const propertyTitles = propertyStatuses.map((s) => s.title);
+  const mergedStatuses = [
+    ...propertyStatuses,
+    ...defaultStatuses.filter((d) => !propertyTitles.includes(d.title)),
+  ];
 
-  
-  const total = defaultStatuses.length + totalPropertyStatuses;
+  const total = mergedStatuses.length;
 
   return {
-    statuses: allStatuses,
+    statuses: mergedStatuses,
     pagination: {
       total,
       currentPage: page,

@@ -409,7 +409,7 @@ const _homePageLeadService = async (
     query.createdAt = {};
 
     if (start_date) {
-      // Start of the day for start_date
+      
       const startDate = new Date(start_date);
       startDate.setHours(0, 0, 0, 0);
       query.createdAt.$gte = startDate;
