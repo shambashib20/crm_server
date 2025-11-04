@@ -33,16 +33,25 @@ import Package from "./models/package.model";
 import { Types } from "mongoose";
 import { checkRazorpayWebhookStatus } from "./health-checkers/razorpay-webhook-checker";
 import SuccessResponse from "./middlewares/success.middleware";
+import os from "os";
+
+function getSystemHealth() {
+  const totalMem = os.totalmem();
+  const freeMem = os.freemem();
+  const usedMem = totalMem - freeMem;
+  const memUsagePercent = ((usedMem / totalMem) * 100).toFixed(2);
+
+  return {
+    cpuLoad: os.loadavg()[0].toFixed(2),
+    memory: {
+      totalGB: (totalMem / 1024 / 1024 / 1024).toFixed(2),
+      usedGB: (usedMem / 1024 / 1024 / 1024).toFixed(2),
+      usagePercent: memUsagePercent,
+    },
+  };
+}
+
 const app: Application = express();
-
-
-
-
-
-
-
-
-
 
 const SERVER_START_TIME = new Date();
 
@@ -88,11 +97,27 @@ app.post(
   express.raw({ type: "application/json" }),
   razorpayWebhookHandler
 );
+
+setInterval(() => {
+  const health = getSystemHealth();
+
+  const cpu = Number(health.cpuLoad);
+  const mem = Number(health.memory.usagePercent);
+
+  if (cpu > 2.0) {
+    console.warn(`⚠️ HIGH CPU LOAD: ${cpu}`);
+  }
+
+  if (mem > 80) {
+    console.warn(`⚠️ HIGH MEMORY USAGE: ${mem}%`);
+  }
+}, 30 * 1000);
 app.get("/status", async (req: any, res: any) => {
   try {
     const dbStatus = await getDbStatus();
 
     const serverStart = SERVER_START_TIME;
+    const health = getSystemHealth();
     const uptimeMsg = formatUptime(SERVER_START_TIME);
 
     res.status(200).json({
@@ -101,6 +126,8 @@ app.get("/status", async (req: any, res: any) => {
       data: {
         server: `ETC CRM server started on ${serverStart.toString()}, ${uptimeMsg}`,
         dbStatus,
+        cpuLoad: health.cpuLoad,
+        memory: health.memory
       },
     });
   } catch (err) {

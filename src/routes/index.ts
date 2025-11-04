@@ -16,6 +16,7 @@ import customerRouter from "./customer.route";
 import packageRouter from "./package.route";
 import clientRouter from "./client.route";
 import addonsRouter from "./addons.route";
+import campaignRouter from "./campaign.route";
 
 mainRouter.use("/auth", authRouter);
 
@@ -32,5 +33,6 @@ mainRouter.use("/customer", customerRouter);
 mainRouter.use("/package", packageRouter);
 mainRouter.use("/client", clientRouter);
 mainRouter.use("/addons", addonsRouter);
+mainRouter.use("/campaign", campaignRouter);
 
 export default mainRouter;
