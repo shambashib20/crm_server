@@ -4,6 +4,7 @@ import { sendMarketingEmails } from "../services/email-campaign-service";
 import PurchaseRecordsModel from "../models/purchaserecords.model";
 import Property from "../models/property.model";
 import { PurchaseStatus } from "../dtos/purchaserecords.dto";
+import { _fetchAndSyncWapMonkeyDevices } from "../services/wapmonkeyusers.service";
 
 const getDaysLeft = (validityDate: Date): number => {
   const now = new Date();
@@ -16,8 +17,9 @@ let isFbSyncRunning = false;
 
 const BASE_URL =
   process.env.NODE_ENV === "production"
-    ? "https://crm-server-tsnj.onrender.com"
-    : "http://localhost:8850"; // 👈 LOCAL
+    ? "https://x3pywvw6x8.us-east-1.awsapprunner.com"
+    : // "https://crm-server-tsnj.onrender.com"
+      "http://localhost:8850"; // 👈 LOCAL
 
 // running every hour!
 cron.schedule("0 * * * *", async () => {
@@ -47,7 +49,6 @@ cron.schedule("*/2  * * * *", async () => {
   console.log("⏰ Running daily feature validity update job...");
 
   try {
-    
     const properties = await Property.find();
 
     for (const property of properties) {
@@ -71,7 +72,7 @@ cron.schedule("*/2  * * * *", async () => {
           }) => {
             if (feature.validity) {
               let daysLeft = getDaysLeft(new Date(feature.validity));
-              
+
               daysLeft = Math.max(daysLeft, 0);
 
               if (feature.validity_left_till_expiration !== daysLeft) {
@@ -98,3 +99,7 @@ cron.schedule("*/2  * * * *", async () => {
   }
 });
 
+cron.schedule("*/2 * * * *", async () => {
+  console.log("🔁 Checking WapMonkey devices for new entries...");
+  await _fetchAndSyncWapMonkeyDevices();
+});
