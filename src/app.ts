@@ -32,6 +32,7 @@ import { seedFeaturesAndPackages } from "./seeders/pricingpackages.seeder";
 import Package from "./models/package.model";
 import { Types } from "mongoose";
 import { checkRazorpayWebhookStatus } from "./health-checkers/razorpay-webhook-checker";
+import SuccessResponse from "./middlewares/success.middleware";
 const app: Application = express();
 app.use(
   cors({
@@ -81,6 +82,23 @@ app.get("/status", async (req: any, res: any) => {
       .json({ status: 500, message: "Error in fetching server status" });
   }
 });
+
+app.get("/payment-webhook/monitor", async (req: any, res: any) => {
+  try {
+    await checkRazorpayWebhookStatus();
+
+    return res
+      .status(200)
+      .json(new SuccessResponse("Webhook running successfully!", 200, res.data));
+  } catch (err: any) {
+    console.error("Error in checking Razorpay webhook status:", err);
+
+    return res
+      .status(500)
+      .json(new SuccessResponse(err.message || "Webhook monitor failed", 500));
+  }
+});
+
 
 app.listen(PORT, async () => {
   console.log(`Server Started Listening at ${PORT}`);
