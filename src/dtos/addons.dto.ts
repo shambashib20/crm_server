@@ -13,6 +13,7 @@ interface AddOnDto {
   value: number;
   status?: AddOnStatus;
   meta?: Record<string, any>;
+  property_id?: Types.ObjectId;
 }
 
 export { AddOnDto, AddOnStatus };

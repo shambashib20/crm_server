@@ -25,6 +25,11 @@ const AddsOnSchema = new Schema<AddOnDto & Document>(
       type: Schema.Types.Mixed,
       default: {},
     },
+    property_id: {
+      type: Schema.Types.ObjectId,
+      ref: "Property",
+      default: null,
+    },
   },
   {
     timestamps: true,
