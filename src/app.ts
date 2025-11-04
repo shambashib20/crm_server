@@ -32,7 +32,32 @@ import { seedFeaturesAndPackages } from "./seeders/pricingpackages.seeder";
 import Package from "./models/package.model";
 import { Types } from "mongoose";
 import { checkRazorpayWebhookStatus } from "./health-checkers/razorpay-webhook-checker";
+import SuccessResponse from "./middlewares/success.middleware";
 const app: Application = express();
+
+
+
+
+
+
+
+
+
+
+const SERVER_START_TIME = new Date();
+
+function formatUptime(startTime: Date) {
+  const now = new Date();
+  const diff = now.getTime() - startTime.getTime();
+
+  const seconds = Math.floor(diff / 1000) % 60;
+  const minutes = Math.floor(diff / (1000 * 60)) % 60;
+  const hours = Math.floor(diff / (1000 * 60 * 60)) % 24;
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+
+  return `${days} day, ${hours} hours, ${minutes} minutes, ${seconds} seconds ago`;
+}
+
 app.use(
   cors({
     origin: (origin, callback) => {
@@ -67,10 +92,14 @@ app.get("/status", async (req: any, res: any) => {
   try {
     const dbStatus = await getDbStatus();
 
+    const serverStart = SERVER_START_TIME;
+    const uptimeMsg = formatUptime(SERVER_START_TIME);
+
     res.status(200).json({
       status: 200,
       message: "Server and DB status fetched successfully!",
       data: {
+        server: `ETC CRM server started on ${serverStart.toString()}, ${uptimeMsg}`,
         dbStatus,
       },
     });
@@ -81,6 +110,23 @@ app.get("/status", async (req: any, res: any) => {
       .json({ status: 500, message: "Error in fetching server status" });
   }
 });
+
+app.get("/payment-webhook/monitor", async (req: any, res: any) => {
+  try {
+    await checkRazorpayWebhookStatus();
+
+    return res
+      .status(200)
+      .json(new SuccessResponse("Webhook running successfully!", 200, res.data));
+  } catch (err: any) {
+    console.error("Error in checking Razorpay webhook status:", err);
+
+    return res
+      .status(500)
+      .json(new SuccessResponse(err.message || "Webhook monitor failed", 500));
+  }
+});
+
 
 app.listen(PORT, async () => {
   console.log(`Server Started Listening at ${PORT}`);
