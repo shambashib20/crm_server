@@ -17,6 +17,7 @@ import packageRouter from "./package.route";
 import clientRouter from "./client.route";
 import addonsRouter from "./addons.route";
 import campaignRouter from "./campaign.route";
+import automationRouter from "./automation.route";
 
 mainRouter.use("/auth", authRouter);
 
@@ -34,5 +35,6 @@ mainRouter.use("/package", packageRouter);
 mainRouter.use("/client", clientRouter);
 mainRouter.use("/addons", addonsRouter);
 mainRouter.use("/campaign", campaignRouter);
+mainRouter.use("/automtation", automationRouter);
 
 export default mainRouter;
