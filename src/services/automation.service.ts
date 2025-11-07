@@ -10,7 +10,10 @@ const _createAutomationService = async (
   try {
     const automation = new Automation({
       ...payload,
-      property_id, 
+      property_id,
+      meta: {
+        is_active: true,
+      },
     });
 
     await automation.save();
