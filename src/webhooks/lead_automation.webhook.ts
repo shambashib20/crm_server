@@ -20,15 +20,17 @@ const _triggerLeadAutomationWebhook = async (lead: any) => {
       property_id: new Types.ObjectId(lead.property_id),
     });
 
+    
     if (!automation) {
       console.log("⚠️ No FIRST_MESSAGE automation found for this property.");
       return;
     }
 
-    // ✅ Find the rule matching the lead's status
     const rule = automation.rules.find((r: any) =>
       r.status_id?.equals(lead.status)
     );
+
+    console.log("Automation rule found:", rule);
     if (!rule) {
       console.log("⚠️ No matching automation rule found for this lead status.");
       return;
@@ -41,6 +43,8 @@ const _triggerLeadAutomationWebhook = async (lead: any) => {
       return;
     }
 
+    console.log("status", status);
+
     // ✅ Fetch the agent who was already assigned to the lead
     if (!lead.assigned_to) {
       console.log(
@@ -48,6 +52,8 @@ const _triggerLeadAutomationWebhook = async (lead: any) => {
       );
       return;
     }
+
+    console.log("telecaller", lead.assigned_to);
 
     const agent = await User.findById(lead.assigned_to).lean();
     if (!agent || !agent.meta?.whatsapp_device) {
@@ -65,14 +71,12 @@ const _triggerLeadAutomationWebhook = async (lead: any) => {
       return;
     }
 
-    // ✅ Fetch the template from automation rule
     const template = await CampaignTemplate.findById(rule.template_id).lean();
     if (!template) {
       console.log("⚠️ Template not found for automation rule.");
       return;
     }
 
-    // ✅ Build dynamic message text
     const variableMap = (template.meta?.variable_map || {}) as Record<
       string,
       string
@@ -90,19 +94,34 @@ const _triggerLeadAutomationWebhook = async (lead: any) => {
       message,
       media: [],
       numbers: recipientNumber,
-      device_token: deviceToken, // agent’s sending device
+      device_token: deviceToken,
+      u_id: whatsappDevice.u_id,
+      d_id: whatsappDevice.d_id,
     };
 
-    await axios.post(WAPMONKEY_API, body, {
+    console.log("Sending message with body:", body);
+    const response = await axios.post(WAPMONKEY_API, body, {
       headers: {
         Authorization: API_KEY,
         "Content-Type": "application/json",
       },
+      validateStatus: () => true,
     });
 
-    console.log(
-      `✅ Message sent to lead (${recipientNumber}) via ${agent.name}'s device.`
-    );
+    console.log("📬 WapMonkey API Response:");
+    console.log("Status Code:", response.status);
+    console.log("Response Data:", JSON.stringify(response.data, null, 2));
+
+    if (response.status === 200 && response.data?.status === 1) {
+      console.log(
+        `✅ Message successfully sent to ${recipientNumber} via ${agent.name}'s device.`
+      );
+    } else {
+      console.warn(
+        `⚠️ Message sending may have failed. Status: ${response.status}`,
+        response.data
+      );
+    }
   } catch (error: any) {
     console.error(
       "❌ Error in triggerLeadAutomationWebhook:",
