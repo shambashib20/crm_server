@@ -20,6 +20,7 @@ import {
 import { getMetaValue } from "../utils/meta.util";
 import PurchaseRecordsModel from "../models/purchaserecords.model";
 import { PurchaseStatus } from "../dtos/purchaserecords.dto";
+import { _triggerLeadAutomationWebhook } from "../webhooks/lead_automation.webhook";
 
 function getEarliestFollowUpDate(followUps: any[] = []): Date | null {
   if (!Array.isArray(followUps) || followUps.length === 0) return null;
@@ -218,7 +219,6 @@ const _createNewFollowUp = async (
   };
 };
 
-
 const _editFollowUp = async (
   leadId: Types.ObjectId,
   followUpId: Types.ObjectId,
@@ -322,7 +322,6 @@ const _editFollowUp = async (
   };
 };
 
-
 const _updateLabelForLead = async (
   leadId: Types.ObjectId,
   propId: Types.ObjectId,
@@ -409,7 +408,6 @@ const _homePageLeadService = async (
     query.createdAt = {};
 
     if (start_date) {
-      
       const startDate = new Date(start_date);
       startDate.setHours(0, 0, 0, 0);
       query.createdAt.$gte = startDate;
@@ -751,6 +749,7 @@ const _createLeadService = async (data: CreateLeadDto, ip: string) => {
     throw new Error("Failed to update feature usage in package.");
 
   await lead.save();
+  await _triggerLeadAutomationWebhook(lead);
   return lead;
 };
 

@@ -33,7 +33,9 @@ const CampaignTemplateSchema = new Schema<CampaignTemplateDoc>(
   { timestamps: true, versionKey: false }
 );
 
-export const CampaignTemplate = model<CampaignTemplateDoc>(
+const CampaignTemplate = model<CampaignTemplateDoc>(
   "CampaignTemplate",
   CampaignTemplateSchema
 );
+
+export default CampaignTemplate;

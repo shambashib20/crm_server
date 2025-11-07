@@ -48,7 +48,7 @@ cron.schedule("0 0 * * *", async () => {
   await sendMarketingEmails();
 });
 
-cron.schedule("*/2  * * * *", async () => {
+cron.schedule("0 * * * *", async () => {
   console.log("⏰ Running daily feature validity update job...");
 
   try {
