@@ -3,18 +3,30 @@ import { AddOnDto } from "../dtos/addons.dto";
 import AddOns from "../models/addonsmodel";
 import { _createRazorpayPaymentLink } from "./payment.service";
 import { v4 as uuidv4 } from "uuid";
+import Property from "../models/property.model";
 
 const _createAddOnService = async (data: AddOnDto, propId: Types.ObjectId) => {
   const existingAddOn = await AddOns.findOne({ title: data.title });
   if (existingAddOn) {
     throw new Error("Add-On with this title already exists.");
   }
+
+  // ✅ Create Add-On entry
   const newAddOn = await AddOns.create({
     ...data,
     property_id: propId,
     meta: { payment_links: [] },
   });
   await newAddOn.save();
+
+  // ✅ Fetch the property to get the active_package (purchase record)
+  const property = await Property.findById(propId);
+  const activePackageId =
+    property?.meta?.active_package?._id ||
+    property?.meta?.active_package ||
+    null;
+
+  // ✅ Create Razorpay payment link with reference to purchase record
   const payment = await _createRazorpayPaymentLink({
     amountInINR: data.value,
     referenceId: `addon_${newAddOn._id.toString()}`,
@@ -24,8 +36,10 @@ const _createAddOnService = async (data: AddOnDto, propId: Types.ObjectId) => {
       addon_id: newAddOn._id.toString(),
       property_id: propId.toString(),
       title: data.title,
+      purchase_record_id: activePackageId ? activePackageId.toString() : null, // 💡 include active purchase
     },
   });
+
   const paymentLinkData = {
     link_id: payment.id,
     short_url: payment.short_url,
@@ -34,6 +48,7 @@ const _createAddOnService = async (data: AddOnDto, propId: Types.ObjectId) => {
     status: payment.status || "created",
     is_active: true,
   };
+
   const updatedAddOn = await AddOns.findByIdAndUpdate(
     newAddOn._id,
     {
@@ -41,8 +56,10 @@ const _createAddOnService = async (data: AddOnDto, propId: Types.ObjectId) => {
     },
     { new: true }
   );
+
   return updatedAddOn;
 };
+
 
 const _editAddOnService = async (
   addOnId: Types.ObjectId,

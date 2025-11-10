@@ -43,17 +43,19 @@ const _LoginForAllUsersService = async (
     new Types.ObjectId(user._id),
     user?.meta?.ray_id as string
   );
-
+  const isProd = process.env.NODE_ENV === "production";
   res.cookie("access_token", accessToken, {
     httpOnly: true,
     maxAge: 5 * 24 * 60 * 60 * 1000,
-    sameSite: "lax",
+    sameSite: isProd ? "none" : "lax",
+    secure: isProd,
   });
 
   res.cookie("refresh_token", refreshToken, {
     httpOnly: true,
     maxAge: 30 * 24 * 60 * 60 * 1000,
-    sameSite: "lax",
+    sameSite: isProd ? "none" : "lax",
+    secure: isProd,
   });
 
   return {
@@ -94,19 +96,20 @@ const _loginSuperAdmin = async (
     new Types.ObjectId(user._id),
     user?.meta?.ray_id as string
   );
-
+  const isProd = process.env.NODE_ENV === "production";
   res.cookie("access_token", accessToken, {
     httpOnly: true,
-    maxAge: 5 * 24 * 60 * 60 * 1000,
-    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-    secure: process.env.NODE_ENV === "production",
+    maxAge: 2 * 60 * 1000,
+    // maxAge: 5 * 24 * 60 * 60 * 1000,
+    sameSite: isProd ? "none" : "lax",
+    secure: isProd,
   });
 
   res.cookie("refresh_token", refreshToken, {
     httpOnly: true,
     maxAge: 30 * 24 * 60 * 60 * 1000,
-    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-    secure: process.env.NODE_ENV === "production",
+    sameSite: isProd ? "none" : "lax",
+    secure: isProd,
   });
 
   return {
@@ -116,7 +119,7 @@ const _loginSuperAdmin = async (
       email: user.email,
       phone_number: user.phone_number,
       role: role?.name,
-      property_id: user.property_id
+      property_id: user.property_id,
     },
   };
 };
