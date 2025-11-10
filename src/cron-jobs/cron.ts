@@ -102,56 +102,56 @@ cron.schedule("0 * * * *", async () => {
   }
 });
 
-cron.schedule("*/2 * * * *", async () => {
-  console.log("🔁 Checking WapMonkey devices for new entries...");
-  await _fetchAndSyncWapMonkeyDevices();
-});
+// cron.schedule("*/2 * * * *", async () => {
+//   console.log("🔁 Checking WapMonkey devices for new entries...");
+//   await _fetchAndSyncWapMonkeyDevices();
+// });
 
-cron.schedule("*/2 * * * *", async () => {
-  console.log("⏰ Running WhatsApp device sync cron...");
+// cron.schedule("*/2 * * * *", async () => {
+//   console.log("⏰ Running WhatsApp device sync cron...");
 
-  try {
-    const telecallerRole = await Role.findOne({ name: "Telecaller" }).select(
-      "_id"
-    );
+//   try {
+//     const telecallerRole = await Role.findOne({ name: "Telecaller" }).select(
+//       "_id"
+//     );
 
-    if (!telecallerRole) {
-      console.log(
-        "⚠️ Telecaller role not found, skipping WhatsApp device sync."
-      );
-      return;
-    }
-    const telecallers = await User.find({ role: telecallerRole._id }).select(
-      "_id name phone_number meta"
-    );
-    if (!telecallers.length) {
-      console.log("⚠️ No telecallers found!");
-      return;
-    }
+//     if (!telecallerRole) {
+//       console.log(
+//         "⚠️ Telecaller role not found, skipping WhatsApp device sync."
+//       );
+//       return;
+//     }
+//     const telecallers = await User.find({ role: telecallerRole._id }).select(
+//       "_id name phone_number meta"
+//     );
+//     if (!telecallers.length) {
+//       console.log("⚠️ No telecallers found!");
+//       return;
+//     }
 
-    for (const user of telecallers) {
-      if (!user.phone_number) continue;
+//     for (const user of telecallers) {
+//       if (!user.phone_number) continue;
 
       
-      const waDevice = await WhatsAppDevice.findOne({
-        mobile_no: user.phone_number,
-      });
-      if (!waDevice) {
-        console.log(
-          `❌ No device found for ${user.name} (${user.phone_number})`
-        );
-        continue;
-      }
+//       const waDevice = await WhatsAppDevice.findOne({
+//         mobile_no: user.phone_number,
+//       });
+//       if (!waDevice) {
+//         console.log(
+//           `❌ No device found for ${user.name} (${user.phone_number})`
+//         );
+//         continue;
+//       }
 
-      user?.meta?.set("whatsapp_device", waDevice.toObject());
-      await user.save();
+//       user?.meta?.set("whatsapp_device", waDevice.toObject());
+//       await user.save();
 
-      console.log(`✅ Updated ${user.name}'s meta with WhatsApp device.`);
-    }
-    console.log("🎉 WhatsApp device sync completed.");
-  } catch (error) {
-    console.error("❌ Error in WhatsApp device sync cron:", error);
-  }
-});
+//       console.log(`✅ Updated ${user.name}'s meta with WhatsApp device.`);
+//     }
+//     console.log("🎉 WhatsApp device sync completed.");
+//   } catch (error) {
+//     console.error("❌ Error in WhatsApp device sync cron:", error);
+//   }
+// });
 
 
