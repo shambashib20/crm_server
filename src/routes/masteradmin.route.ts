@@ -1,4 +1,7 @@
-import { GetCustomersInAllProperties } from "../controllers/masteradmin.controller";
+import {
+  GetCustomersInAllProperties,
+  GetUsersWithRolesInAllPropertiesController,
+} from "../controllers/masteradmin.controller";
 
 import express from "express";
 
@@ -10,5 +13,11 @@ masteradminRouter.get(
   "/customers/fetch",
   AuthMiddleware,
   GetCustomersInAllProperties
+);
+
+masteradminRouter.get(
+  "/users-with-roles/fetch",
+  AuthMiddleware,
+  GetUsersWithRolesInAllPropertiesController
 );
 export default masteradminRouter;
