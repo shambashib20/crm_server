@@ -4,6 +4,7 @@ import {
   _createCampaignTemplate,
   _editCampaignTemplate,
   _getCampaignTemplates,
+  _getCampaignTemplatesInMasterPanel,
 } from "../services/campaign.service";
 
 const CreateCampaignTemplateController = async (req: any, res: any) => {
@@ -119,8 +120,25 @@ const FetchCampaignTemplatesController = async (req: any, res: any) => {
   }
 };
 
+const FetchCampaignTemplatesInMasterPanelController = async (
+  req: any,
+  res: any
+) => {
+  try {
+    const result = await _getCampaignTemplatesInMasterPanel();
+    return res
+      .status(200)
+      .json(
+        new SuccessResponse("Templates fetched successfully!", 200, result)
+      );
+  } catch (err: any) {
+    console.error("Fetch Templates Error:", err);
+    return res.status(500).json(new SuccessResponse(err.message, 500));
+  }
+};
 export {
   CreateCampaignTemplateController,
   EditCampaignTemplateController,
   FetchCampaignTemplatesController,
+  FetchCampaignTemplatesInMasterPanelController,
 };

@@ -98,20 +98,37 @@ app.post(
   razorpayWebhookHandler
 );
 
-// setInterval(() => {
-//   const health = getSystemHealth();
+setInterval(() => {
+  const health = getSystemHealth();
 
-//   const cpu = Number(health.cpuLoad);
-//   const mem = Number(health.memory.usagePercent);
+  const cpu = Number(health.cpuLoad);
+  const mem = Number(health.memory.usagePercent);
 
-//   if (cpu > 2.0) {
-//     console.warn(`⚠️ HIGH CPU LOAD: ${cpu}`);
-//   }
+  if (cpu > 2.0) {
+    console.warn(`⚠️ HIGH CPU LOAD: ${cpu}`);
+  }
 
-//   if (mem > 80) {
-//     console.warn(`⚠️ HIGH MEMORY USAGE: ${mem}%`);
-//   }
-// }, 30 * 1000);
+  if (mem > 80) {
+    console.warn(`⚠️ HIGH MEMORY USAGE: ${mem}%`);
+  }
+}, 30 * 1000);
+app.get("/payment-webhook/monitor", async (req: any, res: any) => {
+  try {
+    await checkRazorpayWebhookStatus();
+
+    return res
+      .status(200)
+      .json(
+        new SuccessResponse("Webhook running successfully!", 200, res.data)
+      );
+  } catch (err: any) {
+    console.error("Error in checking Razorpay webhook status:", err);
+
+    return res
+      .status(500)
+      .json(new SuccessResponse(err.message || "Webhook monitor failed", 500));
+  }
+});
 app.get("/status", async (req: any, res: any) => {
   try {
     const dbStatus = await getDbStatus();
@@ -119,6 +136,7 @@ app.get("/status", async (req: any, res: any) => {
     const serverStart = SERVER_START_TIME;
     const health = getSystemHealth();
     const uptimeMsg = formatUptime(SERVER_START_TIME);
+    const paymentWebhookStatus = await checkRazorpayWebhookStatus();
 
     res.status(200).json({
       status: 200,
@@ -127,7 +145,8 @@ app.get("/status", async (req: any, res: any) => {
         server: `ETC CRM server started on ${serverStart.toString()}, ${uptimeMsg}`,
         dbStatus,
         cpuLoad: health.cpuLoad,
-        memory: health.memory
+        memory: health.memory,
+        paymentWebhookStatus,
       },
     });
   } catch (err) {
@@ -138,21 +157,7 @@ app.get("/status", async (req: any, res: any) => {
   }
 });
 
-app.get("/payment-webhook/monitor", async (req: any, res: any) => {
-  try {
-    await checkRazorpayWebhookStatus();
 
-    return res
-      .status(200)
-      .json(new SuccessResponse("Webhook running successfully!", 200, res.data));
-  } catch (err: any) {
-    console.error("Error in checking Razorpay webhook status:", err);
-
-    return res
-      .status(500)
-      .json(new SuccessResponse(err.message || "Webhook monitor failed", 500));
-  }
-});
 
 
 app.listen(PORT, async () => {

@@ -18,6 +18,7 @@ const _createCampaignTemplate = async (data: CampaignTemplateDto) => {
     meta: {
       ray_id: `ray-id-${uuidv4()}`,
       variable_map: VARIABLE_MAPPINGS,
+      is_active: true,
     },
   });
 
@@ -78,8 +79,41 @@ const _getCampaignTemplates = async (
   };
 };
 
+const _getCampaignTemplatesInMasterPanel = async (
+  page: number = 1,
+  limit: number = 10
+) => {
+  const skip = (page - 1) * limit;
+
+  const [campaigns, total] = await Promise.all([
+    CampaignTemplate.find()
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean(),
+    CampaignTemplate.countDocuments(),
+  ]);
+
+  const totalPages = Math.ceil(total / limit);
+  const hasNextPage = page < totalPages;
+  const hasPrevPage = page > 1;
+
+  return {
+    campaigns,
+    pagination: {
+      totalItems: total,
+      totalPages,
+      currentPage: page,
+      limit,
+      hasNextPage,
+      hasPrevPage,
+    },
+  };
+};
+
 export {
   _createCampaignTemplate,
   _editCampaignTemplate,
   _getCampaignTemplates,
+  _getCampaignTemplatesInMasterPanel,
 };
