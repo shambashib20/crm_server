@@ -17,7 +17,10 @@ export const checkRazorpayWebhookStatus = async () => {
       console.error(
         "❌ Missing Razorpay credentials in environment variables."
       );
-      return;
+      return {
+        success: false,
+        message: "Missing Razorpay credentials in environment variables.",
+      };
     }
 
     const response = await axios.get("https://api.razorpay.com/v1/webhooks", {
@@ -31,9 +34,11 @@ export const checkRazorpayWebhookStatus = async () => {
 
     if (!Array.isArray(webhooks) || webhooks.length === 0) {
       console.warn("⚠️ No webhooks found in your Razorpay account!");
-      return;
+      return {
+        success: false,
+        message: "No webhooks found in Razorpay account.",
+      };
     }
-
     const webhook = webhooks.find((w: any) =>
       w.url.includes(RAZORPAY_WEBHOOK_URL)
     );
@@ -43,7 +48,10 @@ export const checkRazorpayWebhookStatus = async () => {
         "❌ No matching Razorpay webhook found for:",
         RAZORPAY_WEBHOOK_URL
       );
-      return;
+      return {
+        success: false,
+        message: `No matching webhook found for URL: ${RAZORPAY_WEBHOOK_URL}`,
+      };
     }
 
     if (webhook.enabled === false) {
@@ -51,13 +59,26 @@ export const checkRazorpayWebhookStatus = async () => {
       console.warn(
         "👉 Please go to Razorpay Dashboard > Settings > Webhooks and enable it."
       );
-      return;
+      return {
+        success: false,
+        message: `Webhook found but disabled. ID: ${webhook.id}`,
+        webhookId: webhook.id,
+        webhookUrl: webhook.url,
+        events: Object.keys(webhook.events || {}),
+      };
     }
 
     console.log(`✅ Razorpay webhook is ACTIVE:`);
     console.log(`   ID: ${webhook.id}`);
     console.log(`   URL: ${webhook.url}`);
     console.log(`   Events: ${Object.keys(webhook.events).join(", ")}`);
+    return {
+      success: true,
+      message: "Webhook is active",
+      webhookId: webhook.id,
+      webhookUrl: webhook.url,
+      events: Object.keys(webhook.events || {}),
+    };
   } catch (err: any) {
     console.error("❌ Error checking Razorpay webhook status:");
     console.error(err?.response?.data || err.message || err);

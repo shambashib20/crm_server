@@ -2,6 +2,7 @@ import {
   CreateCampaignTemplateController,
   EditCampaignTemplateController,
   FetchCampaignTemplatesController,
+  FetchCampaignTemplatesInMasterPanelController,
 } from "../controllers/campaign.controller";
 
 import express from "express";
@@ -23,5 +24,13 @@ campaignRouter.put(
   AuthMiddleware,
   upload.array("attachments", 5),
   EditCampaignTemplateController
+);
+
+
+
+campaignRouter.get(
+  "/master-panel/fetch",
+  AuthMiddleware,
+  FetchCampaignTemplatesInMasterPanelController
 );
 export default campaignRouter;
