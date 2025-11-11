@@ -26,6 +26,7 @@ import {
   _editFollowUp,
 } from "../services/lead.service";
 import multer from "multer";
+import { _getLeadsTrendByTelecallerService } from "../services/master.service";
 
 interface UpdateLabelRequest {
   leadId: Types.ObjectId | string;
@@ -654,6 +655,42 @@ const GetLeadsByStatusAndChatAgentController = async (req: any, res: any) => {
     return res.status(500).json(new SuccessResponse(error.message, 500));
   }
 };
+
+const GetLeadsTrendByTelecallerController = async (req: any, res: any) => {
+  try {
+    const { agentId, labelId, statusId, startDate, endDate } = req.body;
+    const propId = req.user.property_id;
+    if (!agentId || !labelId || !statusId) {
+      return res
+        .status(400)
+        .json(
+          new SuccessResponse(
+            "agentId, labelId and statusId are required fields!",
+            400
+          )
+        );
+    }
+    const result = await _getLeadsTrendByTelecallerService(
+      new Types.ObjectId(agentId),
+      new Types.ObjectId(labelId),
+      new Types.ObjectId(statusId),
+      new Types.ObjectId(propId),
+      startDate,
+      endDate
+    );
+    return res
+      .status(200)
+      .json(
+        new SuccessResponse(
+          "Leads trend data fetched successfully",
+          200,
+          result
+        )
+      );
+  } catch (error: any) {
+    return res.status(500).json(new SuccessResponse(error.message, 500));
+  }
+};
 export {
   FetchLeadDetails,
   NewFollowUp,
@@ -678,4 +715,5 @@ export {
   GetLeadsByLabelAndChatAgentController,
   GetLeadsByStatusAndChatAgentController,
   EditFollowUp,
+  GetLeadsTrendByTelecallerController,
 };

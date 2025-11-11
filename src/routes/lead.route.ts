@@ -11,6 +11,7 @@ import {
   GetLeadsByLabelAndChatAgentController,
   GetLeadsBySourceAndChatAgentController,
   GetLeadsByStatusAndChatAgentController,
+  GetLeadsTrendByTelecallerController,
   GetMissedFollowUpsController,
   ImportLeadsController,
   LeadsPerSource,
@@ -57,7 +58,6 @@ leadRouter.post(
   PermissionMiddleware("manage_leads"),
   NewFollowUp
 );
-
 
 leadRouter.patch(
   "/update/follow-up",
@@ -162,18 +162,21 @@ leadRouter.post(
   GetLeadsBySourceAndChatAgentController
 );
 
-
-
 leadRouter.post(
   "/statistics-by-label-agent",
   AuthMiddleware,
   GetLeadsByLabelAndChatAgentController
 );
 
-
 leadRouter.post(
   "/statistics-by-status-agent",
   AuthMiddleware,
   GetLeadsByStatusAndChatAgentController
+);
+
+leadRouter.post(
+  "/statistics-by-telecaller-label-status",
+  AuthMiddleware,
+  GetLeadsTrendByTelecallerController
 );
 export default leadRouter;
