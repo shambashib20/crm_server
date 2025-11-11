@@ -3,6 +3,22 @@ import Customer from "../models/customer.model";
 import Status from "../models/status.model";
 import Lead from "../models/lead.model";
 import User from "../models/user.model";
+import Property from "../models/property.model";
+
+interface WorkspaceUser {
+  user_id: Types.ObjectId;
+  name: string;
+  email: string;
+  phone_number: string;
+  role: string;
+}
+
+interface Workspace {
+  property_id: Types.ObjectId;
+  property_name: string;
+  totalUsers: number;
+  users: WorkspaceUser[];
+}
 
 const _fetchCustomersInAllProperties = async (
   page: number = 1,
@@ -136,4 +152,82 @@ const _getLeadsTrendByTelecallerService = async (
   return response;
 };
 
-export { _fetchCustomersInAllProperties, _getLeadsTrendByTelecallerService };
+const _getUsersWithRolesInAllProperties = async (
+  page: number = 1,
+  limit: number = 10
+) => {
+  const skip = (page - 1) * limit;
+
+  // 1️⃣ Count total properties first
+  const totalProperties = await Property.countDocuments();
+
+  
+  const totalPages = Math.ceil(totalProperties / limit);
+  const hasNextPage = page < totalPages;
+  const hasPrevPage = page > 1;
+
+  
+  const properties = await Property.find({})
+    .select("_id name")
+    .skip(skip)
+    .limit(limit);
+
+ 
+  const workspaceData: Workspace[] = [];
+
+  for (const prop of properties) {
+    
+    const users = await User.aggregate([
+      {
+        $match: {
+          property_id: new Types.ObjectId(prop._id),
+        },
+      },
+      {
+        $lookup: {
+          from: "roles",
+          localField: "role",
+          foreignField: "_id",
+          as: "roleInfo",
+        },
+      },
+      { $unwind: { path: "$roleInfo", preserveNullAndEmptyArrays: true } },
+      {
+        $project: {
+          _id: 0,
+          user_id: "$_id",
+          name: 1,
+          email: 1,
+          phone_number: 1,
+          role: "$roleInfo.name",
+        },
+      },
+    ]);
+
+    workspaceData.push({
+      property_id: prop._id,
+      property_name: prop.name,
+      totalUsers: users.length,
+      users,
+    });
+  }
+
+ 
+  return {
+    workspaces: workspaceData,
+    pagination: {
+      totalItems: totalProperties,
+      totalPages,
+      currentPage: page,
+      limit,
+      hasNextPage,
+      hasPrevPage,
+    },
+  };
+};
+
+export {
+  _fetchCustomersInAllProperties,
+  _getLeadsTrendByTelecallerService,
+  _getUsersWithRolesInAllProperties,
+};

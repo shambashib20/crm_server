@@ -18,6 +18,7 @@ import clientRouter from "./client.route";
 import addonsRouter from "./addons.route";
 import campaignRouter from "./campaign.route";
 import automationRouter from "./automation.route";
+import masteradminRouter from "./masteradmin.route";
 
 mainRouter.use("/auth", authRouter);
 
@@ -36,5 +37,6 @@ mainRouter.use("/client", clientRouter);
 mainRouter.use("/addons", addonsRouter);
 mainRouter.use("/campaign", campaignRouter);
 mainRouter.use("/automtation", automationRouter);
+mainRouter.use("/master-admin", masteradminRouter);
 
 export default mainRouter;
