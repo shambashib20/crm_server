@@ -41,7 +41,7 @@ const _createCustomerFromLead = async (
     converted_date: now,
     meta: {
       ...existingLead.meta,
-      lead_id: leadId,
+      lead_id: new Types.ObjectId(leadId),
       active: true,
       property_id: existingProperty._id,
     },
