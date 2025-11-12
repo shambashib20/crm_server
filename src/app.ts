@@ -34,6 +34,7 @@ import { Types } from "mongoose";
 import { checkRazorpayWebhookStatus } from "./health-checkers/razorpay-webhook-checker";
 import SuccessResponse from "./middlewares/success.middleware";
 import os from "os";
+import { _getMasterStats } from "./services/master.service";
 
 function getSystemHealth() {
   const totalMem = os.totalmem();
@@ -131,12 +132,17 @@ app.get("/payment-webhook/monitor", async (req: any, res: any) => {
 });
 app.get("/status", async (req: any, res: any) => {
   try {
-    const dbStatus = await getDbStatus();
+    // Fetch all status information in parallel for better performance
+    const [dbStatus, health, paymentWebhookStatus, masterStats] =
+      await Promise.all([
+        getDbStatus(),
+        getSystemHealth(),
+        checkRazorpayWebhookStatus(),
+        _getMasterStats(),
+      ]);
 
     const serverStart = SERVER_START_TIME;
-    const health = getSystemHealth();
     const uptimeMsg = formatUptime(SERVER_START_TIME);
-    const paymentWebhookStatus = await checkRazorpayWebhookStatus();
 
     res.status(200).json({
       status: 200,
@@ -147,13 +153,22 @@ app.get("/status", async (req: any, res: any) => {
         cpuLoad: health.cpuLoad,
         memory: health.memory,
         paymentWebhookStatus,
+        card_statistics: {
+          totalLeads: masterStats.totalLeads,
+          totalClients: masterStats.totalClients,
+          totalCustomers: masterStats.totalCustomers,
+          totalProperties: masterStats.totalProperties,
+          activeProperties: masterStats.activeProperties,
+        },
       },
     });
-  } catch (err) {
+  } catch (err: any) {
     console.error("Error in Server Status:", err);
-    res
-      .status(500)
-      .json({ status: 500, message: "Error in fetching server status" });
+    res.status(500).json({
+      status: 500,
+      message: "Error in fetching server status",
+      error: process.env.NODE_ENV === "development" ? err.message : undefined,
+    });
   }
 });
 
