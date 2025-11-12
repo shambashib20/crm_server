@@ -4,6 +4,9 @@ import Status from "../models/status.model";
 import Lead from "../models/lead.model";
 import User from "../models/user.model";
 import Property from "../models/property.model";
+import { PropertyStatus } from "../dtos/property.dto";
+import Client from "../models/client.model";
+import Role from "../models/role.model";
 
 interface WorkspaceUser {
   user_id: Types.ObjectId;
@@ -13,6 +16,13 @@ interface WorkspaceUser {
   role: string;
 }
 
+interface StatsData {
+  totalLeads: number;
+  totalClients: number;
+  totalCustomers: number;
+  totalProperties: number;
+  activeProperties: number;
+}
 interface Workspace {
   property_id: Types.ObjectId;
   property_name: string;
@@ -161,22 +171,18 @@ const _getUsersWithRolesInAllProperties = async (
   // 1️⃣ Count total properties first
   const totalProperties = await Property.countDocuments();
 
-  
   const totalPages = Math.ceil(totalProperties / limit);
   const hasNextPage = page < totalPages;
   const hasPrevPage = page > 1;
 
-  
   const properties = await Property.find({})
     .select("_id name")
     .skip(skip)
     .limit(limit);
 
- 
   const workspaceData: Workspace[] = [];
 
   for (const prop of properties) {
-    
     const users = await User.aggregate([
       {
         $match: {
@@ -212,7 +218,6 @@ const _getUsersWithRolesInAllProperties = async (
     });
   }
 
- 
   return {
     workspaces: workspaceData,
     pagination: {
@@ -226,8 +231,46 @@ const _getUsersWithRolesInAllProperties = async (
   };
 };
 
+const _getMasterStats = async (): Promise<StatsData> => {
+  try {
+    const totalLeads = await Lead.countDocuments();
+
+    const totalClients = await Client.countDocuments();
+
+    const superadminRole = await Role.findOne({ name: "Superadmin" });
+
+    if (!superadminRole) {
+      throw new Error("Superadmin role not found");
+    }
+
+    const totalCustomers = await User.countDocuments({
+      role: superadminRole._id,
+      property_id: { $exists: true, $ne: null },
+    });
+
+    const totalProperties = await Property.countDocuments();
+
+    const activeProperties = await Property.countDocuments({
+      status: PropertyStatus.ACTIVE,
+      is_banned: false,
+    });
+
+    return {
+      totalLeads,
+      totalClients,
+      totalCustomers,
+      totalProperties,
+      activeProperties,
+    };
+  } catch (error) {
+    console.error("Error fetching master stats:", error);
+    throw error;
+  }
+};
+
 export {
   _fetchCustomersInAllProperties,
   _getLeadsTrendByTelecallerService,
   _getUsersWithRolesInAllProperties,
+  _getMasterStats,
 };
