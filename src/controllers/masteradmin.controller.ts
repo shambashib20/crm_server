@@ -5,6 +5,7 @@ import {
 import SuccessResponse from "../middlewares/success.middleware";
 import User from "../models/user.model";
 import { _createPackageManually } from "../services/package.service";
+import { _createFeatureService } from "../services/feature.service";
 const GetCustomersInAllProperties = async (req: any, res: any) => {
   try {
     const page = parseInt(req.query.page) || 1;
@@ -98,15 +99,35 @@ const CreatePackageManually = async (req: any, res: any) => {
 
     res.status(201).json(result);
   } catch (error: any) {
-    console.error("Error in createPackage:", error);
     res.status(400).json({
       success: false,
       message: error.message || "Failed to create package",
     });
   }
 };
+
+const CreateFeatureController = async (req: any, res: any) => {
+  try {
+    const { title, description, meta } = req.body;
+    const result = await _createFeatureService({
+      title,
+      description,
+      meta,
+    });
+    return res
+      .status(201)
+      .json(new SuccessResponse("Feature created successfully", 201, result));
+  } catch (error: any) {
+    return res
+      .status(500)
+      .json(
+        new SuccessResponse(error.message || "Failed to create feature", 500)
+      );
+  }
+};
 export {
   GetCustomersInAllProperties,
   GetUsersWithRolesInAllPropertiesController,
   CreatePackageManually,
+  CreateFeatureController,
 };

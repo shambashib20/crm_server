@@ -238,6 +238,25 @@ const _createPackageManually = async (
       }
     }
 
+    await Feature.updateMany(
+      { _id: { $in: featureIds } },
+      {
+        $set: {
+          "meta.package_id": newPackage._id,
+        },
+        $push: {
+          logs: {
+            title: "Feature Linked to Package",
+            description: `Feature was linked to package ${newPackage.title}`,
+            status: "ACTIVE",
+            meta: {
+              package_id: newPackage._id,
+            },
+          },
+        },
+      }
+    );
+
     // Populate features and return complete package
     const populatedPackage = await Package.findById(newPackage._id)
       .populate("features", "title description status meta")
@@ -257,6 +276,12 @@ const _createPackageManually = async (
     throw error;
   }
 };
+
+
+
+
+
+
 
 export {
   _fetchPricingPlans,
