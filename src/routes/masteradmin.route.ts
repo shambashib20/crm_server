@@ -1,4 +1,6 @@
 import {
+  CreateFeatureController,
+  CreatePackageManually,
   GetCustomersInAllProperties,
   GetUsersWithRolesInAllPropertiesController,
 } from "../controllers/masteradmin.controller";
@@ -20,4 +22,17 @@ masteradminRouter.get(
   AuthMiddleware,
   GetUsersWithRolesInAllPropertiesController
 );
+
+masteradminRouter.post(
+  "/package/create-manually",
+  AuthMiddleware,
+  CreatePackageManually
+);
+
+
+masteradminRouter.post(
+  "/feature/create-manually",
+  AuthMiddleware,
+  CreateFeatureController
+)
 export default masteradminRouter;

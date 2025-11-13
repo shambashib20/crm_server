@@ -24,7 +24,6 @@ export async function seedFeaturesAndPackages() {
     name: "MR Superadmin",
   });
 
-  console.log("mr user id", MR_USER_ID?._id);
   /** ------------------------
    * 1️⃣ CREATE FREE PLAN
    * ------------------------ */

@@ -1,5 +1,7 @@
 import SuccessResponse from "../middlewares/success.middleware";
+
 import {
+  _createPackageManually,
   _createPaymentLinkForPackage,
   _createPurchaseRecord,
   _fetchPricingPlans,
@@ -72,4 +74,8 @@ const CreatePaymentProcessForPackage = async (req: any, res: any) => {
   }
 };
 
-export { FetchPricingPlans, CreatePurchaseRecord, CreatePaymentProcessForPackage };
+export {
+  FetchPricingPlans,
+  CreatePurchaseRecord,
+  CreatePaymentProcessForPackage,
+};
