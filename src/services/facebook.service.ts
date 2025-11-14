@@ -10,6 +10,7 @@ import { LeadLogStatus } from "../dtos/lead.dto";
 import Source from "../models/source.model";
 import { v4 as uuidv4 } from "uuid";
 import Role from "../models/role.model";
+import Property from "../models/property.model";
 const FB_AUTH_URL = "https://www.facebook.com/v21.0/dialog/oauth";
 const FB_TOKEN_URL = "https://graph.facebook.com/v21.0/oauth/access_token";
 
@@ -293,9 +294,6 @@ const _importLeadsByFormId = async (
   });
   if (!label) throw new Error(`Label "${labelTitle}" not found.`);
 
-  // ---------------------------
-  // 🚀 FETCH ALL LEADS WITH PAGINATION
-  // ---------------------------
   let allLeads: any[] = [];
   let nextUrl:
     | string
@@ -312,10 +310,6 @@ const _importLeadsByFormId = async (
   }
 
   console.log("Total leads fetched:", allLeads.length);
-
-  // ---------------------------
-  // 🚀 PREPARE BULK INSERT DATA
-  // ---------------------------
 
   const defaultStatus = await Status.findOne({ title: "New" });
   if (!defaultStatus) throw new Error("Default lead status not found.");
@@ -378,14 +372,26 @@ const _importLeadsByFormId = async (
     });
   }
 
-  // ---------------------------
-  // 🚀 BULK INSERT
-  // ---------------------------
-
   let insertedCount = 0;
   if (docsToInsert.length > 0) {
     await Lead.insertMany(docsToInsert, { ordered: false });
     insertedCount = docsToInsert.length;
+
+    await Property.findByIdAndUpdate(user?.property_id, {
+      $push: {
+        logs: {
+          title: "Facebook Lead Import",
+          description: `Imported ${insertedCount} new leads from Facebook form "${formDetails.name}" using label "${label.title}".`,
+          status: "SUCCESS",
+          meta: {
+            form_id: formId,
+            label: label.title,
+            imported_count: insertedCount,
+            timestamp: new Date(),
+          },
+        },
+      },
+    });
   }
 
   return {
