@@ -277,83 +277,125 @@ const _importLeadsByFormId = async (
 ) => {
   const user = await User.findById(userId);
   const token = pageAccessToken || user?.meta?.get("facebook")?.token;
-  if (!token) {
-    throw new Error("Facebook access token is missing.");
-  }
+  if (!token) throw new Error("Facebook access token is missing.");
+
   const formDetailsRes = await axios.get(`${GRAPH_API_BASE}/${formId}`, {
     params: {
       access_token: token,
       fields: "id,name,status,tracking_parameters",
     },
   });
+
   const formDetails = formDetailsRes.data;
+
   const label = await Label.findOne({
     title: new RegExp(`^${labelTitle.trim()}$`, "i"),
   });
+  if (!label) throw new Error(`Label "${labelTitle}" not found.`);
 
-  if (!label) {
-    throw new Error(`Label "${labelTitle}" not found.`);
+  // ---------------------------
+  // 🚀 FETCH ALL LEADS WITH PAGINATION
+  // ---------------------------
+  let allLeads: any[] = [];
+  let nextUrl:
+    | string
+    | null = `${GRAPH_API_BASE}/${formId}/leads?access_token=${token}&limit=200`;
+
+  while (nextUrl) {
+    const res = await axios.get(nextUrl);
+
+    if (res.data?.data?.length) {
+      allLeads.push(...res.data.data);
+    }
+
+    nextUrl = res.data?.paging?.next ?? null;
   }
 
-  const leadsRes = await axios.get(`${GRAPH_API_BASE}/${formId}/leads`, {
-    params: { access_token: token },
-  });
+  console.log("Total leads fetched:", allLeads.length);
 
-  const leads = leadsRes.data.data;
+  // ---------------------------
+  // 🚀 PREPARE BULK INSERT DATA
+  // ---------------------------
+
   const defaultStatus = await Status.findOne({ title: "New" });
   if (!defaultStatus) throw new Error("Default lead status not found.");
 
-  const source = await Source.findOne({
-    title: "Facebook",
-  });
-
+  const source = await Source.findOne({ title: "Facebook" });
   if (!source) throw new Error("Source not found.");
-  let importedCount = 0;
 
-  for (const fbLead of leads) {
+  // Fetch already existing FB lead IDs once (speed up)
+  const existingDocs = await Lead.find(
+    { "meta.fb_lead_id": { $in: allLeads.map((l) => l.id) } },
+    { "meta.fb_lead_id": 1 }
+  );
+
+  const existingIds = new Set(
+    existingDocs
+      .map((doc) => doc.meta?.fb_lead_id)
+      .filter((id) => id !== undefined)
+  );
+
+  const docsToInsert: any[] = [];
+
+  for (const fbLead of allLeads) {
+    if (existingIds.has(fbLead.id)) continue;
+
     const fields = fbLead.field_data.reduce((acc: any, field: any) => {
       acc[field.name] = field.values[0];
       return acc;
     }, {});
 
-    const existing = await Lead.findOne({ "meta.fb_lead_id": fbLead.id });
-    if (existing) continue;
-    const ray_id = `ray-id-${uuidv4()}`;
-    await Lead.create({
+    const commentLines = [`label::${label.title}`];
+    for (const field of fbLead.field_data) {
+      commentLines.push(`${field.name}::${field.values[0]}`);
+    }
+    const formattedComment = commentLines.join("\n");
+
+    docsToInsert.push({
       name: fields.full_name || fields.name,
       phone_number: fields.phone_number,
       email: fields.email,
-      comment: "Imported from Facebook (manual)",
+      comment: formattedComment,
       labels: [label._id],
       status: defaultStatus._id,
       meta: {
         fb_lead_id: fbLead.id,
         form_id: formId,
         source,
-        rayId: ray_id,
+        rayId: `ray-id-${uuidv4()}`,
       },
       logs: [
         {
           title: "Lead created",
           description: `Lead created by ${
             user?.name || "Unknown"
-          } and assigned status ${defaultStatus.title}`,
+          } with status ${defaultStatus.title}`,
           status: LeadLogStatus.INFO,
         },
       ],
       assigned_to: userId,
       property_id: user?.property_id,
     });
+  }
 
-    importedCount++;
+  // ---------------------------
+  // 🚀 BULK INSERT
+  // ---------------------------
+
+  let insertedCount = 0;
+  if (docsToInsert.length > 0) {
+    await Lead.insertMany(docsToInsert, { ordered: false });
+    insertedCount = docsToInsert.length;
   }
 
   return {
     form: formDetails.name,
-    imported: importedCount,
+    imported: insertedCount,
     label: label.title,
   };
 };
+
+
 
 export {
   _getUserPages,

@@ -25,133 +25,133 @@ const BASE_URL =
       "http://localhost:8850"; // 👈 LOCAL
 
 // running every hour!
-cron.schedule("0 * * * *", async () => {
-  if (isFbSyncRunning) {
-    console.log("⚠️ FB sync already running, skipping this cycle.");
-    return;
-  }
-  isFbSyncRunning = true;
-  console.log("🚀 Running Facebook sync job...");
-  try {
-    await axios.post(`${BASE_URL}/lead/webhook`, {});
+// cron.schedule("0 * * * *", async () => {
+//   if (isFbSyncRunning) {
+//     console.log("⚠️ FB sync already running, skipping this cycle.");
+//     return;
+//   }
+//   isFbSyncRunning = true;
+//   console.log("🚀 Running Facebook sync job...");
+//   try {
+//     await axios.post(`${BASE_URL}/lead/webhook`, {});
 
-    console.log("Facebook leads fetched successfully.");
-  } catch (error) {
-    console.error("Error fetching leads:", error);
-  } finally {
-    isFbSyncRunning = false;
-  }
-});
+//     console.log("Facebook leads fetched successfully.");
+//   } catch (error) {
+//     console.error("Error fetching leads:", error);
+//   } finally {
+//     isFbSyncRunning = false;
+//   }
+// });
 
-cron.schedule("0 0 * * *", async () => {
-  console.log("⏰ Running daily email campaign job at midnight...");
-  await sendMarketingEmails();
-});
+// cron.schedule("0 0 * * *", async () => {
+//   console.log("⏰ Running daily email campaign job at midnight...");
+//   await sendMarketingEmails();
+// });
 
-cron.schedule("0 * * * *", async () => {
-  console.log("⏰ Running daily feature validity update job...");
+// cron.schedule("0 * * * *", async () => {
+//   console.log("⏰ Running daily feature validity update job...");
 
-  try {
-    const properties = await Property.find();
+//   try {
+//     const properties = await Property.find();
 
-    for (const property of properties) {
-      const propertyId = property._id;
+//     for (const property of properties) {
+//       const propertyId = property._id;
 
-      const purchaseRecord = await PurchaseRecordsModel.findOne({
-        property_id: propertyId,
-        status: PurchaseStatus.COMPLETED,
-      }).sort({ createdAt: -1 });
+//       const purchaseRecord = await PurchaseRecordsModel.findOne({
+//         property_id: propertyId,
+//         status: PurchaseStatus.COMPLETED,
+//       }).sort({ createdAt: -1 });
 
-      if (!purchaseRecord) continue;
-      if (!purchaseRecord.meta?.activated_features) continue;
+//       if (!purchaseRecord) continue;
+//       if (!purchaseRecord.meta?.activated_features) continue;
 
-      let isUpdated = false;
+//       let isUpdated = false;
 
-      purchaseRecord.meta.activated_features =
-        purchaseRecord.meta.activated_features.map(
-          (feature: {
-            validity: string | number | Date;
-            validity_left_till_expiration: number;
-          }) => {
-            if (feature.validity) {
-              let daysLeft = getDaysLeft(new Date(feature.validity));
+//       purchaseRecord.meta.activated_features =
+//         purchaseRecord.meta.activated_features.map(
+//           (feature: {
+//             validity: string | number | Date;
+//             validity_left_till_expiration: number;
+//           }) => {
+//             if (feature.validity) {
+//               let daysLeft = getDaysLeft(new Date(feature.validity));
 
-              daysLeft = Math.max(daysLeft, 0);
+//               daysLeft = Math.max(daysLeft, 0);
 
-              if (feature.validity_left_till_expiration !== daysLeft) {
-                feature.validity_left_till_expiration = daysLeft;
-                isUpdated = true;
-              }
-            }
-            return feature;
-          }
-        );
+//               if (feature.validity_left_till_expiration !== daysLeft) {
+//                 feature.validity_left_till_expiration = daysLeft;
+//                 isUpdated = true;
+//               }
+//             }
+//             return feature;
+//           }
+//         );
 
-      if (isUpdated) {
-        purchaseRecord.markModified("meta.activated_features");
-        await purchaseRecord.save();
-        console.log(
-          `✅ Updated validity_left_till_expiration for property ${propertyId}`
-        );
-      }
-    }
+//       if (isUpdated) {
+//         purchaseRecord.markModified("meta.activated_features");
+//         await purchaseRecord.save();
+//         console.log(
+//           `✅ Updated validity_left_till_expiration for property ${propertyId}`
+//         );
+//       }
+//     }
 
-    console.log("🎉 Daily feature validity job completed!");
-  } catch (error) {
-    console.error("❌ Error in daily feature validity job:", error);
-  }
-});
+//     console.log("🎉 Daily feature validity job completed!");
+//   } catch (error) {
+//     console.error("❌ Error in daily feature validity job:", error);
+//   }
+// });
 
-cron.schedule("*/2 * * * *", async () => {
-  console.log("🔁 Checking WapMonkey devices for new entries...");
-  await _fetchAndSyncWapMonkeyDevices();
-});
+// cron.schedule("*/2 * * * *", async () => {
+//   console.log("🔁 Checking WapMonkey devices for new entries...");
+//   await _fetchAndSyncWapMonkeyDevices();
+// });
 
-cron.schedule("*/2 * * * *", async () => {
-  console.log("⏰ Running WhatsApp device sync cron...");
+// cron.schedule("*/2 * * * *", async () => {
+//   console.log("⏰ Running WhatsApp device sync cron...");
 
-  try {
-    const telecallerRole = await Role.findOne({ name: "Telecaller" }).select(
-      "_id"
-    );
+//   try {
+//     const telecallerRole = await Role.findOne({ name: "Telecaller" }).select(
+//       "_id"
+//     );
 
-    if (!telecallerRole) {
-      console.log(
-        "⚠️ Telecaller role not found, skipping WhatsApp device sync."
-      );
-      return;
-    }
-    const telecallers = await User.find({ role: telecallerRole._id }).select(
-      "_id name phone_number meta"
-    );
-    if (!telecallers.length) {
-      console.log("⚠️ No telecallers found!");
-      return;
-    }
+//     if (!telecallerRole) {
+//       console.log(
+//         "⚠️ Telecaller role not found, skipping WhatsApp device sync."
+//       );
+//       return;
+//     }
+//     const telecallers = await User.find({ role: telecallerRole._id }).select(
+//       "_id name phone_number meta"
+//     );
+//     if (!telecallers.length) {
+//       console.log("⚠️ No telecallers found!");
+//       return;
+//     }
 
-    for (const user of telecallers) {
-      if (!user.phone_number) continue;
+//     for (const user of telecallers) {
+//       if (!user.phone_number) continue;
 
       
-      const waDevice = await WhatsAppDevice.findOne({
-        mobile_no: user.phone_number,
-      });
-      if (!waDevice) {
-        console.log(
-          `❌ No device found for ${user.name} (${user.phone_number})`
-        );
-        continue;
-      }
+//       const waDevice = await WhatsAppDevice.findOne({
+//         mobile_no: user.phone_number,
+//       });
+//       if (!waDevice) {
+//         console.log(
+//           `❌ No device found for ${user.name} (${user.phone_number})`
+//         );
+//         continue;
+//       }
 
-      user?.meta?.set("whatsapp_device", waDevice.toObject());
-      await user.save();
+//       user?.meta?.set("whatsapp_device", waDevice.toObject());
+//       await user.save();
 
-      console.log(`✅ Updated ${user.name}'s meta with WhatsApp device.`);
-    }
-    console.log("🎉 WhatsApp device sync completed.");
-  } catch (error) {
-    console.error("❌ Error in WhatsApp device sync cron:", error);
-  }
-});
+//       console.log(`✅ Updated ${user.name}'s meta with WhatsApp device.`);
+//     }
+//     console.log("🎉 WhatsApp device sync completed.");
+//   } catch (error) {
+//     console.error("❌ Error in WhatsApp device sync cron:", error);
+//   }
+// });
 
 
