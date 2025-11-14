@@ -72,6 +72,7 @@ const _masterLeadService = async (
   }
 
   const targetLabel = await Label.findById(labelId);
+  console.log("Target Label:", targetLabel);
   if (!targetLabel) {
     throw new Error("Provided label not found");
   }
@@ -104,6 +105,8 @@ const _masterLeadService = async (
           fields: "id,name,status,tracking_parameters",
         },
       });
+
+      console.log("Form Details:", formDetailsRes);
 
       const formDetails = formDetailsRes.data;
       let matchedLabel: (LabelDto & { _id: any }) | null = null;

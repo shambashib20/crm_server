@@ -36,7 +36,7 @@ mainRouter.use("/package", packageRouter);
 mainRouter.use("/client", clientRouter);
 mainRouter.use("/addons", addonsRouter);
 mainRouter.use("/campaign", campaignRouter);
-mainRouter.use("/automtation", automationRouter);
+mainRouter.use("/automation", automationRouter);
 mainRouter.use("/master-admin", masteradminRouter);
 
 export default mainRouter;
