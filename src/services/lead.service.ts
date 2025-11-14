@@ -495,7 +495,7 @@ const _homePageLeadService = async (
 
   fullLeads = (fullLeads || [])
     .filter(Boolean)
-    .filter((lead) => lead._id && lead.name && lead.email);
+    // .filter((lead) => lead._id && lead.name && lead.email);
 
   // ✅ Extract user info for follow ups
   const createdByUserIds = new Set<string>();
