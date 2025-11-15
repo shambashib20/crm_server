@@ -218,7 +218,13 @@ const connectFacebookLeads = async (req: any, res: any) => {
 
     return res
       .status(201)
-      .json(new SuccessResponse("Leads fetched successfully!", 201, result));
+      .json(
+        new SuccessResponse(
+          "Leads fetched from Facebook successfully!",
+          201,
+          result
+        )
+      );
   } catch (err: any) {
     return res.status(500).json(new SuccessResponse(err.message, 500));
   }

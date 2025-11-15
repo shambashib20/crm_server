@@ -13,6 +13,8 @@ import Role from "../models/role.model";
 import Property from "../models/property.model";
 const FB_AUTH_URL = "https://www.facebook.com/v21.0/dialog/oauth";
 const FB_TOKEN_URL = "https://graph.facebook.com/v21.0/oauth/access_token";
+const escapeStringRegexp = (s: string) =>
+  s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const APP_ID = process.env.FB_APP_ID!;
 const APP_SECRET = process.env.FB_APP_SECRET!;
@@ -22,6 +24,30 @@ let ACCESS_TOKEN: string = "";
 
 const GRAPH_API_VERSION = "v22.0";
 const GRAPH_API_BASE = `https://graph.facebook.com/${GRAPH_API_VERSION}`;
+
+const fetchAllPaged = async (url: string, params: any = {}) => {
+  const results: any[] = [];
+  let nextUrl: string | null = url;
+  let nextParams = { ...params };
+
+  console.log("Fetching paged data from:", url);
+  while (nextUrl) {
+    const res = await axios.get(nextUrl, { params: nextParams });
+    if (!res?.data) break;
+
+    if (Array.isArray(res.data.data)) results.push(...res.data.data);
+
+    const pagingNext = res.data.paging?.next;
+    if (pagingNext) {
+      nextUrl = pagingNext;
+      nextParams = {}; // Use full URL (FB auto includes limit)
+    } else {
+      nextUrl = null;
+    }
+  }
+
+  return results;
+};
 
 const _getUserPages = async (accessToken: string) => {
   try {
@@ -61,9 +87,9 @@ const _masterLeadService = async (
   labelId: Types.ObjectId
 ) => {
   const integration = await User.findById(userId);
-
   const facebookMeta = integration?.meta?.get("facebook");
-  const userAccessToken = facebookMeta?.token;
+  const userAccessToken =
+    facebookMeta?.token || facebookMeta?.page_token || facebookMeta?.token;
 
   if (!userAccessToken) {
     throw new Error(
@@ -72,201 +98,318 @@ const _masterLeadService = async (
   }
 
   const targetLabel = await Label.findById(labelId);
-  console.log("Target Label:", targetLabel);
-  if (!targetLabel) {
-    throw new Error("Provided label not found");
-  }
+  console.log("Target Label:", targetLabel?.title);
+  if (!targetLabel) throw new Error("Provided label not found");
 
   const pagesRes = await axios.get(`${GRAPH_API_BASE}/me/accounts`, {
     params: { access_token: userAccessToken },
   });
 
-  const pages = pagesRes.data.data;
+  const pages = pagesRes.data?.data || [];
   const summary: any[] = [];
 
   for (const page of pages) {
-    const pageAccessToken = page.access_token;
+    try {
+      const pageAccessToken =
+        page.access_token || page.page_token || userAccessToken;
 
-    const formsRes = await axios.get(
-      `${GRAPH_API_BASE}/${page.id}/leadgen_forms`,
-      {
-        params: { access_token: pageAccessToken },
+      if (!pageAccessToken) {
+        console.warn(`No page token for page ${page.id} - skipping`);
+        continue;
       }
-    );
 
-    const forms = formsRes.data.data;
+      // -----------------------------
+      // 4) Fetch Forms
+      // -----------------------------
+      const forms = await fetchAllPaged(
+        `${GRAPH_API_BASE}/${page.id}/leadgen_forms`,
+        { access_token: pageAccessToken }
+      );
 
-    for (const form of forms) {
-      if (form.status !== "ACTIVE") continue;
+      // -----------------------------
+      // Loop Forms
+      // -----------------------------
+      for (const form of forms) {
+        try {
+          if (form.status && form.status !== "ACTIVE") continue;
 
-      const formDetailsRes = await axios.get(`${GRAPH_API_BASE}/${form.id}`, {
-        params: {
-          access_token: pageAccessToken,
-          fields: "id,name,status,tracking_parameters",
-        },
-      });
+          // Fetch form details
+          const formDetailsRes = await axios.get(
+            `${GRAPH_API_BASE}/${form.id}`,
+            {
+              params: {
+                access_token: pageAccessToken,
+                fields: "id,name,status,tracking_parameters",
+              },
+            }
+          );
 
-      console.log("Form Details:", formDetailsRes);
+          const formDetails = formDetailsRes.data;
+          // console.log(
+          //   `Form details fetched: ${formDetails.id} - ${formDetails.name}`
+          // );
 
-      const formDetails = formDetailsRes.data;
-      let matchedLabel: (LabelDto & { _id: any }) | null = null;
+          const trackingParams = Array.isArray(formDetails.tracking_parameters)
+            ? formDetails.tracking_parameters
+            : [];
 
-      if (Array.isArray(formDetails.tracking_parameters)) {
-        for (const param of formDetails.tracking_parameters) {
-          if (param.key === "labels") {
+          // -----------------------------
+          // 5) Match Label
+          // -----------------------------
+          const targetTitle = targetLabel.title.trim().toLowerCase();
+          let matchedLabel: any = null;
+
+          for (const param of trackingParams) {
+            if (!param?.key) continue;
+
+            const key = param.key.trim().toLowerCase();
+            if (key !== "label" && key !== "labels") continue;
+
+            const paramValue = (param.value || "").trim().toLowerCase();
+            if (!paramValue) continue;
+
             if (
-              targetLabel &&
-              new RegExp(`^${param.value.trim()}$`, "i").test(targetLabel.title)
+              targetTitle === paramValue ||
+              targetTitle.includes(paramValue) ||
+              paramValue.includes(targetTitle)
             ) {
-              matchedLabel = targetLabel as any;
+              matchedLabel = targetLabel;
               break;
             }
           }
-        }
-      }
 
-      if (!matchedLabel) continue;
+          if (!matchedLabel) {
+            console.log(
+              `No tracking label match for form ${form.id} (${form.name})`
+            );
 
-      const leadsRes = await axios.get(`${GRAPH_API_BASE}/${form.id}/leads`, {
-        params: { access_token: pageAccessToken },
-      });
-
-      const leads = leadsRes.data.data;
-
-      for (const fbLead of leads) {
-        const fields = fbLead.field_data.reduce((acc: any, field: any) => {
-          acc[field.name] = field.values[0];
-          return acc;
-        }, {});
-
-        // 🔹 Build formatted comment string
-        let commentLines: string[] = [];
-        commentLines.push(`label::${targetLabel.title}`);
-
-        for (const field of fbLead.field_data) {
-          commentLines.push(`${field.name}::${field.values[0]}`);
-        }
-
-        const formattedComment = commentLines.join("\n");
-
-        let defaultStatus = await Status.findOne({
-          title: "New",
-          property_id: integration?.property_id,
-        });
-
-        if (!defaultStatus) {
-          defaultStatus = new Status({
-            title: "New",
-            description: "Default status for new leads",
-            property_id: integration?.property_id,
-            meta: { is_active: true },
-          });
-          defaultStatus.markModified("meta");
-          await defaultStatus.save();
-        }
-
-        const existingLead = await Lead.findOne({
-          "meta.fb_lead_id": fbLead.id,
-        });
-        if (existingLead) continue;
-
-        let source = await Source.findOne({
-          title: "Facebook",
-          property_id: integration?.property_id,
-        });
-
-        if (!source) {
-          source = new Source({
-            title: "Facebook",
-            description: "Facebook Lead Ads",
-            property_id: integration?.property_id,
-            meta: { is_active: true, is_editable: false },
-          });
-          source.markModified("meta");
-          await source.save();
-        }
-
-        // ✅ ROUND-ROBIN LOGIC (EXACTLY from _createLeadService)
-        let assignedToId: Types.ObjectId | null = null;
-
-        const label = await Label.findById(matchedLabel._id);
-
-        if (label) {
-          if (!label.meta) {
-            label.meta = {};
+            continue;
           }
 
-          const assignedAgents = (label.meta.assigned_agents || []) as {
+          // console.log(
+          //   `Matched form ${formDetails.id} -> label ${targetLabel.title}`
+          // );
+
+          // -----------------------------
+          // 6) Fetch Leads (limit 200)
+          // -----------------------------
+          const leads = await fetchAllPaged(
+            `${GRAPH_API_BASE}/${form.id}/leads`,
+            {
+              access_token: pageAccessToken,
+              limit: 200,
+            }
+          );
+
+          if (!Array.isArray(leads) || leads.length === 0) {
+            console.log(`No leads returned for form ${form.id}`);
+            throw new Error(`No leads found for form ${form.id}`);
+          }
+
+          // -----------------------------
+          // Prepare default status
+          // -----------------------------
+          let defaultStatus = await Status.findOne({
+            title: "New",
+            property_id: integration?.property_id,
+          });
+
+          if (!defaultStatus) {
+            defaultStatus = new Status({
+              title: "New",
+              description: "Default status for new leads",
+              property_id: integration?.property_id,
+              meta: { is_active: true },
+            });
+            defaultStatus.markModified("meta");
+            await defaultStatus.save();
+          }
+
+          // -----------------------------
+          // Prepare Source
+          // -----------------------------
+          let source = await Source.findOne({
+            title: "Facebook",
+            property_id: integration?.property_id,
+          });
+
+          if (!source) {
+            source = new Source({
+              title: "Facebook",
+              description: "Facebook Lead Ads",
+              property_id: integration?.property_id,
+              meta: { is_active: true, is_editable: false },
+            });
+            source.markModified("meta");
+            await source.save();
+          }
+
+          // -----------------------------
+          // ROUND-ROBIN PREP
+          // -----------------------------
+          const labelRecord = await Label.findById(matchedLabel._id);
+
+          let assignedAgents: {
             agent_id: Types.ObjectId;
             assigned_at: Date;
-          }[];
+          }[] = [];
+          let lastIndex = -1;
 
-          if (assignedAgents.length > 0) {
-            const lastIndex =
-              (label.meta.last_assigned_index as number | undefined) ?? -1;
-            const nextIndex = (lastIndex + 1) % assignedAgents.length;
-
-            assignedToId = assignedAgents[nextIndex].agent_id;
-
-            label.meta.last_assigned_index = nextIndex;
-            label.markModified("meta");
-            await label.save();
-          }
-        }
-
-        // ✅ Fallback: Superadmin (same as _createLeadService)
-        if (!assignedToId) {
-          const superAdminRole = await Role.findOne({ name: "Superadmin" });
-          if (!superAdminRole) {
-            throw new Error("Superadmin role not found in this property!");
+          if (labelRecord) {
+            labelRecord.meta = labelRecord.meta || {};
+            assignedAgents = labelRecord.meta.assigned_agents || [];
+            lastIndex = (labelRecord.meta.last_assigned_index ?? -1) as number;
           }
 
-          const superAdminUser = await User.findOne({
-            property_id: integration?.property_id,
-            role: superAdminRole._id,
+          // Prepare fallback superadmin
+          let superAdminUser: { _id?: Types.ObjectId } | null = null;
+          if (assignedAgents.length === 0) {
+            const superAdminRole = await Role.findOne({ name: "Superadmin" });
+            superAdminUser = await User.findOne({
+              property_id: integration?.property_id,
+              role: superAdminRole?._id,
+            });
+          }
+
+          // -----------------------------
+          // 7) BUILD BULK INSERT ARRAY
+          // -----------------------------
+          const toInsert: any[] = [];
+
+          for (const fbLead of leads) {
+            try {
+              if (!fbLead?.id) continue;
+
+              const exists = await Lead.exists({
+                "meta.fb_lead_id": fbLead.id,
+              });
+              if (exists) continue;
+
+              const fbFields = (fbLead.field_data || []).reduce(
+                (acc: any, f: any) => {
+                  acc[f.name] = Array.isArray(f.values)
+                    ? f.values[0]
+                    : f.values;
+                  return acc;
+                },
+                {}
+              );
+
+              // -----------------------------
+              // FIXED ROUND-ROBIN ASSIGNMENT
+              // -----------------------------
+              let assignedToId: Types.ObjectId | null = null;
+
+              if (assignedAgents.length > 0) {
+                lastIndex = (lastIndex + 1) % assignedAgents.length;
+                assignedToId = assignedAgents[lastIndex].agent_id;
+              } else {
+                assignedToId = superAdminUser?._id || null;
+              }
+
+              
+              const commentLines = [`label::${targetLabel.title}`];
+              for (const f of fbLead.field_data || []) {
+                commentLines.push(
+                  `${f.name}::${
+                    Array.isArray(f.values) ? f.values[0] : f.values
+                  }`
+                );
+              }
+
+              
+              toInsert.push({
+                name:
+                  fbFields.full_name ||
+                  fbFields.name ||
+                  fbFields.fullName ||
+                  "",
+                phone_number:
+                  fbFields.phone_number ||
+                  fbFields.mobile ||
+                  fbFields.phone ||
+                  "",
+                email: fbFields.email || "",
+                comment: commentLines.join("\n"),
+                reference: "From Facebook",
+                labels: [matchedLabel._id],
+                status: defaultStatus._id,
+                meta: {
+                  fb_lead_id: fbLead.id,
+                  form_id: form.id,
+                  page_id: page.id,
+                  source: source._id,
+                },
+                logs: [
+                  {
+                    title: "Lead created",
+                    description: `Lead created by ${
+                      integration?.name || "Unknown"
+                    } and assigned status ${defaultStatus.title}`,
+                    status: LeadLogStatus.INFO,
+                  },
+                ],
+                assigned_to: assignedToId,
+                property_id: integration?.property_id,
+              });
+            } catch (err: any) {
+              console.error(
+                `Error building payload for fbLead ${fbLead.id}:`,
+                err.message
+              );
+              continue;
+            }
+          }
+
+          // -----------------------------
+          // 8) BULK INSERT
+          // -----------------------------
+          if (toInsert.length > 0) {
+            await Lead.insertMany(toInsert, { ordered: false });
+            console.log(
+              `Inserted ${toInsert.length} leads for form ${form.id}`
+            );
+          }
+
+          
+          if (labelRecord && assignedAgents.length > 0) {
+            labelRecord.meta = labelRecord.meta || {};
+            labelRecord.meta.last_assigned_index = lastIndex;
+            labelRecord.markModified("meta");
+            await labelRecord.save();
+            console.log(
+              `Updated last_assigned_index for label ${labelRecord.title} -> ${lastIndex}`
+            );
+          }
+
+          await Property.findByIdAndUpdate(targetLabel?.property_id, {
+            $push: {
+              logs: {
+                title: "Facebook Lead Import",
+                description: `Imported ${toInsert.length} new leads from Facebook form "${formDetails.name}" using label "${targetLabel.title}".`,
+                status: "SUCCESS",
+                meta: {                  
+                  label: targetLabel.title,
+                  imported_count: toInsert.length,
+                  timestamp: new Date(),
+                },
+              },
+            },
           });
 
-          if (!superAdminUser) {
-            throw new Error("No Superadmin user found in this property!");
-          }
-
-          assignedToId = superAdminUser._id;
+          summary.push({
+            page: page.name,
+            form: form.name,
+            leads: leads.length || 0,
+          });
+        } catch (formErr) {
+          console.error(`Error processing form ${form?.id}:`, formErr);
+          continue;
         }
-
-        // ✅ Create the Lead with correct assigned_to
-        await Lead.create({
-          name: fields.full_name || fields.name,
-          phone_number: fields.phone_number,
-          email: fields.email,
-          comment: formattedComment,
-          reference: "From Facebook",
-          labels: [matchedLabel._id],
-          status: defaultStatus._id,
-          meta: {
-            fb_lead_id: fbLead.id,
-            form_id: form.id,
-            page_id: page.id,
-            source: source._id,
-          },
-          logs: [
-            {
-              title: "Lead created",
-              description: `Lead created by ${
-                integration?.name || "Unknown"
-              } and assigned the status of ${defaultStatus.title}`,
-              status: LeadLogStatus.INFO,
-            },
-          ],
-          assigned_to: assignedToId,
-          property_id: integration?.property_id,
-        });
       }
-
-      summary.push({
-        page: page.name,
-        form: form.name,
-        leads: leads.length,
-      });
+    } catch (pageErr) {
+      console.error(`Error processing page ${page?.id}:`, pageErr);
+      continue;
     }
   }
 
@@ -404,11 +547,13 @@ const _importLeadsByFormId = async (
   };
 };
 
-
-
 export {
   _getUserPages,
   _getLeadsFromForm,
   _masterLeadService,
   _importLeadsByFormId,
 };
+
+
+
+

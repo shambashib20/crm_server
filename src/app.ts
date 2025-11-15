@@ -284,9 +284,9 @@ const GRAPH_API_BASE = `https://graph.facebook.com/${GRAPH_API_VERSION}`;
 
 app.post("/lead/webhook", async (req: any, res: any) => {
   try {
-    console.log("🚀 Running Facebook auto-sync (Webhook Mode)...");
+    console.log("🚀 Running Facebook auto-sync (Webhook Mode)…");
 
-    // 1️⃣ Find connected user (Superadmin / Integration user)
+    // 1️⃣ Get connected user
     const users = await User.find({});
     const superadmin = users.find((u: any) => {
       const fb = u.meta?.facebook || u.meta?.get?.("facebook");
@@ -301,14 +301,14 @@ app.post("/lead/webhook", async (req: any, res: any) => {
 
     const facebookMeta =
       superadmin.meta?.facebook || superadmin.meta?.get("facebook");
-    const userAccessToken = facebookMeta?.token;
-    const propertyId = superadmin.property_id;
+    const userAccessToken: string | undefined = facebookMeta?.token;
+    const propertyId: Types.ObjectId = superadmin.property_id;
 
     if (!userAccessToken) {
       throw new Error("Superadmin Facebook not linked properly.");
     }
 
-    // 2️⃣ Fetch connected pages
+    // 2️⃣ Fetch pages
     const pagesRes = await axios.get(`${GRAPH_API_BASE}/me/accounts`, {
       params: { access_token: userAccessToken },
     });
@@ -319,9 +319,10 @@ app.post("/lead/webhook", async (req: any, res: any) => {
     let totalLeadsInserted = 0;
 
     for (const page of pages) {
-      const pageAccessToken = page.access_token;
+      const pageAccessToken: string | undefined = page.access_token;
+      if (!pageAccessToken) continue;
 
-      // 3️⃣ Fetch active forms from the page
+      // 3️⃣ Fetch forms
       const formsRes = await axios.get(
         `${GRAPH_API_BASE}/${page.id}/leadgen_forms`,
         {
@@ -330,31 +331,32 @@ app.post("/lead/webhook", async (req: any, res: any) => {
       );
 
       const forms = formsRes.data.data || [];
-      console.log(`🧾 Page "${page.name}" has ${forms.length} active forms.`);
+      console.log(`🧾 Page "${page.name}" has ${forms.length} forms.`);
 
       for (const form of forms) {
         if (form.status !== "ACTIVE") continue;
 
-        const formDetailsRes = await axios.get(`${GRAPH_API_BASE}/${form.id}`, {
+        const detailsRes = await axios.get(`${GRAPH_API_BASE}/${form.id}`, {
           params: {
             access_token: pageAccessToken,
-            fields: "id,name,status,tracking_parameters",
+            fields: "id,name,tracking_parameters",
           },
         });
 
-        const formDetails = formDetailsRes.data;
+        const formDetails = detailsRes.data;
         const trackingParams = formDetails.tracking_parameters || [];
         let matchedLabel: any = null;
 
-        // 4️⃣ Match label by tracking parameter
+        // 4️⃣ Find matching label
         for (const param of trackingParams) {
           if (param.key === "labels") {
-            const label = await Label.findOne({
+            const labelDoc = await Label.findOne({
               title: new RegExp(`^${param.value.trim()}$`, "i"),
               property_id: propertyId,
             });
-            if (label) {
-              matchedLabel = label;
+
+            if (labelDoc) {
+              matchedLabel = labelDoc;
               break;
             }
           }
@@ -362,136 +364,162 @@ app.post("/lead/webhook", async (req: any, res: any) => {
 
         if (!matchedLabel) continue;
 
-        // 5️⃣ Fetch leads from the form
+        // 5️⃣ Fetch leads
         const leadsRes = await axios.get(`${GRAPH_API_BASE}/${form.id}/leads`, {
-          params: { access_token: pageAccessToken },
+          params: { access_token: pageAccessToken, limit: 200, },
         });
 
         const leads = leadsRes.data.data || [];
-        console.log(`📩 Found ${leads.length} leads for form "${form.name}".`);
+        console.log(
+          `📨 Found ${leads.length} leads for form "${form.name}".`
+        );
+
+        // ------------------------------------
+        // 6️⃣ PREPARE DEFAULTS (STATUS/SOURCE)
+        // ------------------------------------
+        let status = await Status.findOne({
+          title: "New",
+          property_id: propertyId,
+        });
+
+        if (!status) {
+          status = await Status.create({
+            title: "New",
+            description: "Default status for new leads",
+            property_id: propertyId,
+            meta: { is_active: true },
+          });
+        }
+
+        let source = await Source.findOne({
+          title: "Facebook",
+          property_id: propertyId,
+        });
+
+        if (!source) {
+          source = await Source.create({
+            title: "Facebook",
+            description: "Facebook Lead Ads",
+            property_id: propertyId,
+            meta: { is_active: true, is_editable: false },
+          });
+        }
+
+        // ------------------------------------
+        // 7️⃣ ROUND ROBIN — PRECALCULATE
+        // ------------------------------------
+        const labelDoc = await Label.findById(matchedLabel._id);
+        if (!labelDoc) continue; // ✔ Type-safe
+
+        labelDoc.meta = labelDoc.meta || {};
+        const agents: { agent_id: Types.ObjectId }[] =
+          labelDoc.meta.assigned_agents || [];
+
+        let lastIndex: number =
+          typeof labelDoc.meta.last_assigned_index === "number"
+            ? labelDoc.meta.last_assigned_index
+            : -1;
+
+        const superRole = await Role.findOne({ name: "Superadmin" });
+        const fallbackUser = await User.findOne({
+          role: superRole?._id,
+          property_id: propertyId,
+        });
+
+        // ------------------------------------
+        // 8️⃣ BUILD BULK INSERT ARRAY
+        // ------------------------------------
+        const toInsert: any[] = [];
 
         for (const fbLead of leads) {
-          // Skip if already exists
-          const existing = await Lead.findOne({ "meta.fb_lead_id": fbLead.id });
-          if (existing) continue;
+          if (!fbLead?.id) continue;
 
-          const fields = fbLead.field_data.reduce((acc: any, f: any) => {
+          const exists = await Lead.exists({
+            "meta.fb_lead_id": fbLead.id,
+          });
+          if (exists) continue;
+
+          // round robin
+          let assignedToId: Types.ObjectId | null = null;
+
+          if (agents.length > 0) {
+            lastIndex = (lastIndex + 1) % agents.length;
+            assignedToId = agents[lastIndex].agent_id;
+          } else {
+            assignedToId = fallbackUser?._id ?? null;
+          }
+
+          const fields = (fbLead.field_data || []).reduce((acc: any, f: any) => {
             acc[f.name] = f.values[0];
             return acc;
           }, {});
 
-          // Build formatted comment
-          const commentLines = [`label::${matchedLabel.title}`];
-          for (const field of fbLead.field_data) {
-            commentLines.push(`${field.name}::${field.values[0]}`);
-          }
-          const formattedComment = commentLines.join("\n");
-
-          // Default status
-          let status = await Status.findOne({
-            title: "New",
-            property_id: propertyId,
-          });
-          if (!status) {
-            status = await Status.create({
-              title: "New",
-              description: "Default status for new leads",
-              property_id: propertyId,
-              meta: { is_active: true },
-            });
+          const comments = [`label::${matchedLabel.title}`];
+          for (const field of fbLead.field_data || []) {
+            comments.push(`${field.name}::${field.values[0]}`);
           }
 
-          // Default source
-          let source = await Source.findOne({
-            title: "Facebook",
-            property_id: propertyId,
-          });
-          if (!source) {
-            source = await Source.create({
-              title: "Facebook",
-              description: "Facebook Lead Ads",
-              property_id: propertyId,
-              meta: { is_active: true, is_editable: false },
-            });
-          }
-
-          // 6️⃣ Round-robin agent assignment
-          let assignedToId: Types.ObjectId | null = null;
-          const label = await Label.findById(matchedLabel._id);
-
-          if (
-            label?.meta?.assigned_agents &&
-            label.meta.assigned_agents.length > 0
-          ) {
-            const agents = label.meta.assigned_agents;
-            const lastIndex = label.meta.last_assigned_index ?? -1;
-            const nextIndex = (lastIndex + 1) % agents.length;
-
-            assignedToId = agents[nextIndex].agent_id;
-            label.meta.last_assigned_index = nextIndex;
-            label.markModified("meta");
-            await label.save();
-          }
-
-          // 7️⃣ Fallback: assign to Superadmin
-          if (!assignedToId) {
-            const superRole = await Role.findOne({ name: "Superadmin" });
-            const fallback = await User.findOne({
-              role: superRole?._id,
-              property_id: propertyId,
-            });
-            assignedToId = fallback?._id ?? null; // ✅ fixed type issue
-          }
-
-          // 8️⃣ Create lead
-          await Lead.create({
+          toInsert.push({
             name: fields.full_name || fields.name || "Unnamed Lead",
             email: fields.email || null,
             phone_number: fields.phone_number || null,
-            comment: formattedComment,
+            comment: comments.join("\n"),
             reference: "From Facebook",
             labels: [matchedLabel._id],
             status: status._id,
-            property_id: propertyId,
             assigned_to: assignedToId,
+            property_id: propertyId,
             meta: {
               fb_lead_id: fbLead.id,
               form_id: form.id,
               page_id: page.id,
               source: source._id,
-              location: await getLocationFromIP(req.ip || "::1"),
               ray_id: `ray-id-${uuidv4()}`,
             },
             logs: [
               {
                 title: "Lead created",
-                description: `Lead fetched from Facebook and assigned to ${matchedLabel.title}`,
+                description: `Imported from Facebook form ${form.name}`,
                 status: LeadLogStatus.INFO,
               },
             ],
           });
+        }
 
-          totalLeadsInserted++;
+        // ------------------------------------
+        // 9️⃣ BULK INSERT
+        // ------------------------------------
+        if (toInsert.length > 0) {
+          await Lead.insertMany(toInsert, { ordered: false });
+          console.log(`✅ Inserted ${toInsert.length} leads (Bulk mode).`);
+          totalLeadsInserted += toInsert.length;
+        }
+
+        // ------------------------------------
+        // 🔟 UPDATE ROUND ROBIN INDEX ONCE
+        // ------------------------------------
+        if (agents.length > 0) {
+          labelDoc.meta.last_assigned_index = lastIndex;
+          labelDoc.markModified("meta");
+          await labelDoc.save();
         }
       }
     }
 
-    console.log(
-      `✅ FB Sync Complete: ${totalLeadsInserted} new leads inserted.`
-    );
+    console.log(`🎯 FB Sync Complete: ${totalLeadsInserted} new leads inserted.`);
+
     res.status(200).json({
       message: "Facebook leads synced successfully",
       inserted: totalLeadsInserted,
     });
   } catch (err: any) {
-    console.error("❌ FB Webhook error:", err?.response?.data || err.message);
+    console.error("❌ FB Webhook error:", err.response?.data || err.message);
     res.status(500).json({
       message: "Error syncing Facebook leads",
       error: err.message,
     });
   }
 });
-
 
 
  
