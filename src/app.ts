@@ -99,20 +99,20 @@ app.post(
   razorpayWebhookHandler
 );
 
-setInterval(() => {
-  const health = getSystemHealth();
+// setInterval(() => {
+//   const health = getSystemHealth();
 
-  const cpu = Number(health.cpuLoad);
-  const mem = Number(health.memory.usagePercent);
+//   const cpu = Number(health.cpuLoad);
+//   const mem = Number(health.memory.usagePercent);
 
-  if (cpu > 2.0) {
-    console.warn(`⚠️ HIGH CPU LOAD: ${cpu}`);
-  }
+//   if (cpu > 2.0) {
+//     console.warn(`⚠️ HIGH CPU LOAD: ${cpu}`);
+//   }
 
-  if (mem > 80) {
-    console.warn(`⚠️ HIGH MEMORY USAGE: ${mem}%`);
-  }
-}, 30 * 1000);
+//   if (mem > 80) {
+//     console.warn(`⚠️ HIGH MEMORY USAGE: ${mem}%`);
+//   }
+// }, 30 * 1000);
 app.get("/payment-webhook/monitor", async (req: any, res: any) => {
   try {
     await checkRazorpayWebhookStatus();

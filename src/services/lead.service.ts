@@ -458,8 +458,11 @@ const _homePageLeadService = async (
   }
 
   // ✅ Source Names
+
   if (sourceNames.length > 0) {
-    query["meta.source.title"] = { $in: sourceNames };
+    query["meta.source"] = {
+      $in: sourceNames.map((id) => new Types.ObjectId(id)),
+    };
   }
 
   // ✅ Search
@@ -493,9 +496,8 @@ const _homePageLeadService = async (
     })
     .lean();
 
-  fullLeads = (fullLeads || [])
-    .filter(Boolean)
-    // .filter((lead) => lead._id && lead.name && lead.email);
+  fullLeads = (fullLeads || []).filter(Boolean);
+  // .filter((lead) => lead._id && lead.name && lead.email);
 
   // ✅ Extract user info for follow ups
   const createdByUserIds = new Set<string>();
@@ -657,7 +659,7 @@ const _createLeadService = async (data: CreateLeadDto, ip: string) => {
     property_id: data.property_id || defaultStatus.property_id,
     meta: {
       ray_id,
-      source: data.source || defaultSource,
+      source: data.source || defaultSource?._id,
       location: locationData,
       status: "ACTIVE",
       whatsapp: meta.whatsapp || "",
