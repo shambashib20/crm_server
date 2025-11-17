@@ -8,6 +8,7 @@ import {
   _fetchPropertyDetails,
   _fetchPropertyLogs,
   _updatePropertyById,
+  _uploadWorkspaceProfilePicture,
 } from "../services/property.service";
 import Property from "../models/property.model";
 
@@ -201,6 +202,25 @@ const FetchProperties = async (req: any, res: any) => {
   }
 };
 
+const UploadProfilePhotoforWorkspace = async (req: any, res: any) => {
+  const propId = req.user.property_id;
+  const { fileUrl } = req.body;
+  try {
+    const result = await _uploadWorkspaceProfilePicture(fileUrl, propId);
+    return res
+      .status(200)
+      .json(
+        new SuccessResponse(
+          "Profile picture successfully uploaded!",
+          200,
+          result
+        )
+      );
+  } catch (error: any) {
+    return res.status(500).json(new SuccessResponse(error.message, 500));
+  }
+};
+
 export {
   FetchPropertyLogs,
   PropertyDetails,
@@ -209,4 +229,5 @@ export {
   TogglePropertyLogReadStatus,
   CreateApiKeyController,
   FetchProperties,
+  UploadProfilePhotoforWorkspace,
 };

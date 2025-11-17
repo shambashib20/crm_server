@@ -25,11 +25,38 @@ const _fetchAndSyncWapMonkeyDevices = async () => {
     const devices = res.data.data;
 
     for (const device of devices) {
-      const exists = await WhatsAppDevice.findOne({ d_id: device.d_id });
+      const existing = await WhatsAppDevice.findOne({ d_id: device.d_id });
 
-      if (!exists) {
+      if (!existing) {
         console.log("📥 New device found, saving:", device.device_name);
         await WhatsAppDevice.create(device);
+        continue;
+      }
+
+      let updated = false;
+      const fieldsToSync = [
+        "status",
+        "device_status",
+        "connectionId",
+        "old_connection_id",
+        "u_device_token",
+        "host_device",
+        "mobile_no",
+        "device_name",
+        "updated_at",
+      ];
+      const changes = {};
+      for (const field of fieldsToSync) {
+        if (existing[field] !== device[field]) {
+          changes[field] = { old: existing[field], new: device[field] };
+          existing[field] = device[field];
+          updated = true;
+        }
+      }
+
+      if (updated) {
+        console.log("🔄 Changes:", changes);
+        await existing.save();
       }
     }
 

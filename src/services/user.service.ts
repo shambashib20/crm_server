@@ -221,6 +221,8 @@ const _uploadProfilePicture = async (
       },
       { new: true }
     );
+
+    return updatedUser;
   } catch (error: any) {
     throw error;
   }

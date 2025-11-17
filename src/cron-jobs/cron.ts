@@ -102,12 +102,12 @@ cron.schedule("0 * * * *", async () => {
   }
 });
 
-cron.schedule("*/30 * * * *", async () => {
+cron.schedule("*/5 * * * *", async () => {
   console.log("🔁 Checking WapMonkey devices for new entries...");
   await _fetchAndSyncWapMonkeyDevices();
 });
 
-cron.schedule("*/30 * * * *", async () => {
+cron.schedule("*/5 * * * *", async () => {
   console.log("⏰ Running WhatsApp device sync cron...");
 
   try {
@@ -143,6 +143,7 @@ cron.schedule("*/30 * * * *", async () => {
       }
 
       user?.meta?.set("whatsapp_device", waDevice.toObject());
+      user.markModified("meta");
       await user.save();
 
       console.log(`✅ Updated ${user.name}'s meta with WhatsApp device.`);

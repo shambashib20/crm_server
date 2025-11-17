@@ -6,9 +6,49 @@ import dotenv from "dotenv";
 dotenv.config();
 
 import Label from "../models/label.model";
+import File from "../models/file.model";
 import { encodePropertyId, randomString } from "../utils/api_key.util";
 import PurchaseRecordsModel from "../models/purchaserecords.model";
 import { PurchaseRecordsDto } from "../dtos/purchaserecords.dto";
+
+const _uploadWorkspaceProfilePicture = async (
+  fileUrl: string,
+  propId: Types.ObjectId
+) => {
+  try {
+    const existingProperty = await Property.findById(propId);
+    if (!existingProperty) {
+      throw new Error("No User found!");
+    }
+
+    const existingFile = await File.findOne({ file_url: fileUrl });
+    if (!existingFile) {
+      throw new Error("Profile picture can't be uploaded!");
+    }
+
+    const metaMap =
+      existingProperty.meta instanceof Map
+        ? Object.fromEntries(existingProperty.meta)
+        : typeof existingProperty.meta === "object"
+        ? existingProperty.meta
+        : {};
+
+    const updatedProperty = await Property.findByIdAndUpdate(
+      propId,
+      {
+        meta: {
+          ...metaMap,
+          profile_picture_data: existingFile._id,
+        },
+      },
+      { new: true }
+    );
+
+    return updatedProperty;
+  } catch (error: any) {
+    throw error;
+  }
+};
 
 const _fetchPropertyLogs = async (propId: Types.ObjectId) => {
   try {
@@ -60,17 +100,31 @@ const _fetchPropertyDetails = async (propId: Types.ObjectId) => {
       (log: any) => !(log.meta && log.meta.readStatus === "READ")
     );
 
-    
     const sortedLogs = [...unreadLogs].sort(
       (a: any, b: any) =>
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     );
 
+    if (property.meta instanceof Map) {
+      const profilePictureId = property.meta.get("profile_picture_data");
+
+      if (profilePictureId) {
+        const fileData = await File.findById(profilePictureId);
+        if (fileData) {
+          const metaObj = Object.fromEntries(property.meta);
+          metaObj.profile_picture_data = fileData;
+          property.meta = metaObj as any;
+        }
+      } else {
+        property.meta = Object.fromEntries(property.meta) as any;
+      }
+    }
+
     return {
       ...property.toObject(),
       meta: {
         ...(property.meta ? property.meta.toJSON?.() ?? property.meta : {}),
-        active_package: activePackageData, 
+        active_package: activePackageData,
       },
       logs: sortedLogs,
     };
@@ -78,7 +132,6 @@ const _fetchPropertyDetails = async (propId: Types.ObjectId) => {
     throw new Error(`Failed to fetch property details: ${error.message}`);
   }
 };
-
 
 const _createPropertyForOnboarding = async (
   name: string,
@@ -286,8 +339,6 @@ const _createApiKeyService = async (
   return { property: updatedProperty, apiKey };
 };
 
-
-
 // CUSTOMER LEADS WHO NOT YET REGISTERED WITH US! jUST HAVE RAISED PRODUCT REQUSTS
 
 const _fetchPaginatedProperties = async (
@@ -326,4 +377,5 @@ export {
   _markPropertyLogAsRead,
   _createApiKeyService,
   _fetchPaginatedProperties,
+  _uploadWorkspaceProfilePicture,
 };

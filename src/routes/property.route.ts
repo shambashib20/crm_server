@@ -6,6 +6,7 @@ import {
   PropertyDetails,
   TogglePropertyLogReadStatus,
   UpdatePropertyById,
+  UploadProfilePhotoforWorkspace,
 } from "../controllers/property.controller";
 
 import express from "express";
@@ -22,6 +23,13 @@ propertyRouter.get(
 );
 
 propertyRouter.get("/workspace-details", AuthMiddleware, PropertyDetails);
+
+propertyRouter.post(
+  "/workspace-details/profile-image",
+  AuthMiddleware,
+  PermissionMiddleware("update_profile_for_workspace"),
+  UploadProfilePhotoforWorkspace
+)
 
 propertyRouter.post("/onboarding", CreatePropertyForOnboarding);
 
