@@ -1038,7 +1038,9 @@ const _getLeadStatusStatsService = async (
   startDate?: string,
   endDate?: string
 ) => {
-  const matchStage: any = {};
+  const matchStage: any = {
+    "meta.status": { $ne: "ARCHIVED" }
+  };
 
   if (startDate || endDate) {
     matchStage.createdAt = {};
