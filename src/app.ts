@@ -347,11 +347,12 @@ app.post("/lead/webhook", async (req: any, res: any) => {
         const trackingParams = formDetails.tracking_parameters || [];
         let matchedLabel: any = null;
 
-        // 4️⃣ Find matching label
         for (const param of trackingParams) {
-          if (param.key === "labels") {
+          if (param.key === "label") {
+            const cleanValue = param.value.trim();
+
             const labelDoc = await Label.findOne({
-              title: new RegExp(`^${param.value.trim()}$`, "i"),
+              title: new RegExp(`^${cleanValue}$`, "i"),
               property_id: propertyId,
             });
 
@@ -364,18 +365,16 @@ app.post("/lead/webhook", async (req: any, res: any) => {
 
         if (!matchedLabel) continue;
 
-        // 5️⃣ Fetch leads
+        // 5️⃣ Fetch leads for this form
         const leadsRes = await axios.get(`${GRAPH_API_BASE}/${form.id}/leads`, {
-          params: { access_token: pageAccessToken, limit: 200, },
+          params: { access_token: pageAccessToken, limit: 200 },
         });
 
         const leads = leadsRes.data.data || [];
-        console.log(
-          `📨 Found ${leads.length} leads for form "${form.name}".`
-        );
+        console.log(`📨 Found ${leads.length} leads for form "${form.name}".`);
 
         // ------------------------------------
-        // 6️⃣ PREPARE DEFAULTS (STATUS/SOURCE)
+        // 6️⃣ DEFAULT STATUS / SOURCE CREATION
         // ------------------------------------
         let status = await Status.findOne({
           title: "New",
@@ -406,10 +405,10 @@ app.post("/lead/webhook", async (req: any, res: any) => {
         }
 
         // ------------------------------------
-        // 7️⃣ ROUND ROBIN — PRECALCULATE
+        // 7️⃣ ROUND ROBIN SETUP
         // ------------------------------------
         const labelDoc = await Label.findById(matchedLabel._id);
-        if (!labelDoc) continue; // ✔ Type-safe
+        if (!labelDoc) continue;
 
         labelDoc.meta = labelDoc.meta || {};
         const agents: { agent_id: Types.ObjectId }[] =
@@ -427,7 +426,7 @@ app.post("/lead/webhook", async (req: any, res: any) => {
         });
 
         // ------------------------------------
-        // 8️⃣ BUILD BULK INSERT ARRAY
+        // 8️⃣ BUILD INSERT ARRAY
         // ------------------------------------
         const toInsert: any[] = [];
 
@@ -439,7 +438,7 @@ app.post("/lead/webhook", async (req: any, res: any) => {
           });
           if (exists) continue;
 
-          // round robin
+          // round robin assign
           let assignedToId: Types.ObjectId | null = null;
 
           if (agents.length > 0) {
@@ -449,10 +448,13 @@ app.post("/lead/webhook", async (req: any, res: any) => {
             assignedToId = fallbackUser?._id ?? null;
           }
 
-          const fields = (fbLead.field_data || []).reduce((acc: any, f: any) => {
-            acc[f.name] = f.values[0];
-            return acc;
-          }, {});
+          const fields = (fbLead.field_data || []).reduce(
+            (acc: any, f: any) => {
+              acc[f.name] = f.values[0];
+              return acc;
+            },
+            {}
+          );
 
           const comments = [`label::${matchedLabel.title}`];
           for (const field of fbLead.field_data || []) {
@@ -496,7 +498,7 @@ app.post("/lead/webhook", async (req: any, res: any) => {
         }
 
         // ------------------------------------
-        // 🔟 UPDATE ROUND ROBIN INDEX ONCE
+        // 🔟 UPDATE ROUND ROBIN INDEX
         // ------------------------------------
         if (agents.length > 0) {
           labelDoc.meta.last_assigned_index = lastIndex;
@@ -512,6 +514,7 @@ app.post("/lead/webhook", async (req: any, res: any) => {
       message: "Facebook leads synced successfully",
       inserted: totalLeadsInserted,
     });
+
   } catch (err: any) {
     console.error("❌ FB Webhook error:", err.response?.data || err.message);
     res.status(500).json({

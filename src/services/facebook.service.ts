@@ -503,6 +503,7 @@ const _importLeadsByFormId = async (
         form_id: formId,
         source,
         rayId: `ray-id-${uuidv4()}`,
+        status: "ACTIVE",
       },
       logs: [
         {
