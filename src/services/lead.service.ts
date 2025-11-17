@@ -21,6 +21,7 @@ import { getMetaValue } from "../utils/meta.util";
 import PurchaseRecordsModel from "../models/purchaserecords.model";
 import { PurchaseStatus } from "../dtos/purchaserecords.dto";
 import { _triggerLeadAutomationWebhook } from "../webhooks/lead_automation.webhook";
+import { _triggerWhatsAppAutomation } from "../webhooks/whatsapp_automation.webhook";
 
 function getEarliestFollowUpDate(followUps: any[] = []): Date | null {
   if (!Array.isArray(followUps) || followUps.length === 0) return null;
@@ -604,7 +605,9 @@ const _createLeadService = async (data: CreateLeadDto, ip: string) => {
   const locationData = await getLocationFromIP(ip);
   let assignedToId: Types.ObjectId | null = null;
 
-  // 🔹 Round-robin assignment via labels
+  // ----------------------------------------
+  // 🔹 ROUND-ROBIN ASSIGNMENT
+  // ----------------------------------------
   if (data.labels?.length) {
     const label = await Label.findById(data.labels[0]);
     if (!label) throw new Error(`Label with ID ${data.labels[0]} not found`);
@@ -619,13 +622,16 @@ const _createLeadService = async (data: CreateLeadDto, ip: string) => {
       const lastIndex = (label.meta.last_assigned_index as number) ?? 0;
       const nextIndex = (lastIndex + 1) % assignedAgents.length;
       assignedToId = assignedAgents[nextIndex].agent_id;
+
       label.meta.last_assigned_index = nextIndex;
       label.markModified("meta");
       await label.save();
     }
   }
 
-  // 🔹 Fallback to Superadmin
+  // ----------------------------------------
+  // 🔹 FALLBACK TO SUPERADMIN
+  // ----------------------------------------
   if (!assignedToId) {
     const superAdminRole = await Role.findOne({ name: "Superadmin" });
     if (!superAdminRole)
@@ -635,21 +641,29 @@ const _createLeadService = async (data: CreateLeadDto, ip: string) => {
       property_id: data.property_id,
       role: superAdminRole._id,
     });
+
     if (!superAdminUser)
       throw new Error("No Superadmin user found in this property!");
+
     assignedToId = superAdminUser._id;
   }
 
-  // 🔹 Defaults
+  // ----------------------------------------
+  // 🔹 DEFAULT SOURCE & STATUS
+  // ----------------------------------------
   const [defaultSource, defaultStatus] = await Promise.all([
     Source.findOne({ title: "Landing Page Leads" }),
     Status.findOne({ title: "New" }),
   ]);
+
   if (!defaultStatus)
     throw new Error("Status must contain a Status named New!");
 
   const ray_id = `ray-id-${uuidv4()}`;
 
+  // ----------------------------------------
+  // 🔹 CREATE LEAD DOCUMENT (NOT SAVED YET)
+  // ----------------------------------------
   const lead = new Lead({
     ...data,
     labels: data.labels?.map((id) => new Types.ObjectId(id)) || [],
@@ -669,9 +683,7 @@ const _createLeadService = async (data: CreateLeadDto, ip: string) => {
     logs: [
       {
         title: "Lead created",
-        description: `Lead created by ${data?.name || "Unknown"} with status ${
-          defaultStatus.title
-        }`,
+        description: `Lead created by ${data?.name || "Unknown"} with status ${defaultStatus.title}`,
         status: LeadLogStatus.ACTION,
         meta: {},
         createdAt: now,
@@ -680,6 +692,9 @@ const _createLeadService = async (data: CreateLeadDto, ip: string) => {
     ],
   });
 
+  // ----------------------------------------
+  // 🔹 FETCH PROPERTY + ACTIVE PACKAGE
+  // ----------------------------------------
   const property = await Property.findById(data.property_id).lean();
   if (!property) throw new Error("Workspace Linkage not found.");
 
@@ -691,39 +706,68 @@ const _createLeadService = async (data: CreateLeadDto, ip: string) => {
     typeof activePackageIdRaw === "string"
       ? new Types.ObjectId(activePackageIdRaw)
       : activePackageIdRaw;
+
   const activePackage = await PurchaseRecordsModel.findById(activePackageId);
   if (!activePackage)
     throw new Error("Active package not found for this property.");
 
-  switch (activePackage.status) {
-    case PurchaseStatus.COMPLETED:
-      break;
-    default:
-      throw new Error(
-        `Your current package is ${activePackage.status}. Please renew or upgrade your package.`
-      );
+  // ----------------------------------------
+  // 🔹 CHECK PACKAGE STATUS
+  // ----------------------------------------
+  if (activePackage.status !== PurchaseStatus.COMPLETED) {
+    throw new Error(
+      `Your current package is ${activePackage.status}. Please renew or upgrade your package.`
+    );
   }
 
+  // ----------------------------------------
+  // 🔹 VALIDATE FEATURE LIMIT
+  // ----------------------------------------
   const activatedFeatures =
     getMetaValue(activePackage.meta, "activated_features") || [];
+
   const leadsFeature = activatedFeatures.find(
     (f: any) => f.title === "Leads Limit"
   );
+
   if (!leadsFeature)
     throw new Error("Your plan does not include Leads Limit. Please upgrade.");
 
   const validityDate = new Date(leadsFeature.validity);
-  if (new Date() > validityDate)
+  if (new Date() > validityDate) {
     throw new Error(
       `The validity for lead creation expired on ${validityDate.toLocaleDateString()}. Please renew your plan.`
     );
+  }
 
-  if (leadsFeature.used >= leadsFeature.limit)
+  
+  if (leadsFeature.used >= leadsFeature.limit) {
+    await Property.findByIdAndUpdate(
+      defaultStatus.property_id,
+      {
+        $push: {
+          logs: {
+            title: "Lead Creation Failed",
+            description: `Lead limit reached (${leadsFeature.used}/${leadsFeature.limit}). Lead (${data.name}) NOT created.`,
+            status: LogStatus.WARNING,
+            meta: { leadPreview: data },
+            createdAt: now,
+            updatedAt: now,
+          },
+        },
+      },
+      { new: true }
+    );
+
     throw new Error(
       `Leads creation limit reached. Used ${leadsFeature.used}/${leadsFeature.limit}.`
     );
+  }
 
-  // 🔹 Update property usage + logs
+ 
+  await lead.save();
+
+  // Add success log
   await Property.findByIdAndUpdate(
     defaultStatus.property_id,
     {
@@ -731,7 +775,7 @@ const _createLeadService = async (data: CreateLeadDto, ip: string) => {
       $push: {
         logs: {
           title: "Lead Created",
-          description: `A new lead named (${lead.name}) was assigned to this property.`,
+          description: `A new lead (${lead.name}) was created successfully and assigned.`,
           status: LogStatus.INFO,
           meta: { leadId: lead._id },
           createdAt: now,
@@ -742,18 +786,23 @@ const _createLeadService = async (data: CreateLeadDto, ip: string) => {
     { new: true }
   );
 
+  // Update feature usage
   const updatedPackage = await PurchaseRecordsModel.findOneAndUpdate(
     { _id: activePackageId, "meta.activated_features.title": "Leads Limit" },
     { $inc: { "meta.activated_features.$.used": 1 } },
     { new: true }
   );
-  if (!updatedPackage)
-    throw new Error("Failed to update feature usage in package.");
 
-  await lead.save();
+  if (!updatedPackage) {
+    throw new Error("Failed to update feature usage in package.");
+  }
+
+  // Trigger WhatsApp automation
   await _triggerLeadAutomationWebhook(lead);
+
   return lead;
 };
+
 
 const _getMissedFollowUpsService = async (
   propId: Types.ObjectId

@@ -24,4 +24,38 @@ const _createAutomationService = async (
   }
 };
 
-export { _createAutomationService };
+
+const _fetchAutomationsByPropertyService = async (
+  page: number = 1,
+  limit: number = 10,
+  property_id: Types.ObjectId
+) => {
+  const skip = (page - 1) * limit;
+
+  const [automations, total] = await Promise.all([
+    Automation.find({ property_id })
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit),
+    Automation.countDocuments(),
+  ]);
+
+  const totalPages = Math.ceil(total / limit);
+  const hasNextPage = page < totalPages;
+  const hasPrevPage = page > 1;
+
+
+  return {
+   automations,
+    pagination: {
+      totalItems: total,
+      totalPages,
+      currentPage: page,
+      limit,
+      hasNextPage,
+      hasPrevPage,
+    },
+  };
+};
+
+export { _createAutomationService, _fetchAutomationsByPropertyService };

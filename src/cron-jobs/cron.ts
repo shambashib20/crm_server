@@ -102,12 +102,12 @@ cron.schedule("0 * * * *", async () => {
   }
 });
 
-cron.schedule("*/5 * * * *", async () => {
+cron.schedule("*/2 * * * *", async () => {
   console.log("🔁 Checking WapMonkey devices for new entries...");
   await _fetchAndSyncWapMonkeyDevices();
 });
 
-cron.schedule("*/5 * * * *", async () => {
+cron.schedule("*/2 * * * *", async () => {
   console.log("⏰ Running WhatsApp device sync cron...");
 
   try {

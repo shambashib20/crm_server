@@ -2,7 +2,10 @@ import { Types } from "mongoose";
 
 import SuccessResponse from "../middlewares/success.middleware";
 
-import { _createAutomationService } from "../services/automation.service";
+import {
+  _createAutomationService,
+  _fetchAutomationsByPropertyService,
+} from "../services/automation.service";
 
 const CreateAutomationController = async (req: any, res: any) => {
   try {
@@ -20,9 +23,9 @@ const CreateAutomationController = async (req: any, res: any) => {
         );
     }
 
-   const automation = await _createAutomationService(
+    const automation = await _createAutomationService(
       payload,
-      new Types.ObjectId(property_id) 
+      new Types.ObjectId(property_id)
     );
 
     return res
@@ -36,9 +39,23 @@ const CreateAutomationController = async (req: any, res: any) => {
   }
 };
 
+const FetchAutomationController = async (req: any, res: any) => {
+  try {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+    const property_id = req.user.property_id;
+
+    const automations = await _fetchAutomationsByPropertyService(page, limit, property_id);
+    return res
+      .status(200)
+      .json(
+        new SuccessResponse("Automations fetched successfully", 200, automations)
+      );
+  } catch (error: any) {
+    return res.status(500).json(new SuccessResponse(error.message, 500));
+  }
+};
 
 
 
-
-
-export { CreateAutomationController };
+export { CreateAutomationController, FetchAutomationController };
