@@ -295,9 +295,7 @@ const _masterLeadService = async (
                 {}
               );
 
-              // -----------------------------
-              // FIXED ROUND-ROBIN ASSIGNMENT
-              // -----------------------------
+             
               let assignedToId: Types.ObjectId | null = null;
 
               if (assignedAgents.length > 0) {
@@ -361,9 +359,7 @@ const _masterLeadService = async (
             }
           }
 
-          // -----------------------------
-          // 8) BULK INSERT
-          // -----------------------------
+          
           if (toInsert.length > 0) {
             await Lead.insertMany(toInsert, { ordered: false });
             console.log(

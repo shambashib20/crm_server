@@ -14,7 +14,7 @@ const AutomationRuleSchema = new Schema({
   label_id: { type: Schema.Types.ObjectId, ref: "Label" },
   template_id: {
     type: Schema.Types.ObjectId,
-    ref: "Template",
+    ref: "CampaignTemplate",
     default: "",
   },
 });

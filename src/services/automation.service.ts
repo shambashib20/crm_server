@@ -34,6 +34,18 @@ const _fetchAutomationsByPropertyService = async (
 
   const [automations, total] = await Promise.all([
     Automation.find({ property_id })
+     .populate({
+        path: "rules.status_id",
+        select: "title",
+      })
+      .populate({
+        path: "rules.label_id",
+        select: "title",
+      })
+      .populate({
+        path: "rules.template_id",
+        select: "title message meta",
+      })
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit),
