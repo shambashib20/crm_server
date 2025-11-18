@@ -403,12 +403,12 @@ const _masterLeadService = async (
             leads: leads.length || 0,
           });
         } catch (formErr) {
-          console.error(`Error processing form ${form?.id}:`, formErr);
+          
           continue;
         }
       }
     } catch (pageErr) {
-      console.error(`Error processing page ${page?.id}:`, pageErr);
+      
       continue;
     }
   }
