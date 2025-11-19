@@ -22,6 +22,16 @@ import PurchaseRecordsModel from "../models/purchaserecords.model";
 import { PurchaseStatus } from "../dtos/purchaserecords.dto";
 import { _triggerLeadAutomationWebhook } from "../webhooks/lead_automation.webhook";
 import { _triggerWhatsAppAutomation } from "../webhooks/whatsapp_automation.webhook";
+import {
+  cacheSet,
+  makeCacheKey,
+  acquireLock,
+  releaseLock,
+  cacheGet,
+  cache,
+} from "./cache.util";
+
+import crypto from "crypto";
 
 function getEarliestFollowUpDate(followUps: any[] = []): Date | null {
   if (!Array.isArray(followUps) || followUps.length === 0) return null;
@@ -100,6 +110,18 @@ interface ExternalLeadGenerationDto {
   comment?: string;
   property_id: Types.ObjectId;
 }
+
+
+const homeKeyPrefix = "home_leads_v1";
+
+const allKeys = cache.keys();
+const relatedKeys = allKeys.filter((k) => k.startsWith(`${homeKeyPrefix}:`));
+
+relatedKeys.forEach((k) => cache.del(k));
+
+console.log(`🧹 Cache invalidated for: ${relatedKeys.length} lead lists`);
+
+
 
 const _fetchLeadDetails = async (leadId: Types.ObjectId) => {
   const existingLead = await Lead.findById(leadId)
@@ -476,76 +498,151 @@ const _homePageLeadService = async (
     ];
   }
 
+  const cardProjection = {
+    name: 1,
+    phone_number: 1,
+    email: 1,
+    comment: 1,
+    reference: 1,
+    logs: 1, // if heavy, consider selecting last log only (see later)
+    labels: 1,
+    assigned_to: 1,
+    assigned_by: 1,
+    meta: 1,
+    property_id: 1,
+    follow_ups: 1,
+    tasks: 1,
+    createdAt: 1,
+    updatedAt: 1,
+  };
+
   // ✅ Sort options
-  let sortOptions: Record<string, 1 | -1> = {};
-  if (sortBy === "by_created_date") {
-    sortOptions = { createdAt: -1 };
+  const tableProjection = {};
+
+  // -----------------------------
+  // Build sort
+  // -----------------------------
+  let sort: any = { createdAt: -1 };
+  if (sortBy === "by_created_date") sort = { createdAt: -1 };
+  // note: you were sorting by next_followup in-app using JS. We keep same behavior:
+  // fetch (with projection) then sort in-memory for that specific flow.
+
+  // -----------------------------
+  // CACHING STRATEGY
+  // - Card view: snapshot cache (short TTL), because UI often requests same filters
+  // - Table view: cache per query+page (short TTL)
+  // TTL recommendations: card 30s-60s, table 60s-120s
+  // -----------------------------
+  const cachePrefix = "home_leads_v1";
+  const cacheKeyPayload = {
+    query,
+    page,
+    limit,
+    is_table_view,
+    sortBy,
+  };
+  const cacheKey = makeCacheKey(cachePrefix, cacheKeyPayload);
+
+  // Try redis first
+  try {
+    const cached = await cacheGet(cacheKey);
+    if (cached) {
+      return cached; // cached response already has leads + statuses + pagination
+    }
+  } catch (err) {
+    // redis might be down — continue to DB fallback
+    console.warn("Redis read failed", err);
   }
 
-  // ✅ Get full list of leads
-  let fullLeads = await Lead.find(query)
-    .sort(sortOptions)
-    .populate({
-      path: "status",
-      select: "_id title",
-    })
-    .populate("assigned_to", "name")
-    .populate("assigned_by", "name")
-    .populate({
-      path: "labels",
-      select: "_id title description meta",
-    })
-    .lean();
+  // Acquire a light lock to avoid stampede
+  const lockKey = `${cacheKey}:lock`;
+  const lockToken = await acquireLock(lockKey, 5000);
 
-  fullLeads = (fullLeads || []).filter(Boolean);
-  // .filter((lead) => lead._id && lead.name && lead.email);
+  // If we didn't get lock, wait briefly and try cache again
+  if (!lockToken) {
+    // short sleep, then check cache again
+    await new Promise((r) => setTimeout(r, 150));
+    const cached = await cacheGet(cacheKey);
+    if (cached) return cached;
+    // else continue (no lock) — it's okay, we'll read DB
+  }
 
-  // ✅ Extract user info for follow ups
-  const createdByUserIds = new Set<string>();
-  fullLeads.forEach((lead) => {
-    lead.follow_ups?.forEach((fu) => {
-      const userId = fu.meta?.created_by;
-      if (userId) createdByUserIds.add(userId.toString());
+  // -----------------------------
+  // DB fetch (no aggregation)
+  // - Use lean() to reduce mongoose overhead
+  // - Limit & skip for table view
+  // - For card view: limit to 150 (safe), do light populate
+  // -----------------------------
+  let leads: any[] = [];
+  let total = 0;
+
+  if (is_table_view) {
+    // Paginated (table)
+    // Use countDocuments (fast with indexes)
+    total = await Lead.countDocuments(query);
+
+    leads = await Lead.find(query, tableProjection as any)
+      .sort(sort)
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .populate({ path: "status", select: "_id title" })
+      .populate({ path: "assigned_to", select: "name" })
+      .populate({ path: "assigned_by", select: "name" })
+      .populate({ path: "labels", select: "_id title description meta" })
+      .lean();
+  } else {
+    // Card view (snapshot)
+    leads = await Lead.find(query, cardProjection as any)
+      .sort(sort)
+
+      .populate({ path: "status", select: "_id title" })
+      .populate({ path: "assigned_to", select: "name" })
+      .populate({ path: "assigned_by", select: "name" })
+      .populate({ path: "labels", select: "_id title description meta" })
+      .lean();
+    total = await Lead.countDocuments(query);
+  }
+
+  // -----------------------------
+  // Enrich follow_ups created_by users (same efficient approach)
+  // Get set of follow created_by IDs across the fetched leads only
+  // -----------------------------
+  const createdBySet = new Set<string>();
+  for (const lead of leads) {
+    (lead.follow_ups || []).forEach((fu: any) => {
+      const uid = fu?.meta?.created_by;
+      if (uid) createdBySet.add(uid.toString());
+    });
+  }
+
+  let followUsersMap = new Map<string, any>();
+  if (createdBySet.size > 0) {
+    const users = await User.find(
+      { _id: { $in: Array.from(createdBySet) } },
+      "name title email"
+    ).lean();
+    followUsersMap = new Map(users.map((u) => [u._id.toString(), u]));
+  }
+  leads.forEach((lead) => {
+    (lead.follow_ups || []).forEach((fu: any) => {
+      const id = fu?.meta?.created_by?.toString();
+      if (id && followUsersMap.has(id))
+        fu.created_by_user = followUsersMap.get(id);
     });
   });
 
-  const users = await User.find(
-    { _id: { $in: [...createdByUserIds] } },
-    "name title email"
-  ).lean();
-
-  const userMap = new Map(users.map((u) => [u._id.toString(), u]));
-
-  fullLeads.forEach((lead) => {
-    lead.follow_ups?.forEach((fu: any) => {
-      const createdBy = fu.meta?.created_by?.toString();
-      if (createdBy && userMap.has(createdBy)) {
-        fu.created_by_user = userMap.get(createdBy);
-      }
-    });
-  });
-
-  // ✅ Push latest created lead to top
-  if (fullLeads.length > 1) {
-    const latestLead = fullLeads.reduce(
-      (latest, current) =>
-        new Date(current.createdAt) > new Date(latest.createdAt)
-          ? current
-          : latest,
-      fullLeads[0]
+  if (leads.length > 1) {
+    const latest = leads.reduce((a, b) =>
+      new Date(a.createdAt) > new Date(b.createdAt) ? a : b
     );
-
-    fullLeads = [
-      latestLead,
-      ...fullLeads.filter(
-        (lead) => lead._id.toString() !== latestLead._id.toString()
-      ),
+    leads = [
+      latest,
+      ...leads.filter((l) => l._id.toString() !== latest._id.toString()),
     ];
   }
 
-  // ✅ Sort by next follow-up if requested
   if (sortBy === "by_next_followup_date") {
-    const leadsExceptLatest = fullLeads.slice(1); // skip latest lead
+    const leadsExceptLatest = leads.slice(1); // skip latest lead
     leadsExceptLatest.sort((a, b) => {
       const aNext = getEarliestFollowUpDate(a.follow_ups);
       const bNext = getEarliestFollowUpDate(b.follow_ups);
@@ -554,49 +651,62 @@ const _homePageLeadService = async (
       if (!bNext) return -1;
       return new Date(aNext).getTime() - new Date(bNext).getTime();
     });
-    fullLeads = [fullLeads[0], ...leadsExceptLatest];
+    leads = [leads[0], ...leadsExceptLatest];
   }
 
-  // ✅ Paginate only in table view
-  let paginatedLeads = fullLeads;
-  if (is_table_view) {
-    const startIndex = (page - 1) * limit;
-    const endIndex = startIndex + limit;
-    paginatedLeads = fullLeads.slice(startIndex, endIndex);
+  // -----------------------------
+  // Statuses (cache recommended separately)
+  // -----------------------------
+  const statusesCacheKey = `statuses:${userPropId.toString()}`;
+  let statuses = await cacheGet(statusesCacheKey);
+  if (!statuses) {
+    const propertyStatuses = await Status.find({
+      property_id: userPropId,
+      "meta.is_active": true,
+    }).lean();
+    const defaultStatuses = await Status.find({
+      title: { $in: ["New", "Processing", "Confirm", "Cancel"] },
+      "meta.is_active": true,
+    }).lean();
+    statuses = [
+      ...propertyStatuses,
+      ...defaultStatuses.filter(
+        (def) =>
+          !propertyStatuses.some((p) => p._id.toString() === def._id.toString())
+      ),
+    ].map((s) => ({ ...s, _id: s._id.toString() }));
+
+    await cacheSet(statusesCacheKey, statuses, 300);
   }
 
-  const propertyStatuses = await Status.find({
-    property_id: userPropId,
-    "meta.is_active": true,
-  }).lean();
-
-  const defaultStatuses = await Status.find({
-    title: { $in: ["New", "Processing", "Confirm", "Cancel"] },
-    "meta.is_active": true,
-  }).lean();
-
-  const statuses = [
-    ...propertyStatuses,
-    ...defaultStatuses.filter(
-      (def) =>
-        !propertyStatuses.some((p) => p._id.toString() === def._id.toString())
-    ),
-  ];
-
-  return {
-    leads: paginatedLeads,
+  const response = {
+    leads,
     statuses,
     ...(is_table_view && {
       pagination: {
-        total: fullLeads.length,
+        total,
         page,
         limit,
-        totalPages: Math.ceil(fullLeads.length / limit),
-        hasNextPage: page * limit < fullLeads.length,
+        totalPages: Math.ceil(total / limit),
+        hasNextPage: page * limit < total,
         hasPrevPage: page > 1,
       },
     }),
   };
+
+  // Save to cache: short TTL depending on view
+  try {
+    const ttl = is_table_view ? 120 : 45;
+    await cacheSet(cacheKey, response, ttl);
+
+    // release lock if we acquired it
+    if (lockToken) await releaseLock(lockKey, lockToken);
+  } catch (err) {
+    console.warn("Redis write failed", err);
+    if (lockToken) await releaseLock(lockKey, lockToken);
+  }
+
+  return response;
 };
 
 const _createLeadService = async (data: CreateLeadDto, ip: string) => {
@@ -605,9 +715,9 @@ const _createLeadService = async (data: CreateLeadDto, ip: string) => {
   const locationData = await getLocationFromIP(ip);
   let assignedToId: Types.ObjectId | null = null;
 
-  // ----------------------------------------
+  // ---------------------------------------------------
   // 🔹 ROUND-ROBIN ASSIGNMENT
-  // ----------------------------------------
+  // ---------------------------------------------------
   if (data.labels?.length) {
     const label = await Label.findById(data.labels[0]);
     if (!label) throw new Error(`Label with ID ${data.labels[0]} not found`);
@@ -629,9 +739,9 @@ const _createLeadService = async (data: CreateLeadDto, ip: string) => {
     }
   }
 
-  // ----------------------------------------
+  // ---------------------------------------------------
   // 🔹 FALLBACK TO SUPERADMIN
-  // ----------------------------------------
+  // ---------------------------------------------------
   if (!assignedToId) {
     const superAdminRole = await Role.findOne({ name: "Superadmin" });
     if (!superAdminRole)
@@ -648,9 +758,9 @@ const _createLeadService = async (data: CreateLeadDto, ip: string) => {
     assignedToId = superAdminUser._id;
   }
 
-  // ----------------------------------------
+  // ---------------------------------------------------
   // 🔹 DEFAULT SOURCE & STATUS
-  // ----------------------------------------
+  // ---------------------------------------------------
   const [defaultSource, defaultStatus] = await Promise.all([
     Source.findOne({ title: "Landing Page Leads" }),
     Status.findOne({ title: "New" }),
@@ -661,9 +771,9 @@ const _createLeadService = async (data: CreateLeadDto, ip: string) => {
 
   const ray_id = `ray-id-${uuidv4()}`;
 
-  // ----------------------------------------
-  // 🔹 CREATE LEAD DOCUMENT (NOT SAVED YET)
-  // ----------------------------------------
+  // ---------------------------------------------------
+  // 🔹 CREATE LEAD DOCUMENT
+  // ---------------------------------------------------
   const lead = new Lead({
     ...data,
     labels: data.labels?.map((id) => new Types.ObjectId(id)) || [],
@@ -683,7 +793,9 @@ const _createLeadService = async (data: CreateLeadDto, ip: string) => {
     logs: [
       {
         title: "Lead created",
-        description: `Lead created by ${data?.name || "Unknown"} with status ${defaultStatus.title}`,
+        description: `Lead created by ${data?.name || "Unknown"} with status ${
+          defaultStatus.title
+        }`,
         status: LeadLogStatus.ACTION,
         meta: {},
         createdAt: now,
@@ -692,9 +804,9 @@ const _createLeadService = async (data: CreateLeadDto, ip: string) => {
     ],
   });
 
-  // ----------------------------------------
+  // ---------------------------------------------------
   // 🔹 FETCH PROPERTY + ACTIVE PACKAGE
-  // ----------------------------------------
+  // ---------------------------------------------------
   const property = await Property.findById(data.property_id).lean();
   if (!property) throw new Error("Workspace Linkage not found.");
 
@@ -711,18 +823,18 @@ const _createLeadService = async (data: CreateLeadDto, ip: string) => {
   if (!activePackage)
     throw new Error("Active package not found for this property.");
 
-  // ----------------------------------------
+  // ---------------------------------------------------
   // 🔹 CHECK PACKAGE STATUS
-  // ----------------------------------------
+  // ---------------------------------------------------
   if (activePackage.status !== PurchaseStatus.COMPLETED) {
     throw new Error(
-      `Your current package is ${activePackage.status}. Please renew or upgrade your package.`
+      `Your current package is ${activePackage.status}. Please renew or upgrade.`
     );
   }
 
-  // ----------------------------------------
+  // ---------------------------------------------------
   // 🔹 VALIDATE FEATURE LIMIT
-  // ----------------------------------------
+  // ---------------------------------------------------
   const activatedFeatures =
     getMetaValue(activePackage.meta, "activated_features") || [];
 
@@ -736,11 +848,10 @@ const _createLeadService = async (data: CreateLeadDto, ip: string) => {
   const validityDate = new Date(leadsFeature.validity);
   if (new Date() > validityDate) {
     throw new Error(
-      `The validity for lead creation expired on ${validityDate.toLocaleDateString()}. Please renew your plan.`
+      `Lead limit expired on ${validityDate.toLocaleDateString()}. Please renew your plan.`
     );
   }
 
-  
   if (leadsFeature.used >= leadsFeature.limit) {
     await Property.findByIdAndUpdate(
       defaultStatus.property_id,
@@ -760,14 +871,18 @@ const _createLeadService = async (data: CreateLeadDto, ip: string) => {
     );
 
     throw new Error(
-      `Leads creation limit reached. Used ${leadsFeature.used}/${leadsFeature.limit}.`
+      `Lead limit reached. Used ${leadsFeature.used}/${leadsFeature.limit}.`
     );
   }
 
- 
+  // ---------------------------------------------------
+  // 🔹 SAVE LEAD
+  // ---------------------------------------------------
   await lead.save();
 
-  // Add success log
+  // ---------------------------------------------------
+  // 🔹 SUCCESS LOG + USAGE UPDATE
+  // ---------------------------------------------------
   await Property.findByIdAndUpdate(
     defaultStatus.property_id,
     {
@@ -775,7 +890,7 @@ const _createLeadService = async (data: CreateLeadDto, ip: string) => {
       $push: {
         logs: {
           title: "Lead Created",
-          description: `A new lead (${lead.name}) was created successfully and assigned.`,
+          description: `Lead (${lead.name}) created successfully.`,
           status: LogStatus.INFO,
           meta: { leadId: lead._id },
           createdAt: now,
@@ -786,23 +901,22 @@ const _createLeadService = async (data: CreateLeadDto, ip: string) => {
     { new: true }
   );
 
-  // Update feature usage
   const updatedPackage = await PurchaseRecordsModel.findOneAndUpdate(
     { _id: activePackageId, "meta.activated_features.title": "Leads Limit" },
     { $inc: { "meta.activated_features.$.used": 1 } },
     { new: true }
   );
-
   if (!updatedPackage) {
     throw new Error("Failed to update feature usage in package.");
   }
 
-  // Trigger WhatsApp automation
+  // ---------------------------------------------------
+  // 🔹 TRIGGER AUTOMATION
+  // ---------------------------------------------------
   await _triggerLeadAutomationWebhook(lead);
 
   return lead;
 };
-
 
 const _getMissedFollowUpsService = async (
   propId: Types.ObjectId
@@ -1039,7 +1153,7 @@ const _getLeadStatusStatsService = async (
   endDate?: string
 ) => {
   const matchStage: any = {
-    "meta.status": { $ne: "ARCHIVED" }
+    "meta.status": { $ne: "ARCHIVED" },
   };
 
   if (startDate || endDate) {

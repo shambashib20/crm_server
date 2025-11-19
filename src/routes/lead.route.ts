@@ -122,9 +122,6 @@ leadRouter.get(
   ArchiveSessionLeads
 );
 
-leadRouter.get("/overdue", AuthMiddleware, (req, res) => {
-  res.send("ok");
-});
 
 leadRouter.post(
   "/import-leads",
