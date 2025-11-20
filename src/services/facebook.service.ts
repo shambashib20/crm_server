@@ -337,6 +337,7 @@ const _masterLeadService = async (
                   form_id: form.id,
                   page_id: page.id,
                   source: source._id,
+                  status: "ACTIVE"
                 },
                 logs: [
                   {

@@ -577,8 +577,6 @@ const _homePageLeadService = async (
   let total = 0;
 
   if (is_table_view) {
-    // Paginated (table)
-    // Use countDocuments (fast with indexes)
     total = await Lead.countDocuments(query);
 
     leads = await Lead.find(query, tableProjection as any)
@@ -1892,6 +1890,7 @@ const _getLeadsByStatusAndAgentService = async (
       $match: {
         status: status._id,
         property_id: new Types.ObjectId(propId),
+        "meta.status": { $nin: ["ARCHIVED", "CONVERTED TO CUSTOMER"] },
       },
     },
     {

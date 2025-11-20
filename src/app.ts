@@ -477,6 +477,7 @@ app.post("/lead/webhook", async (req: any, res: any) => {
               page_id: page.id,
               source: source._id,
               ray_id: `ray-id-${uuidv4()}`,
+              status: "ACTIVE",
             },
             logs: [
               {
