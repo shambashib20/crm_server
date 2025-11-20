@@ -6,7 +6,7 @@ export const cache = new NodeCache({
   checkperiod: 120, // cleanup
 });
 
-// Create consistent cache keys
+
 export const makeCacheKey = (prefix: string, obj: any) =>
   `${prefix}:${crypto
     .createHash("md5")
