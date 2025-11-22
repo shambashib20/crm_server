@@ -32,6 +32,7 @@ import {
 } from "./cache.util";
 
 import crypto from "crypto";
+import { StatusDto } from "../dtos/status.dto";
 
 function getEarliestFollowUpDate(followUps: any[] = []): Date | null {
   if (!Array.isArray(followUps) || followUps.length === 0) return null;
@@ -48,6 +49,10 @@ function getEarliestFollowUpDate(followUps: any[] = []): Date | null {
 interface MissedFollowUpLead {
   leadId: Types.ObjectId;
   name: string;
+  email: string;
+  phone_number: string;
+  address: string;
+  company_name: string;
   status: {
     _id: Types.ObjectId;
     title: string;
@@ -111,7 +116,6 @@ interface ExternalLeadGenerationDto {
   property_id: Types.ObjectId;
 }
 
-
 const homeKeyPrefix = "home_leads_v1";
 
 const allKeys = cache.keys();
@@ -120,8 +124,6 @@ const relatedKeys = allKeys.filter((k) => k.startsWith(`${homeKeyPrefix}:`));
 relatedKeys.forEach((k) => cache.del(k));
 
 console.log(`🧹 Cache invalidated for: ${relatedKeys.length} lead lists`);
-
-
 
 const _fetchLeadDetails = async (leadId: Types.ObjectId) => {
   const existingLead = await Lead.findById(leadId)
@@ -921,55 +923,80 @@ const _getMissedFollowUpsService = async (
 ): Promise<MissedFollowUpLead[]> => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const property = await Property.findOne({
-    _id: propId,
-  });
 
-  const leadsWithFollowUps = await Lead.find({
-    follow_ups: { $exists: true, $ne: [] },
-    property_id: property?._id,
-  })
-    .select("name follow_ups status assigned_to labels meta")
-    .populate<{ status: { _id: Types.ObjectId; title: string } }>(
-      "status",
-      "title"
-    )
-    .populate<{
-      assigned_to: { _id: Types.ObjectId; name: string; email: string };
-    }>("assigned_to", "name email")
-    .populate<{ labels: { _id: Types.ObjectId; title: string }[] }>(
-      "labels",
-      "title"
-    )
+  const leads = await Lead.find(
+    {
+      property_id: propId,
+      "follow_ups.next_followup_date": { $lt: today },
+    },
+    {
+      name: 1,
+      follow_ups: 1,
+      status: 1,
+      assigned_to: 1,
+      labels: 1,
+      meta: 1,
+      phone_number: 1,
+      email: 1,
+      company_name: 1,
+      addresss: 1,
+    }
+  )
+
+    .populate<{ status: any }>("status", "title")
+    .populate<{ assigned_to: any }>("assigned_to", "name email")
+    .populate<{ labels: any[] }>("labels", "title")
     .lean();
-  const missedLeads: MissedFollowUpLead[] = [];
 
-  for (const lead of leadsWithFollowUps) {
-    const sortedFollowUps = [...lead.follow_ups].sort(
-      (a, b) =>
-        new Date(b.next_followup_date).getTime() -
-        new Date(a.next_followup_date).getTime()
+  const missed: MissedFollowUpLead[] = [];
+
+  for (const lead of leads) {
+    if (!lead.follow_ups?.length) continue;
+
+    const latest = lead.follow_ups.reduce((a: any, b: any) =>
+      new Date(a.next_followup_date) > new Date(b.next_followup_date) ? a : b
     );
 
-    const latestFollowUp = sortedFollowUps[0];
-    const nextFollowUpDate = new Date(latestFollowUp.next_followup_date);
+    const followDate = new Date(latest.next_followup_date);
 
-    if (nextFollowUpDate < today) {
-      missedLeads.push({
+    if (followDate < today) {
+      missed.push({
         leadId: lead._id,
         name: lead.name,
-        status: lead.status as MissedFollowUpLead["status"],
-        assigned_to: lead.assigned_to as MissedFollowUpLead["assigned_to"],
-        labels: lead.labels as MissedFollowUpLead["labels"],
-        next_followup_date: nextFollowUpDate,
-        comment: latestFollowUp.comment,
+
+        phone_number: lead.phone_number || "",
+        email: lead.email || "",
+        address: lead.address || "",
+        company_name: lead.company_name || "",
+
+        status:
+          lead.status && typeof lead.status === "object" && lead.status.title
+            ? lead.status
+            : {},
+
+        assigned_to:
+          lead.assigned_to && typeof lead.assigned_to === "object"
+            ? lead.assigned_to
+            : null,
+
+        labels:
+          Array.isArray(lead.labels) && lead.labels.length ? lead.labels : [],
+
+        next_followup_date: followDate,
+        comment: latest.comment,
         meta: lead.meta,
       });
     }
   }
 
-  return missedLeads;
+  missed.sort(
+    (a, b) => a.next_followup_date.getTime() - b.next_followup_date.getTime()
+  );
+
+  return missed;
 };
+
+
 
 const _getTodayLeadsGrouped = async (propId: Types.ObjectId) => {
   const today = new Date();
