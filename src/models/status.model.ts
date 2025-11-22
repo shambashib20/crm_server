@@ -17,6 +17,12 @@ const StatusSchema = new Schema<StatusDto & Document>(
   },
   { timestamps: true, versionKey: false }
 );
+StatusSchema.index({ title: 1 });
 
+// 2️⃣ Fast lookup for property-specific statuses
+StatusSchema.index({ property_id: 1 });
+
+// 3️⃣ Optional: combined queries, avoids collision & boosts speed
+StatusSchema.index({ property_id: 1, title: 1 });
 const Status = model<StatusDto & Document>("Status", StatusSchema);
 export default Status;

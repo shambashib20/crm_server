@@ -5,30 +5,34 @@ import { LogStatus } from "../dtos/property.dto";
 import User from "../models/user.model";
 
 const _fetchStatusInProperty = async (propId: Types.ObjectId) => {
-  const propertyStatuses = await Status.find({
-    property_id: propId,
-  });
+  const DEFAULT_TITLES = ["New", "Processing", "Confirm", "Cancel"];
 
-  const defaultStatuses = await Status.find({
-    title: { $in: ["New", "Processing", "Confirm", "Cancel"] },
-  });
+  const statuses = await Status.find({
+    $or: [{ property_id: propId }, { title: { $in: DEFAULT_TITLES } }],
+  })
+    .lean()
+    .exec();
 
-  const allStatuses = [
-    ...propertyStatuses,
-    ...defaultStatuses.filter(
-      (def) => !propertyStatuses.some((p) => p._id.equals(def._id))
-    ),
-  ];
-
-  if (!allStatuses.length) {
+  if (!statuses.length) {
     const property = await Property.findById(propId).lean();
     throw new Error(
       `No statuses found for ${property?.name || "this property"}!`
     );
   }
 
-  return allStatuses;
-  
+  const map = new Map();
+
+  for (const s of statuses) {
+    const isPropertyStatus = s.property_id?.toString() === propId.toString();
+
+    if (isPropertyStatus) {
+      map.set(s.title, s);
+    } else if (!map.has(s.title)) {
+      map.set(s.title, s);
+    }
+  }
+
+  return Array.from(map.values()); 
 };
 
 const _createStatusInProperty = async (
