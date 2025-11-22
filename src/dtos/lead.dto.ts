@@ -6,6 +6,7 @@ enum LeadLogStatus {
   ERROR = "ERROR",
   ACTION = "ACTION",
   SYSTEM = "SYSTEM",
+  SUCCESS = "SUCCESS",
 }
 
 interface LeadLog {

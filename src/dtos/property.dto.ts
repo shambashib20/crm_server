@@ -6,6 +6,7 @@ enum LogStatus {
   ERROR = "ERROR",
   ACTION = "ACTION",
   SYSTEM = "SYSTEM",
+  SUCCESS = "SUCCESS",
 }
 
 interface Log {

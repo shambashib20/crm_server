@@ -11,6 +11,7 @@ import Source from "../models/source.model";
 import { v4 as uuidv4 } from "uuid";
 import Role from "../models/role.model";
 import Property from "../models/property.model";
+import { LogStatus } from "../dtos/property.dto";
 const FB_AUTH_URL = "https://www.facebook.com/v21.0/dialog/oauth";
 const FB_TOKEN_URL = "https://graph.facebook.com/v21.0/oauth/access_token";
 const escapeStringRegexp = (s: string) =>
@@ -295,7 +296,6 @@ const _masterLeadService = async (
                 {}
               );
 
-             
               let assignedToId: Types.ObjectId | null = null;
 
               if (assignedAgents.length > 0) {
@@ -305,7 +305,6 @@ const _masterLeadService = async (
                 assignedToId = superAdminUser?._id || null;
               }
 
-              
               const commentLines = [`label::${targetLabel.title}`];
               for (const f of fbLead.field_data || []) {
                 commentLines.push(
@@ -315,7 +314,6 @@ const _masterLeadService = async (
                 );
               }
 
-              
               toInsert.push({
                 name:
                   fbFields.full_name ||
@@ -337,7 +335,7 @@ const _masterLeadService = async (
                   form_id: form.id,
                   page_id: page.id,
                   source: source._id,
-                  status: "ACTIVE"
+                  status: "ACTIVE",
                 },
                 logs: [
                   {
@@ -360,7 +358,6 @@ const _masterLeadService = async (
             }
           }
 
-          
           if (toInsert.length > 0) {
             await Lead.insertMany(toInsert, { ordered: false });
             console.log(
@@ -368,7 +365,6 @@ const _masterLeadService = async (
             );
           }
 
-          
           if (labelRecord && assignedAgents.length > 0) {
             labelRecord.meta = labelRecord.meta || {};
             labelRecord.meta.last_assigned_index = lastIndex;
@@ -384,8 +380,8 @@ const _masterLeadService = async (
               logs: {
                 title: "Facebook Lead Import",
                 description: `Imported ${toInsert.length} new leads from Facebook form "${formDetails.name}" using label "${targetLabel.title}".`,
-                status: "SUCCESS",
-                meta: {                  
+                status: LogStatus.SUCCESS,
+                meta: {
                   label: targetLabel.title,
                   imported_count: toInsert.length,
                   timestamp: new Date(),
@@ -400,12 +396,10 @@ const _masterLeadService = async (
             leads: leads.length || 0,
           });
         } catch (formErr) {
-          
           continue;
         }
       }
     } catch (pageErr) {
-      
       continue;
     }
   }

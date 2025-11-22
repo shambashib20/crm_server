@@ -19,6 +19,7 @@ import addonsRouter from "./addons.route";
 import campaignRouter from "./campaign.route";
 import automationRouter from "./automation.route";
 import masteradminRouter from "./masteradmin.route";
+import wapmonkeyRouter from "./wapmonkey.route";
 
 mainRouter.use("/auth", authRouter);
 
@@ -38,5 +39,7 @@ mainRouter.use("/addons", addonsRouter);
 mainRouter.use("/campaign", campaignRouter);
 mainRouter.use("/automation", automationRouter);
 mainRouter.use("/master-admin", masteradminRouter);
+
+mainRouter.use("/wapmonkey", wapmonkeyRouter);
 
 export default mainRouter;

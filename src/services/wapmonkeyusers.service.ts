@@ -1,6 +1,9 @@
 import axios from "axios";
 
 import { WhatsAppDevice } from "../models/wapmonkeyusers.model";
+import { Types } from "mongoose";
+import Property from "../models/property.model";
+import { LogStatus } from "../dtos/property.dto";
 
 const WAPMONKEY_URL = "https://api.wapmonkey.com/v1/getuserdeviceapi";
 const WM_AUTH = process.env.WAPMONKEY_AUTH_TOKEN!;
@@ -67,4 +70,41 @@ const _fetchAndSyncWapMonkeyDevices = async () => {
   }
 };
 
-export { _fetchAndSyncWapMonkeyDevices };
+const _updateOrAddWapMonkeyApiKey = async (
+  wapMonkeyApi: string,
+  propId: Types.ObjectId
+) => {
+  try {
+    const property = await Property.findById(propId);
+    if (!property) throw new Error("Property not found");
+
+    const existingMeta = property.meta ? property.meta.toObject() : {};
+
+    const updatedMeta = {
+      ...existingMeta,
+      wapmonkey_api_key: wapMonkeyApi,
+    };
+
+    const apiKeyLogEntry = {
+      title: "A new wapmonkey api key got assigned!",
+      description: `WAPMONKEY api key added!`,
+      status: LogStatus.ACTION,
+    };
+
+    await Property.findByIdAndUpdate(
+      propId,
+      {
+        $set: { meta: updatedMeta },
+        $push: { logs: apiKeyLogEntry },
+      },
+      { new: true }
+    );
+
+    return "WapMonkey API key updated successfully";
+  } catch (err: any) {
+    console.error("❌ Error updating WapMonkey api key:", err.message);
+    throw err;
+  }
+};
+
+export { _fetchAndSyncWapMonkeyDevices, _updateOrAddWapMonkeyApiKey };
