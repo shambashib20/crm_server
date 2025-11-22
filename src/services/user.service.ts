@@ -5,6 +5,9 @@ import { v4 as uuidv4 } from "uuid";
 import Property from "../models/property.model";
 import { LogStatus } from "../dtos/property.dto";
 import File from "../models/file.model";
+import { teleCallersCache } from "../cache/telecallers.cache";
+
+const TELECALLER_ROLE_NAME = "Telecaller";
 
 const _getUserdetails = async (userId: Types.ObjectId) => {
   const user = await User.findById(userId)
@@ -130,16 +133,34 @@ const _createUserForOrganization = async (
 };
 
 const _allChatAgents = async (propertyId: Types.ObjectId) => {
-  const chatAgentRole = await Role.findOne({ name: "Telecaller" });
+  const cacheKey = `chat_agents:${propertyId}`;
+  let telecallerRoleId: Types.ObjectId | null = null;
+  const cached = teleCallersCache.get(cacheKey);
 
-  if (!chatAgentRole) {
-    return [];
+  if (cached) {
+    // console.log("CACHE HIT for", cacheKey);
+    return cached;
   }
 
-  const users = await User.find({
-    role: chatAgentRole._id,
-    property_id: propertyId,
-  }).select("name");
+  if (!telecallerRoleId) {
+    const role = await Role.findOne({ name: TELECALLER_ROLE_NAME })
+
+      .select("_id")
+      .exec();
+
+    if (!role) return [];
+
+    telecallerRoleId = role._id as Types.ObjectId;
+  }
+
+  const users = await User.find(
+    { role: telecallerRoleId, property_id: propertyId },
+    { name: 1 }
+  )
+    .lean()
+    .exec();
+
+  teleCallersCache.set(cacheKey, users);
 
   return users;
 };

@@ -25,7 +25,7 @@ const roleSchema = new Schema<RoleDto & Document>(
     versionKey: false,
   }
 );
-
+roleSchema.index({ name: 1 });
 const Role = model<RoleDto & Document>("Role", roleSchema);
 
 export default Role;

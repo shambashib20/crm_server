@@ -76,6 +76,8 @@ userSchema.methods.comparePassword = async function (
   return await bcrypt.compare(candidatePassword, this.password);
 };
 
+userSchema.index({ role: 1, property_id: 1 });
+
 const User = model<UserDto & Document>("User", userSchema);
 
 export default User;

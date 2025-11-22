@@ -62,10 +62,12 @@ const _getAllSources = async (
 
   const [sources, total] = await Promise.all([
     Source.find({ property_id: propId })
+      .lean()
       .sort({ createdAt: -1 })
       .skip(skip)
-      .limit(limit),
-    Source.countDocuments({ property_id: propId }),
+      .limit(limit)
+      .exec(),
+    Source.countDocuments({ property_id: propId }).exec(),
   ]);
 
   const totalPages = Math.ceil(total / limit);
