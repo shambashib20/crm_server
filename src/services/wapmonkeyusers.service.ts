@@ -78,12 +78,9 @@ const _updateOrAddWapMonkeyApiKey = async (
     const property = await Property.findById(propId);
     if (!property) throw new Error("Property not found");
 
-    const existingMeta = property.meta ? property.meta.toObject() : {};
+    
 
-    const updatedMeta = {
-      ...existingMeta,
-      wapmonkey_api_key: wapMonkeyApi,
-    };
+    
 
     const apiKeyLogEntry = {
       title: "A new wapmonkey api key got assigned!",
@@ -94,7 +91,7 @@ const _updateOrAddWapMonkeyApiKey = async (
     await Property.findByIdAndUpdate(
       propId,
       {
-        $set: { meta: updatedMeta },
+        $set: { "meta.wapmonkey_api_key": wapMonkeyApi },
         $push: { logs: apiKeyLogEntry },
       },
       { new: true }
