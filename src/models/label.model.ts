@@ -17,6 +17,7 @@ const LabelSchema = new Schema<LabelDto & Document>(
   },
   { timestamps: true, versionKey: false }
 );
-
+LabelSchema.index({ property_id: 1 });
+LabelSchema.index({ createdAt: -1 });
 const Label = model<LabelDto & Document>("Label", LabelSchema);
 export default Label;

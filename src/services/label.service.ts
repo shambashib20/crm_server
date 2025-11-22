@@ -116,22 +116,71 @@ const _fetchPaginatedLabels = async (
 ) => {
   const skip = (page - 1) * limit;
 
-  const [labels, total] = await Promise.all([
-    Label.find({ property_id: propId })
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit)
-      .populate({
-        path: "meta.assigned_agents.agent_id",
-        model: User,
-        select: "name email",
-      }),
-    Label.countDocuments({ property_id: propId }),
-  ]);
+  const pipeline: any[] = [
+    {
+      $match: {
+        property_id: propId,
+      },
+    },
+    {
+      $sort: {
+        createdAt: -1,
+      },
+    },
+    {
+      $skip: skip,
+    },
+    {
+      $limit: limit,
+    },
+    {
+      $lookup: {
+        from: "users",
+        localField: "meta.assigned_agents.agent_id",
+        foreignField: "_id",
+        as: "agent_profiles",
+      },
+    },
+    {
+      $addFields: {
+        "meta.assigned_agents": {
+          $map: {
+            input: "$meta.assigned_agents",
+            as: "agent",
+            in: {
+              $mergeObjects: [
+                "$$agent",
+                {
+                  profile: {
+                    $arrayElemAt: [
+                      {
+                        $filter: {
+                          input: "$agent_profiles",
+                          as: "p",
+                          cond: { $eq: ["$$p._id", "$$agent.agent_id"] },
+                        },
+                      },
+                      0,
+                    ],
+                  },
+                },
+              ],
+            },
+          },
+        },
+      },
+    },
+
+    {
+      $unset: "agent_profiles",
+    },
+  ];
+
+  const labels = await Label.aggregate(pipeline);
+
+  const total = await Label.countDocuments({ property_id: propId });
 
   const totalPages = Math.ceil(total / limit);
-  const hasNextPage = page < totalPages;
-  const hasPrevPage = page > 1;
 
   return {
     labels,
@@ -140,8 +189,8 @@ const _fetchPaginatedLabels = async (
       totalPages,
       currentPage: page,
       limit,
-      hasNextPage,
-      hasPrevPage,
+      hasNextPage: page < totalPages,
+      hasPrevPage: page > 1,
     },
   };
 };
