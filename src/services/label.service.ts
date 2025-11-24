@@ -7,6 +7,8 @@ import User from "../models/user.model";
 import PurchaseRecordsModel from "../models/purchaserecords.model";
 import { getMetaValue } from "../utils/meta.util";
 
+import { BloomFilter } from "bloom-filters";
+
 const _createLabelInProperty = async (
   propId: Types.ObjectId,
   title: string,
@@ -43,7 +45,6 @@ const _createLabelInProperty = async (
     },
   });
 
-  
   const property = await Property.findById(propId).lean();
   if (!property) throw new Error("Property not found.");
   const activePackageIdRaw = getMetaValue(property.meta, "active_package");
@@ -86,23 +87,49 @@ const _createLabelInProperty = async (
     throw new Error("Failed to update feature usage in package.");
   }
 
-  
   await newLabel.save();
 
   return newLabel;
 };
 
+let propertyBloom: BloomFilter;
 
+const initPropertyBloomFilter = async () => {
+  const allProps = await Property.find({}, { _id: 1 }).lean();
+
+  const n = allProps.length || 1; 
+  const size = n * 10; 
+  const hashes = Math.max(1, Math.round(Math.log(2) * (size / n)));
+
+  propertyBloom = new BloomFilter(size, hashes);
+
+  allProps.forEach((p) => {
+    propertyBloom.add(String(p._id));
+  });
+
+  console.log(
+    `🚀 Property Bloom Filter initialized (size=${size}, hashes=${hashes}, items=${n})`
+  );
+};
+
+initPropertyBloomFilter();
 const _fetchLabelsInProperty = async (propId: Types.ObjectId) => {
-  const labels = await Label.find({
-    property_id: propId,
-  });
+  const propIdStr = String(propId);
 
-  const property = await Property.findOne({
-    _id: propId,
-  });
+  if (!propertyBloom.has(propIdStr)) {
+    throw new Error("No labels found for this property!");
+  }
 
-  if (!labels) {
+  const [labels, property] = await Promise.all([
+    Label.find({
+      property_id: propId,
+    })
+      .lean()
+      .hint({ property_id: 1 }),
+    Property.findById(propId).lean(),
+  ]);
+
+  if (!labels || labels.length === 0) {
     throw new Error(`No labels found for ${property?.name}!`);
   }
 
