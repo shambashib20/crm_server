@@ -6,11 +6,22 @@ import Property from "../models/property.model";
 import { LogStatus } from "../dtos/property.dto";
 import File from "../models/file.model";
 import { teleCallersCache } from "../cache/telecallers.cache";
-
+import NodeCache from "node-cache";
 const TELECALLER_ROLE_NAME = "Telecaller";
 
+const userCache = new NodeCache({
+  stdTTL: 300,
+});
+
 const _getUserdetails = async (userId: Types.ObjectId) => {
-  const user = await User.findById(userId)
+  const cacheKey = userId.toString();
+  console.log("Fetching user details for", cacheKey);
+  const cached = userCache.get(cacheKey);
+  if (cached) return cached;
+
+  console.log("CACHE MISS for", cached);
+  let user: any = await User.findById(userId)
+    .select("-password")
     .populate({
       path: "role",
       populate: {
@@ -18,27 +29,25 @@ const _getUserdetails = async (userId: Types.ObjectId) => {
         model: "Permission",
       },
     })
-    .select("-password");
+    .lean();
 
   if (!user) {
     throw new Error("No user details found!");
   }
 
   if (user.meta instanceof Map) {
-    const profilePictureId = user.meta.get("profile_picture_data");
-
-    if (profilePictureId) {
-      const fileData = await File.findById(profilePictureId);
-      if (fileData) {
-        const metaObj = Object.fromEntries(user.meta);
-        metaObj.profile_picture_data = fileData;
-        user.meta = metaObj as any;
-      }
-    } else {
-      user.meta = Object.fromEntries(user.meta) as any;
-    }
+    user.meta = Object.fromEntries(user.meta);
   }
 
+  if (user.meta?.profile_picture_data) {
+    const fileId = user.meta.profile_picture_data;
+
+    const fileData = await File.findById(fileId).lean();
+
+    user.meta.profile_picture_data = fileData || null;
+  }
+
+  userCache.set(cacheKey, user);
   return user;
 };
 
