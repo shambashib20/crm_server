@@ -15,11 +15,12 @@ const userCache = new NodeCache({
 
 const _getUserdetails = async (userId: Types.ObjectId) => {
   const cacheKey = userId.toString();
-  console.log("Fetching user details for", cacheKey);
+  
   const cached = userCache.get(cacheKey);
-  if (cached) return cached;
-
-  console.log("CACHE MISS for", cached);
+  if (cached) {
+    return cached;
+  }
+  
   let user: any = await User.findById(userId)
     .select("-password")
     .populate({
