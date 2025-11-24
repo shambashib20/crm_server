@@ -7,20 +7,27 @@ import { LogStatus } from "../dtos/property.dto";
 import File from "../models/file.model";
 import { teleCallersCache } from "../cache/telecallers.cache";
 import NodeCache from "node-cache";
+import axios from "axios";
+import { WhatsAppDevice } from "../models/wapmonkeyusers.model";
 const TELECALLER_ROLE_NAME = "Telecaller";
 
 const userCache = new NodeCache({
   stdTTL: 300,
 });
 
+const WAPMONKEY_API = "https://api.wapmonkey.com/v1/sendmessage";
+const API_KEY = process.env.WAPMONKEY_AUTH_TOKEN!;
+
+const OFFICE_DEVICE_NAME = "Office";
+
 const _getUserdetails = async (userId: Types.ObjectId) => {
   const cacheKey = userId.toString();
-  
+
   const cached = userCache.get(cacheKey);
   if (cached) {
     return cached;
   }
-  
+
   let user: any = await User.findById(userId)
     .select("-password")
     .populate({
@@ -70,8 +77,10 @@ const _createUserForOrganization = async (
     const [role, superAdmin, property] = await Promise.all([
       Role.findOne({ name: roleName }),
       User.findById(userId).populate("role"),
-      Property.findById(property_id, "usage_limits usage_count"),
+      Property.findById(property_id, "name usage_limits usage_count"),
     ]);
+
+    console.log("Property name:", property?.name);
 
     if (!role) throw new Error(`Role '${roleName}' not found.`);
     if (!property) throw new Error(`Property '${property_id}' not found.`);
@@ -90,25 +99,96 @@ const _createUserForOrganization = async (
       superAdmin.role !== null &&
       "name" in superAdmin.role &&
       (superAdmin.role as { name: string }).name === "Superadmin";
+
     if (!isSuperadmin && property.usage_count >= property.usage_limits) {
       throw new Error("User creation limit exceeded for this property.");
     }
 
-    const user = await User.create({
+    const rawPassword = password?.trim() || `${roleName}@123`;
+
+    
+    let user = await User.create({
       name,
       email,
-      password: password?.trim() || `${roleName}@123`,
+      password: rawPassword,
       phone_number,
       meta: { ray_id: `ray-id-${uuidv4()}` },
       role: role._id,
       property_id,
     });
 
+
+    if (roleName === "Telecaller") {
+      console.log("🔍 Searching WhatsApp device for Telecaller", phone_number);
+
+      const userDevice = await WhatsAppDevice.findOne({
+        mobile_no: phone_number,
+      });
+
+      if (userDevice) {
+        console.log("📌 WhatsApp device found → Attaching to user's meta");
+
+        await User.findByIdAndUpdate(user._id, {
+          $set: { "meta.whatsapp_device": userDevice },
+        });
+
+
+        user = (await User.findById(user._id)) || user;
+      }
+
+
+      const officeDevice = await WhatsAppDevice.findOne({
+        device_name: OFFICE_DEVICE_NAME,
+      });
+
+      if (!officeDevice) {
+        console.error(
+          "❌ Office device not found! Cannot send WhatsApp message."
+        );
+      } else {
+        console.log("📨 Sending WhatsApp credentials to telecaller...");
+
+        const message = `
+Welcome to ETC CRM 🎉 (for testing)
+
+Your login details:
+
+Email: ${email}
+Password: ${rawPassword}
+
+Company Name: ${property.name}
+
+You can access the CRM here: (Ignore link for testing)
+      `;
+
+        try {
+          await axios.post(
+            WAPMONKEY_API,
+            {
+              message,
+              media: [],
+              numbers: phone_number,
+              device_token: officeDevice.u_device_token,
+            },
+            { headers: { Authorization: API_KEY } }
+          );
+
+          console.log(
+            "✅ WhatsApp message sent successfully to:",
+            phone_number
+          );
+        } catch (err: any) {
+          console.error("❌ Failed sending WhatsApp message:", err.message);
+        }
+      }
+    }
+
+
     const updateOps: any = {
       $push: {
         logs: {
           title: "User Created",
-          description: `User named '${name}' with role (${roleName}) created by '${
+          description: `User '${name}' (role: ${roleName}) created by '${
             superAdmin?.name || "Unknown"
           }'.`,
           status: LogStatus.ACTION,
@@ -120,9 +200,7 @@ const _createUserForOrganization = async (
       },
     };
 
-    if (!isSuperadmin) {
-      updateOps.$inc = { usage_count: 1 };
-    }
+    if (!isSuperadmin) updateOps.$inc = { usage_count: 1 };
 
     await Property.findByIdAndUpdate(property_id, updateOps);
 
@@ -141,6 +219,8 @@ const _createUserForOrganization = async (
     throw err;
   }
 };
+
+
 
 const _allChatAgents = async (propertyId: Types.ObjectId) => {
   const cacheKey = `chat_agents:${propertyId}`;
