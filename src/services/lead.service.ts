@@ -1750,12 +1750,13 @@ const _getLeadsBySourceAndAgentService = async (
   if (!source) {
     throw new Error(`Source with title "${sourceTitle}" not found.`);
   }
-
+  const telecallerRole = await Role.findOne({ name: "Telecaller" });
   const result = await Lead.aggregate([
     {
       $match: {
         "meta.source": source._id,
         property_id: new Types.ObjectId(propId),
+        "meta.status": { $nin: ["ARCHIVED", "CONVERTED TO CUSTOMER"] }
       },
     },
     {
@@ -1812,12 +1813,122 @@ const _getLeadsBySourceAndAgentService = async (
     }
   });
 
+
+  const today = new Date();
+
+  today.setHours(0, 0, 0, 0);
+
+  const missedTelecallerLeads = await Lead.aggregate([
+    {
+      $match: {
+        "meta.source": source._id,
+        property_id: new Types.ObjectId(propId),
+        "meta.status": { $nin: ["ARCHIVED", "CONVERTED TO CUSTOMER"] },
+        "follow_ups.next_followup_date": { $lt: today },
+
+      }
+    },
+    {
+      $lookup: {
+        from: "users",
+        localField: "assigned_to",
+        foreignField: "_id",
+        as: "assignedUser"
+      }
+    },
+    { $unwind: { path: "$assignedUser", preserveNullAndEmptyArrays: true } },
+
+    {
+      $match: {
+        "assignedUser.role": telecallerRole?._id
+      }
+    },
+
+    {
+      $group: {
+        _id: {
+          agentId: "$assigned_to",
+          agentName: "$assignedUser.name"
+        },
+        missedCount: { $sum: 1 }
+      }
+    }
+
+  ]);
+
+  const convertedTelecallerLeads = await Lead.aggregate([
+    {
+      $match: {
+        "meta.source": source._id,
+        property_id: new Types.ObjectId(propId),
+        "meta.status": { $nin: ["ARCHIVED", "CONVERTED TO CUSTOMER"] },
+        "follow_ups.next_followup_date": { $lt: today },
+
+      }
+    },
+    {
+      $lookup: {
+        from: "users",
+        localField: "assigned_to",
+        foreignField: "_id",
+        as: "assignedUser",
+      },
+    },
+    { $unwind: { path: "$assignedUser", preserveNullAndEmptyArrays: true } },
+    {
+      $match: {
+        "assignedUser.role": telecallerRole?._id,
+      },
+    },
+    {
+      $group: {
+        _id: {
+          agentId: "$assigned_to",
+          agentName: "$assignedUser.name",
+        },
+        convertedCount: { $sum: 1 },
+      },
+    },
+  ])
+  const conversionStats = convertedTelecallerLeads.map((item) => {
+    const telecallerTotal = agents.find(
+      (a) => String(a.agent_id) === String(item._id.agentId)
+    )?.lead_count || 0;
+
+    const rate =
+      telecallerTotal > 0
+        ? (item.convertedCount / telecallerTotal) * 100
+        : 0;
+
+    return {
+      agent_id: item._id.agentId,
+      agent_name: item._id.agentName,
+      converted: item.convertedCount,
+      conversion_rate: Number(rate.toFixed(2)),
+    };
+  });
+
   return {
     source: sourceTitle,
     totalLeads,
     agents,
     unassigned: {
       lead_count: unassignedCount,
+    },
+    missed_followups: {
+      total: missedTelecallerLeads.reduce((sum, a) => sum + a.missedCount, 0),
+      telecallers: missedTelecallerLeads.map((a) => ({
+        agent_id: a._id.agentId,
+        agent_name: a._id.agentName,
+        missed_count: a.missedCount,
+      })),
+    },
+    conversion_rates: {
+      totalConverted: convertedTelecallerLeads.reduce(
+        (sum, a) => sum + a.convertedCount,
+        0
+      ),
+      telecallers: conversionStats,
     },
   };
 };
@@ -1831,12 +1942,13 @@ const _getLeadsByLabelAndAgentService = async (
   if (!label) {
     throw new Error(`Label with title "${labelTitle}" not found.`);
   }
-
+  const telecallerRole = await Role.findOne({ name: "Telecaller" });
   const result = await Lead.aggregate([
     {
       $match: {
         labels: label._id,
         property_id: new Types.ObjectId(propId),
+        "meta.status": { $nin: ["ARCHIVED", "CONVERTED TO CUSTOMER"] }
       },
     },
     {
@@ -1893,12 +2005,120 @@ const _getLeadsByLabelAndAgentService = async (
     }
   });
 
+
+  const today = new Date();
+
+  today.setHours(0, 0, 0, 0);
+
+  const missedTelecallerLeads = await Lead.aggregate([
+    {
+      $match: {
+        property_id: new Types.ObjectId(propId),
+        labels: label._id,
+        "follow_ups.next_followup_date": { $lt: today },
+        "meta.status": { $nin: ["ARCHIVED", "CONVERTED TO CUSTOMER"] }
+      }
+    },
+    {
+      $lookup: {
+        from: "users",
+        localField: "assigned_to",
+        foreignField: "_id",
+        as: "assignedUser"
+      }
+    },
+    { $unwind: { path: "$assignedUser", preserveNullAndEmptyArrays: true } },
+
+    {
+      $match: {
+        "assignedUser.role": telecallerRole?._id
+      }
+    },
+
+    {
+      $group: {
+        _id: {
+          agentId: "$assigned_to",
+          agentName: "$assignedUser.name"
+        },
+        missedCount: { $sum: 1 }
+      }
+    }
+
+  ]);
+
+
+  const convertedTelecallerLeads = await Lead.aggregate([
+    {
+      $match: {
+        property_id: new Types.ObjectId(propId),
+        labels: label._id,
+        "meta.status": "CONVERTED TO CUSTOMER",
+      }
+    },
+    {
+      $lookup: {
+        from: "users",
+        localField: "assigned_to",
+        foreignField: "_id",
+        as: "assignedUser",
+      },
+    },
+    { $unwind: { path: "$assignedUser", preserveNullAndEmptyArrays: true } },
+    {
+      $match: {
+        "assignedUser.role": telecallerRole?._id,
+      },
+    },
+    {
+      $group: {
+        _id: {
+          agentId: "$assigned_to",
+          agentName: "$assignedUser.name",
+        },
+        convertedCount: { $sum: 1 },
+      },
+    },
+  ])
+  const conversionStats = convertedTelecallerLeads.map((item) => {
+    const telecallerTotal = agents.find(
+      (a) => String(a.agent_id) === String(item._id.agentId)
+    )?.lead_count || 0;
+
+    const rate =
+      telecallerTotal > 0
+        ? (item.convertedCount / telecallerTotal) * 100
+        : 0;
+
+    return {
+      agent_id: item._id.agentId,
+      agent_name: item._id.agentName,
+      converted: item.convertedCount,
+      conversion_rate: Number(rate.toFixed(2)),
+    };
+  });
+
   return {
     label: labelTitle,
     totalLeads,
     agents,
     unassigned: {
       lead_count: unassignedCount,
+    },
+    missed_followups: {
+      total: missedTelecallerLeads.reduce((sum, a) => sum + a.missedCount, 0),
+      telecallers: missedTelecallerLeads.map((a) => ({
+        agent_id: a._id.agentId,
+        agent_name: a._id.agentName,
+        missed_count: a.missedCount,
+      })),
+    },
+    conversion_rates: {
+      totalConverted: convertedTelecallerLeads.reduce(
+        (sum, a) => sum + a.convertedCount,
+        0
+      ),
+      telecallers: conversionStats,
     },
   };
 };
@@ -1912,7 +2132,7 @@ const _getLeadsByStatusAndAgentService = async (
   if (!status) {
     throw new Error(`Status with title "${statusTitle}" not found.`);
   }
-
+  const telecallerRole = await Role.findOne({ name: "Telecaller" });
   const result = await Lead.aggregate([
     {
       $match: {
@@ -1975,12 +2195,120 @@ const _getLeadsByStatusAndAgentService = async (
     }
   });
 
+
+
+  const today = new Date();
+
+  today.setHours(0, 0, 0, 0);
+
+  const missedTelecallerLeads = await Lead.aggregate([
+    {
+      $match: {
+        property_id: new Types.ObjectId(propId),
+        "follow_ups.next_followup_date": { $lt: today },
+        "meta.status": { $nin: ["ARCHIVED", "CONVERTED TO CUSTOMER"] }
+      }
+    },
+    {
+      $lookup: {
+        from: "users",
+        localField: "assigned_to",
+        foreignField: "_id",
+        as: "assignedUser"
+      }
+    },
+    { $unwind: { path: "$assignedUser", preserveNullAndEmptyArrays: true } },
+
+    {
+      $match: {
+        "assignedUser.role": telecallerRole?._id
+      }
+    },
+
+    {
+      $group: {
+        _id: {
+          agentId: "$assigned_to",
+          agentName: "$assignedUser.name"
+        },
+        missedCount: { $sum: 1 }
+      }
+    }
+
+  ]);
+
+
+  const convertedTelecallerLeads = await Lead.aggregate([
+    {
+      $match: {
+        property_id: new Types.ObjectId(propId),
+        "meta.status": "CONVERTED TO CUSTOMER",
+      }
+    },
+    {
+      $lookup: {
+        from: "users",
+        localField: "assigned_to",
+        foreignField: "_id",
+        as: "assignedUser",
+      },
+    },
+    { $unwind: { path: "$assignedUser", preserveNullAndEmptyArrays: true } },
+    {
+      $match: {
+        "assignedUser.role": telecallerRole?._id,
+      },
+    },
+    {
+      $group: {
+        _id: {
+          agentId: "$assigned_to",
+          agentName: "$assignedUser.name",
+        },
+        convertedCount: { $sum: 1 },
+      },
+    },
+  ])
+
+  const conversionStats = convertedTelecallerLeads.map((item) => {
+    const telecallerTotal = agents.find(
+      (a) => String(a.agent_id) === String(item._id.agentId)
+    )?.lead_count || 0;
+
+    const rate =
+      telecallerTotal > 0
+        ? (item.convertedCount / telecallerTotal) * 100
+        : 0;
+
+    return {
+      agent_id: item._id.agentId,
+      agent_name: item._id.agentName,
+      converted: item.convertedCount,
+      conversion_rate: Number(rate.toFixed(2)),
+    };
+  });
+
   return {
     status: statusTitle,
     totalLeads,
     agents,
     unassigned: {
       lead_count: unassignedCount,
+    },
+    missed_followups: {
+      total: missedTelecallerLeads.reduce((sum, a) => sum + a.missedCount, 0),
+      telecallers: missedTelecallerLeads.map((a) => ({
+        agent_id: a._id.agentId,
+        agent_name: a._id.agentName,
+        missed_count: a.missedCount,
+      })),
+    },
+    conversion_rates: {
+      totalConverted: convertedTelecallerLeads.reduce(
+        (sum, a) => sum + a.convertedCount,
+        0
+      ),
+      telecallers: conversionStats,
     },
   };
 };
