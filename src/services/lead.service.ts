@@ -2204,6 +2204,7 @@ const _getLeadsByStatusAndAgentService = async (
   const missedTelecallerLeads = await Lead.aggregate([
     {
       $match: {
+        status: status._id,
         property_id: new Types.ObjectId(propId),
         "follow_ups.next_followup_date": { $lt: today },
         "meta.status": { $nin: ["ARCHIVED", "CONVERTED TO CUSTOMER"] }
@@ -2241,6 +2242,7 @@ const _getLeadsByStatusAndAgentService = async (
   const convertedTelecallerLeads = await Lead.aggregate([
     {
       $match: {
+        status: status._id,
         property_id: new Types.ObjectId(propId),
         "meta.status": "CONVERTED TO CUSTOMER",
       }
