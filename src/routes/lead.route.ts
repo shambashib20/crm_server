@@ -13,6 +13,7 @@ import {
   GetLeadsByStatusAndChatAgentController,
   GetLeadsTrendByTelecallerController,
   GetMissedFollowUpsController,
+  GetTelecallerStatisticsController,
   ImportLeadsController,
   LeadsPerSource,
   LeadsPerStatus,
@@ -176,4 +177,11 @@ leadRouter.post(
   AuthMiddleware,
   GetLeadsTrendByTelecallerController
 );
+
+
+leadRouter.post(
+  "/telecaller-statistics",
+  AuthMiddleware,
+  GetTelecallerStatisticsController
+)
 export default leadRouter;

@@ -268,9 +268,103 @@ const _getMasterStats = async (): Promise<StatsData> => {
   }
 };
 
+
+
+const _getTelecallerStatsService = async (
+  agentId: Types.ObjectId,
+  propId: Types.ObjectId,
+
+  startDate?: string,
+  endDate?: string
+) => {
+  const matchBase: any = {
+    assigned_to: new Types.ObjectId(agentId),
+    property_id: new Types.ObjectId(propId),
+  };
+  if (startDate && endDate) {
+    matchBase.createdAt = {
+      $gte: new Date(startDate),
+      $lte: new Date(endDate),
+    };
+  }
+
+  const totalAssignedLeads = await Lead.countDocuments({
+    ...matchBase,
+    "meta.status": { $nin: ["CONVERTED TO CUSTOMER", "ARCHIVED"] },
+  });
+
+
+  const convertedLeads = await Lead.countDocuments({
+    ...matchBase,
+    "meta.status": "CONVERTED TO CUSTOMER",
+  });
+
+  const conversionRate =
+    totalAssignedLeads > 0
+      ? Number(((convertedLeads / totalAssignedLeads) * 100).toFixed(2))
+      : 0;
+
+  const missedFollowupsAgg = await Lead.aggregate([
+    { $match: matchBase },
+    { $unwind: "$follow_ups" },
+    {
+      $match: {
+        "follow_ups.next_followup_date": { $lt: new Date() },
+        "follow_ups.meta.completed": { $ne: true },
+      },
+    },
+    { $count: "missed" },
+  ]);
+
+  const missedFollowups =
+    missedFollowupsAgg.length > 0 ? missedFollowupsAgg[0].missed : 0;
+
+
+
+  // 5️⃣ DAILY LEAD TREND
+  const leadTrend = await Lead.aggregate([
+    { $match: matchBase },
+    {
+      $group: {
+        _id: {
+          $dateToString: { format: "%Y-%m-%d", date: "$createdAt" },
+        },
+        count: { $sum: 1 },
+      },
+    },
+    { $sort: { _id: 1 } },
+    { $project: { date: "$_id", count: 1, _id: 0 } },
+  ]);
+
+
+  const agent = await User.findById(agentId).select("name email");
+
+  return {
+    agent: {
+      id: agentId,
+      name: agent?.name ?? "Unknown",
+      email: agent?.email ?? "",
+    },
+
+    stats: {
+      totalAssignedLeads,
+      convertedLeads,
+      conversionRate,
+      missedFollowups,
+
+      leadTrend,
+    },
+  };
+
+}
+
+
+
+
 export {
   _fetchCustomersInAllProperties,
   _getLeadsTrendByTelecallerService,
   _getUsersWithRolesInAllProperties,
   _getMasterStats,
+  _getTelecallerStatsService
 };
