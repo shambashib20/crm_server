@@ -594,7 +594,8 @@ const _homePageLeadService = async (
     // Card view (snapshot)
     leads = await Lead.find(query, cardProjection as any)
       .sort(sort)
-
+      .skip((page - 1) * limit)
+      .limit(limit)
       .populate({ path: "status", select: "_id title" })
       .populate({ path: "assigned_to", select: "name" })
       .populate({ path: "assigned_by", select: "name" })
@@ -682,19 +683,18 @@ const _homePageLeadService = async (
   const response = {
     leads,
     statuses,
-    ...(is_table_view && {
-      pagination: {
-        total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit),
-        hasNextPage: page * limit < total,
-        hasPrevPage: page > 1,
-      },
-    }),
+    pagination: {
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+      hasNextPage: page * limit < total,
+      hasPrevPage: page > 1,
+    },
   };
 
-  // Save to cache: short TTL depending on view
+
+ 
   try {
     const ttl = is_table_view ? 120 : 45;
     await cacheSet(cacheKey, response, ttl);
@@ -708,7 +708,6 @@ const _homePageLeadService = async (
 
   return response;
 };
-
 const _createLeadService = async (data: CreateLeadDto, ip: string) => {
   const now = new Date();
   const meta: Record<string, any> = data.meta || {};
