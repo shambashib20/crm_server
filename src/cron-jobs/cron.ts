@@ -24,8 +24,8 @@ const BASE_URL =
     : // "https://crm-server-tsnj.onrender.com"
       "http://localhost:8850"; // 👈 LOCAL
 
-// running every hour!
-cron.schedule("0 * * * *", async () => {
+
+cron.schedule("*/20 * * * *", async () => {
   if (isFbSyncRunning) {
     console.log("⚠️ FB sync already running, skipping this cycle.");
     return;

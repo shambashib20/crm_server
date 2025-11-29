@@ -286,7 +286,7 @@ app.post("/lead/webhook", async (req: any, res: any) => {
   try {
     console.log("🚀 Running Facebook auto-sync (Webhook Mode)…");
 
-    // 1️⃣ Get connected user
+    
     const users = await User.find({});
     const superadmin = users.find((u: any) => {
       const fb = u.meta?.facebook || u.meta?.get?.("facebook");
@@ -322,7 +322,7 @@ app.post("/lead/webhook", async (req: any, res: any) => {
       const pageAccessToken: string | undefined = page.access_token;
       if (!pageAccessToken) continue;
 
-      // 3️⃣ Fetch forms
+
       const formsRes = await axios.get(
         `${GRAPH_API_BASE}/${page.id}/leadgen_forms`,
         {
@@ -365,7 +365,7 @@ app.post("/lead/webhook", async (req: any, res: any) => {
 
         if (!matchedLabel) continue;
 
-        // 5️⃣ Fetch leads for this form
+
         const leadsRes = await axios.get(`${GRAPH_API_BASE}/${form.id}/leads`, {
           params: { access_token: pageAccessToken, limit: 200 },
         });
@@ -373,9 +373,7 @@ app.post("/lead/webhook", async (req: any, res: any) => {
         const leads = leadsRes.data.data || [];
         console.log(`📨 Found ${leads.length} leads for form "${form.name}".`);
 
-        // ------------------------------------
-        // 6️⃣ DEFAULT STATUS / SOURCE CREATION
-        // ------------------------------------
+
         let status = await Status.findOne({
           title: "New",
           property_id: propertyId,
@@ -404,9 +402,7 @@ app.post("/lead/webhook", async (req: any, res: any) => {
           });
         }
 
-        // ------------------------------------
-        // 7️⃣ ROUND ROBIN SETUP
-        // ------------------------------------
+
         const labelDoc = await Label.findById(matchedLabel._id);
         if (!labelDoc) continue;
 
@@ -425,9 +421,6 @@ app.post("/lead/webhook", async (req: any, res: any) => {
           property_id: propertyId,
         });
 
-        // ------------------------------------
-        // 8️⃣ BUILD INSERT ARRAY
-        // ------------------------------------
         const toInsert: any[] = [];
 
         for (const fbLead of leads) {
@@ -438,7 +431,7 @@ app.post("/lead/webhook", async (req: any, res: any) => {
           });
           if (exists) continue;
 
-          // round robin assign
+
           let assignedToId: Types.ObjectId | null = null;
 
           if (agents.length > 0) {
@@ -489,18 +482,13 @@ app.post("/lead/webhook", async (req: any, res: any) => {
           });
         }
 
-        // ------------------------------------
-        // 9️⃣ BULK INSERT
-        // ------------------------------------
         if (toInsert.length > 0) {
           await Lead.insertMany(toInsert, { ordered: false });
           console.log(`✅ Inserted ${toInsert.length} leads (Bulk mode).`);
           totalLeadsInserted += toInsert.length;
         }
 
-        // ------------------------------------
-        // 🔟 UPDATE ROUND ROBIN INDEX
-        // ------------------------------------
+
         if (agents.length > 0) {
           labelDoc.meta.last_assigned_index = lastIndex;
           labelDoc.markModified("meta");
