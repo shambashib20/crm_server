@@ -223,34 +223,16 @@ You can access the CRM here: (Ignore link for testing)
 
 
 const _allChatAgents = async (propertyId: Types.ObjectId) => {
-  const cacheKey = `chat_agents:${propertyId}`;
-  let telecallerRoleId: Types.ObjectId | null = null;
-  const cached = teleCallersCache.get(cacheKey);
+  const chatAgentRole = await Role.findOne({ name: "Telecaller" });
 
-  if (cached) {
-    // console.log("CACHE HIT for", cacheKey);
-    return cached;
+  if (!chatAgentRole) {
+    return [];
   }
 
-  if (!telecallerRoleId) {
-    const role = await Role.findOne({ name: TELECALLER_ROLE_NAME })
-
-      .select("_id")
-      .exec();
-
-    if (!role) return [];
-
-    telecallerRoleId = role._id as Types.ObjectId;
-  }
-
-  const users = await User.find(
-    { role: telecallerRoleId, property_id: propertyId },
-    { name: 1 }
-  )
-    .lean()
-    .exec();
-
-  teleCallersCache.set(cacheKey, users);
+  const users = await User.find({
+    role: chatAgentRole._id,
+    property_id: propertyId,
+  }).select("name");
 
   return users;
 };

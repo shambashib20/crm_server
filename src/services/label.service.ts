@@ -114,22 +114,15 @@ const initPropertyBloomFilter = async () => {
 
 initPropertyBloomFilter();
 const _fetchLabelsInProperty = async (propId: Types.ObjectId) => {
-  const propIdStr = String(propId);
+  const labels = await Label.find({
+    property_id: propId,
+  });
 
-  if (!propertyBloom.has(propIdStr)) {
-    throw new Error("No labels found for this property!");
-  }
+  const property = await Property.findOne({
+    _id: propId,
+  });
 
-  const [labels, property] = await Promise.all([
-    Label.find({
-      property_id: propId,
-    })
-      .lean()
-      .hint({ property_id: 1 }),
-    Property.findById(propId).lean(),
-  ]);
-
-  if (!labels || labels.length === 0) {
+  if (!labels) {
     throw new Error(`No labels found for ${property?.name}!`);
   }
 
@@ -143,71 +136,22 @@ const _fetchPaginatedLabels = async (
 ) => {
   const skip = (page - 1) * limit;
 
-  const pipeline: any[] = [
-    {
-      $match: {
-        property_id: propId,
-      },
-    },
-    {
-      $sort: {
-        createdAt: -1,
-      },
-    },
-    {
-      $skip: skip,
-    },
-    {
-      $limit: limit,
-    },
-    {
-      $lookup: {
-        from: "users",
-        localField: "meta.assigned_agents.agent_id",
-        foreignField: "_id",
-        as: "agent_profiles",
-      },
-    },
-    {
-      $addFields: {
-        "meta.assigned_agents": {
-          $map: {
-            input: "$meta.assigned_agents",
-            as: "agent",
-            in: {
-              $mergeObjects: [
-                "$$agent",
-                {
-                  profile: {
-                    $arrayElemAt: [
-                      {
-                        $filter: {
-                          input: "$agent_profiles",
-                          as: "p",
-                          cond: { $eq: ["$$p._id", "$$agent.agent_id"] },
-                        },
-                      },
-                      0,
-                    ],
-                  },
-                },
-              ],
-            },
-          },
-        },
-      },
-    },
-
-    {
-      $unset: "agent_profiles",
-    },
-  ];
-
-  const labels = await Label.aggregate(pipeline);
-
-  const total = await Label.countDocuments({ property_id: propId });
+  const [labels, total] = await Promise.all([
+    Label.find({ property_id: propId })
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .populate({
+        path: "meta.assigned_agents.agent_id",
+        model: User,
+        select: "name email",
+      }),
+    Label.countDocuments({ property_id: propId }),
+  ]);
 
   const totalPages = Math.ceil(total / limit);
+  const hasNextPage = page < totalPages;
+  const hasPrevPage = page > 1;
 
   return {
     labels,
@@ -216,11 +160,12 @@ const _fetchPaginatedLabels = async (
       totalPages,
       currentPage: page,
       limit,
-      hasNextPage: page < totalPages,
-      hasPrevPage: page > 1,
+      hasNextPage,
+      hasPrevPage,
     },
   };
 };
+
 
 const _updateLabel = async (
   propId: Types.ObjectId,
