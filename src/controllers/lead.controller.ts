@@ -16,7 +16,7 @@ import {
   _updateStatusForLead,
   _importLeadsFromExcel,
   _exportLeadsFromDBToExcel,
-  _createExternalLeadService,
+  _leadCreationViaApi,
   _getMissedFollowUpsForDay,
   _fetchPaginatedArchivedLeads,
   _getTodaysFollowups,
@@ -477,10 +477,7 @@ const ExportLeadsController = async (req: any, res: any) => {
 
 const CreateExternalLeadsController = async (req: any, res: any) => {
   try {
-    const property = (req as any).property;
-    if (!property) {
-      return res.status(401).json(new SuccessResponse("Invalid API Key", 401));
-    }
+
 
     const {
       customer_name,
@@ -490,6 +487,7 @@ const CreateExternalLeadsController = async (req: any, res: any) => {
       address,
       reference,
       comment,
+      property_id,
     } = req.body;
 
     if (!customer_name || !phone_number) {
@@ -511,10 +509,10 @@ const CreateExternalLeadsController = async (req: any, res: any) => {
       address,
       reference,
       comment,
-      property_id: property._id,
+      property_id,
     };
 
-    const newLead = await _createExternalLeadService(leadData);
+    const newLead = await _leadCreationViaApi(leadData);
 
     return res
       .status(201)
@@ -580,16 +578,11 @@ const FetchTodaysFollowups = async (req: any, res: any) => {
 
 const GetLeadsBySourceAndChatAgentController = async (req: any, res: any) => {
   try {
-    const { sourceTitle } = req.body;
+
     const propId = req.user.property_id;
 
-    if (!sourceTitle) {
-      return res
-        .status(400)
-        .json(new SuccessResponse("sourceTitle is required!", 400));
-    }
 
-    const result = await _getLeadsBySourceAndAgentService(sourceTitle, propId);
+    const result = await _getLeadsBySourceAndAgentService(propId);
     return res
       .status(200)
       .json(
@@ -606,16 +599,10 @@ const GetLeadsBySourceAndChatAgentController = async (req: any, res: any) => {
 
 const GetLeadsByLabelAndChatAgentController = async (req: any, res: any) => {
   try {
-    const { labelTitle } = req.body;
+
     const propId = req.user.property_id;
 
-    if (!labelTitle) {
-      return res
-        .status(400)
-        .json(new SuccessResponse("sourceTitle is required!", 400));
-    }
-
-    const result = await _getLeadsByLabelAndAgentService(labelTitle, propId);
+    const result = await _getLeadsByLabelAndAgentService(propId);
     return res
       .status(200)
       .json(
@@ -632,16 +619,10 @@ const GetLeadsByLabelAndChatAgentController = async (req: any, res: any) => {
 
 const GetLeadsByStatusAndChatAgentController = async (req: any, res: any) => {
   try {
-    const { statusTitle } = req.body;
+
     const propId = req.user.property_id;
 
-    if (!statusTitle) {
-      return res
-        .status(400)
-        .json(new SuccessResponse("statusTitle is required!", 400));
-    }
-
-    const result = await _getLeadsByStatusAndAgentService(statusTitle, propId);
+    const result = await _getLeadsByStatusAndAgentService(propId);
     return res
       .status(200)
       .json(

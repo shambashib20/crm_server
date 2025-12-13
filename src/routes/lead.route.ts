@@ -1,5 +1,6 @@
 import {
   ArchiveSessionLeads,
+  CreateExternalLeadsController,
   CreateLeadController,
   DeleteOrArchiveForLead,
   EditFollowUp,
@@ -138,7 +139,7 @@ leadRouter.get(
   ExportLeadsController
 );
 
-leadRouter.post("/create/external", BasicAuthMiddleware, CreateLeadController);
+leadRouter.post("/create/external", CreateExternalLeadsController);
 
 leadRouter.post(
   "/archived-leads",
@@ -154,19 +155,19 @@ leadRouter.get(
   FetchTodaysFollowups
 );
 
-leadRouter.post(
+leadRouter.get(
   "/statistics-by-source-agent",
   AuthMiddleware,
   GetLeadsBySourceAndChatAgentController
 );
 
-leadRouter.post(
+leadRouter.get(
   "/statistics-by-label-agent",
   AuthMiddleware,
   GetLeadsByLabelAndChatAgentController
 );
 
-leadRouter.post(
+leadRouter.get(
   "/statistics-by-status-agent",
   AuthMiddleware,
   GetLeadsByStatusAndChatAgentController
