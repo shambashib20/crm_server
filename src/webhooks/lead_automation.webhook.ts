@@ -14,7 +14,7 @@ const _triggerLeadAutomationWebhook = async (lead: any) => {
   try {
     console.log(`🚀 Triggering automation webhook for lead: ${lead._id}`);
 
-    // ✅ Fetch automation for FIRST_MESSAGE event
+   
     const automation = await Automation.findOne({
       type: AutomationType.LEAD_AUTOMATION,
       lead_type: LeadType.FIRST_MESSAGE,
@@ -119,9 +119,7 @@ const _triggerLeadAutomationWebhook = async (lead: any) => {
       validateStatus: () => true,
     });
 
-    // console.log("📬 WapMonkey API Response:");
-    // console.log("Status Code:", response.status);
-    // console.log("Response Data:", JSON.stringify(response.data, null, 2));
+    
 
     if (response.status === 200 && response.data?.status === 1) {
       console.log(

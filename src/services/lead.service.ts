@@ -727,6 +727,7 @@ const _leadCreationViaApi = async (
   if (!property) {
     throw new Error("Property not found");
   }
+  const now = new Date();
 
   const source = await Source.findOne({
     title: "Website",
@@ -747,7 +748,7 @@ const _leadCreationViaApi = async (
 
 
   // Create lead
-  const newLead = await Lead.create({
+  const newLead = new Lead({
     name: customer_name,
     company_name,
     phone_number, 
@@ -760,31 +761,126 @@ const _leadCreationViaApi = async (
     logs: [
       {
         title: "Lead Created via API",
-        description: `(${customer_name}) named lead created externally through API.`,
-        status: "INFO",
+        description: `(${customer_name}) named lead created externally through API with status with status ${defaultStatus.title
+          }.`,
+        status: LeadLogStatus.ACTION,
         meta: { source: "API" },
+        createdAt: now,
+        updatedAt: now,
       },
     ],
     meta: {
       source: source._id,
       ray_id,
+      status: "ACTIVE",
     }
   });
 
-  // Also log in property logs (optional but recommended)
-  await Property.findByIdAndUpdate(property_id, {
-    $push: {
-      logs: {
-        title: "New Lead Created",
-        description: `(${customer_name}) named created via API.`,
-        status: "INFO",
-        meta: { leadId: newLead._id, source: "API" },
+
+  if (!property) throw new Error("Workspace Linkage not found.");
+
+  const activePackageIdRaw = getMetaValue(property.meta, "active_package");
+  if (!activePackageIdRaw)
+    throw new Error("No active package found for this property.");
+
+  const activePackageId =
+    typeof activePackageIdRaw === "string"
+      ? new Types.ObjectId(activePackageIdRaw)
+      : activePackageIdRaw;
+
+  const activePackage = await PurchaseRecordsModel.findById(activePackageId);
+  if (!activePackage)
+    throw new Error("Active package not found for this property.");
+  if (activePackage.status !== PurchaseStatus.COMPLETED) {
+    throw new Error(
+      `Your current package is ${activePackage.status}. Please renew or upgrade.`
+    );
+  }
+
+  // ---------------------------------------------------
+  // 🔹 VALIDATE FEATURE LIMIT
+  // ---------------------------------------------------
+  const activatedFeatures =
+    getMetaValue(activePackage.meta, "activated_features") || [];
+
+  const leadsFeature = activatedFeatures.find(
+    (f: any) => f.title === "Leads Limit"
+  );
+
+  if (!leadsFeature)
+    throw new Error("Your plan does not include Leads Limit. Please upgrade.");
+
+  const validityDate = new Date(leadsFeature.validity);
+  if (new Date() > validityDate) {
+    throw new Error(
+      `Lead limit expired on ${validityDate.toLocaleDateString()}. Please renew your plan.`
+    );
+  }
+
+  if (leadsFeature.used >= leadsFeature.limit) {
+    await Property.findByIdAndUpdate(
+      defaultStatus.property_id,
+      {
+        $push: {
+          logs: {
+            title: "Lead Creation Failed",
+            description: `Lead limit reached (${leadsFeature.used}/${leadsFeature.limit}). Lead (${leadData.customer_name}) NOT created.`,
+            status: LogStatus.WARNING,
+            meta: { leadPreview: leadData },
+            createdAt: now,
+            updatedAt: now,
+          },
+        },
+      },
+      { new: true }
+    );
+
+    throw new Error(
+      `Lead limit reached. Used ${leadsFeature.used}/${leadsFeature.limit}.`
+    );
+  }
+
+ 
+  await newLead.save();
+
+
+  await Property.findByIdAndUpdate(
+    defaultStatus.property_id,
+    {
+      $inc: { usage_count: 1 },
+      $push: {
+        logs: {
+          title: "Lead Created",
+          description: `(${customer_name}) named lead created externally through API with status with status ${defaultStatus.title
+            }.`,
+          status: LogStatus.INFO,
+          meta: { leadId: newLead._id },
+          createdAt: now,
+          updatedAt: now,
+        },
       },
     },
-  });
+    { new: true }
+  );
+
+
+  const updatedPackage = await PurchaseRecordsModel.findOneAndUpdate(
+    { _id: activePackageId, "meta.activated_features.title": "Leads Limit" },
+    { $inc: { "meta.activated_features.$.used": 1 } },
+    { new: true }
+  );
+  if (!updatedPackage) {
+    throw new Error("Failed to update feature usage in package.");
+  }
+
+  // TODO: just call this function in future, to ensure that whenever a lead is created externally, you can send whatsapp mesages by deicidng a default agent in advance! 
+  // await _triggerLeadAutomationWebhook(newLead);
+
 
   return newLead;
 };
+
+
 const _createLeadService = async (data: CreateLeadDto, ip: string) => {
   const now = new Date();
   const meta: Record<string, any> = data.meta || {};
