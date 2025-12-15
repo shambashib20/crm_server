@@ -273,14 +273,23 @@ const _getMasterStats = async (): Promise<StatsData> => {
 const _getTelecallerStatsService = async (
   agentId: Types.ObjectId,
   propId: Types.ObjectId,
-
   startDate?: string,
   endDate?: string
 ) => {
+
+
+
+  const startOfDay = new Date();
+  startOfDay.setHours(0, 0, 0, 0);
+
+  const endOfDay = new Date();
+  endOfDay.setHours(23, 59, 59, 999);
+
   const matchBase: any = {
     assigned_to: new Types.ObjectId(agentId),
     property_id: new Types.ObjectId(propId),
   };
+
   if (startDate && endDate) {
     matchBase.createdAt = {
       $gte: new Date(startDate),
@@ -288,11 +297,11 @@ const _getTelecallerStatsService = async (
     };
   }
 
+
   const totalAssignedLeads = await Lead.countDocuments({
     ...matchBase,
     "meta.status": { $nin: ["CONVERTED TO CUSTOMER", "ARCHIVED"] },
   });
-
 
   const convertedLeads = await Lead.countDocuments({
     ...matchBase,
@@ -304,24 +313,145 @@ const _getTelecallerStatsService = async (
       ? Number(((convertedLeads / totalAssignedLeads) * 100).toFixed(2))
       : 0;
 
-  const missedFollowupsAgg = await Lead.aggregate([
+  /* -----------------------------
+   * 3️⃣ MISSED FOLLOWUPS (FOR CARDS)
+   * ----------------------------- */
+  const missedFollowupsForCards = await Lead.aggregate([
     { $match: matchBase },
+
     { $unwind: "$follow_ups" },
+
     {
       $match: {
         "follow_ups.next_followup_date": { $lt: new Date() },
         "follow_ups.meta.completed": { $ne: true },
       },
     },
-    { $count: "missed" },
+
+    // latest followup first
+    {
+      $sort: {
+        "follow_ups.next_followup_date": -1,
+      },
+    },
+
+    // pick only latest missed followup per lead
+    {
+      $group: {
+        _id: "$_id",
+        lead: { $first: "$$ROOT" },
+        latestFollowup: { $first: "$follow_ups" },
+      },
+    },
+
+    // populate assigned_to
+    {
+      $lookup: {
+        from: "users",
+        localField: "lead.assigned_to",
+        foreignField: "_id",
+        as: "assigned_to",
+      },
+    },
+
+    // populate status
+    {
+      $lookup: {
+        from: "leadstatuses",
+        localField: "lead.status",
+        foreignField: "_id",
+        as: "status",
+      },
+    },
+
+    // populate labels
+    {
+      $lookup: {
+        from: "labels",
+        localField: "lead.labels",
+        foreignField: "_id",
+        as: "labels",
+      },
+    },
+
+    // final card shape
+    {
+      $project: {
+        _id: 0,
+        leadId: "$lead._id",
+        name: "$lead.name",
+        phone_number: "$lead.phone_number",
+        email: "$lead.email",
+        address: "$lead.address",
+        company_name: "$lead.company_name",
+        meta: "$lead.meta",
+
+        status: { $arrayElemAt: ["$status", 0] },
+        assigned_to: { $arrayElemAt: ["$assigned_to", 0] },
+        labels: "$labels",
+
+        next_followup_date: "$latestFollowup.next_followup_date",
+        comment: "$latestFollowup.comment",
+      },
+    },
+
+    // oldest missed followup first (UI friendly)
+    {
+      $sort: {
+        next_followup_date: 1,
+      },
+    },
   ]);
 
-  const missedFollowups =
-    missedFollowupsAgg.length > 0 ? missedFollowupsAgg[0].missed : 0;
+
+  const todaysFollowupsForCards = await Lead.aggregate([
+    { $match: matchBase },
+    { $unwind: "$follow_ups" },
+    {
+      $match: {
+        "follow_ups.next_followup_date": {
+          $gte: startOfDay,
+          $lte: endOfDay,
+        },
+        "follow_ups.meta.completed": { $ne: true },
+      },
+    },
+    { $sort: { "follow_ups.next_followup_date": 1 } },
+    {
+      $group: {
+        _id: "$_id",
+        lead: { $first: "$$ROOT" },
+        followup: { $first: "$follow_ups" },
+      },
+    },
+    { $lookup: { from: "users", localField: "lead.assigned_to", foreignField: "_id", as: "assigned_to" } },
+    { $lookup: { from: "leadstatuses", localField: "lead.status", foreignField: "_id", as: "status" } },
+    { $lookup: { from: "labels", localField: "lead.labels", foreignField: "_id", as: "labels" } },
+    {
+      $project: {
+        _id: 0,
+        leadId: "$lead._id",
+        name: "$lead.name",
+        phone_number: "$lead.phone_number",
+        email: "$lead.email",
+        address: "$lead.address",
+        company_name: "$lead.company_name",
+        meta: "$lead.meta",
+        status: { $arrayElemAt: ["$status", 0] },
+        assigned_to: { $arrayElemAt: ["$assigned_to", 0] },
+        labels: "$labels",
+        next_followup_date: "$followup.next_followup_date",
+        comment: "$followup.comment",
+      },
+    },
+  ]);
 
 
-
-  // 5️⃣ DAILY LEAD TREND
+  const missedFollowups = missedFollowupsForCards.length;
+  const todaysFollowups = todaysFollowupsForCards.length;
+  /* -----------------------------
+   * 5️⃣ DAILY LEAD TREND
+   * ----------------------------- */
   const leadTrend = await Lead.aggregate([
     { $match: matchBase },
     {
@@ -336,9 +466,14 @@ const _getTelecallerStatsService = async (
     { $project: { date: "$_id", count: 1, _id: 0 } },
   ]);
 
-
+  /* -----------------------------
+   * 6️⃣ AGENT INFO
+   * ----------------------------- */
   const agent = await User.findById(agentId).select("name email");
 
+  /* -----------------------------
+   * 7️⃣ FINAL RESPONSE
+   * ----------------------------- */
   return {
     agent: {
       id: agentId,
@@ -350,13 +485,19 @@ const _getTelecallerStatsService = async (
       totalAssignedLeads,
       convertedLeads,
       conversionRate,
-      missedFollowups,
-
+      missedFollowups, 
+      missedFollowupsForCards: {
+        leads: missedFollowupsForCards, 
+      },
+      todaysFollowups,
+      todaysFollowupsForCards: {
+        leads: todaysFollowupsForCards,
+      },
       leadTrend,
     },
   };
+};
 
-}
 
 
 

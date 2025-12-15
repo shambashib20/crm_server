@@ -31,6 +31,8 @@ import {
   cache,
 } from "./cache.util";
 
+import moment from "moment-timezone";
+
 import crypto from "crypto";
 import { StatusDto } from "../dtos/status.dto";
 
@@ -1805,22 +1807,30 @@ const _getTodaysFollowups = async (
   userId: Types.ObjectId,
   propertyId?: string
 ) => {
-  const startOfDay = new Date();
-  startOfDay.setHours(0, 0, 0, 0);
+  const startOfDay = moment()
+    .tz("Asia/Kolkata")
+    .startOf("day")
+    .toDate();
 
-  const endOfDay = new Date();
-  endOfDay.setHours(23, 59, 59, 999);
+  const endOfDay = moment()
+    .tz("Asia/Kolkata")
+    .endOf("day")
+    .toDate();
 
   const query: any = {
-    "follow_ups.next_followup_date": {
-      $gte: startOfDay,
-      $lte: endOfDay,
+    follow_ups: {
+      $elemMatch: {
+        next_followup_date: {
+          $gte: startOfDay,
+          $lte: endOfDay,
+        },
+      },
     },
   };
-
   if (propertyId) {
     query.property_id = new Types.ObjectId(propertyId);
   }
+
   if (userId) {
     query.assigned_to = new Types.ObjectId(userId);
   }
@@ -1829,24 +1839,33 @@ const _getTodaysFollowups = async (
     .populate("assigned_to", "name email")
     .populate("status", "name")
     .populate("labels", "name")
-    .lean();
+    .lean(); 
 
-  // Filter followups to only today's
-  const filteredLeads = leads.map((lead) => {
-    const todaysFollowUps = lead.follow_ups.filter(
-      (fu: any) =>
-        fu.next_followup_date &&
-        new Date(fu.next_followup_date) >= startOfDay &&
-        new Date(fu.next_followup_date) <= endOfDay
-    );
+
+  const filteredLeads = leads.map((lead: any) => {
+    const todaysFollowUps = lead.follow_ups.filter((fu: any) => {
+      if (!fu.next_followup_date) return false;
+
+      const followUpDate = moment(fu.next_followup_date)
+        .tz("Asia/Kolkata")
+        .toDate();
+
+      return (
+        followUpDate >= startOfDay &&
+        followUpDate <= endOfDay
+      );
+    });
+
     return {
       ...lead,
       todays_follow_ups: todaysFollowUps,
     };
   });
 
-  // Return only leads that have today's followups
-  return filteredLeads.filter((l) => l.todays_follow_ups.length > 0);
+
+  return filteredLeads.filter(
+    (lead) => lead.todays_follow_ups.length > 0
+  );
 };
 
 const _getLeadsBySourceAndAgentService = async (propIdRaw: Types.ObjectId | string) => {
