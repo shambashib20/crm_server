@@ -324,11 +324,11 @@ const _getTelecallerStatsService = async (
     {
       $match: {
         "follow_ups.next_followup_date": { $lt: new Date() },
-        "follow_ups.meta.completed": { $ne: true },
+        property_id: new Types.ObjectId(propId),
       },
     },
 
-    // latest followup first
+
     {
       $sort: {
         "follow_ups.next_followup_date": -1,
