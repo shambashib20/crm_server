@@ -490,12 +490,12 @@ const CreateExternalLeadsController = async (req: any, res: any) => {
       property_id,
     } = req.body;
 
-    if (!customer_name || !phone_number) {
+    if (!customer_name || !phone_number || !property_id) {
       return res
         .status(400)
         .json(
           new SuccessResponse(
-            "customer_name and phone_number are required",
+            "some fields are missing!",
             400
           )
         );

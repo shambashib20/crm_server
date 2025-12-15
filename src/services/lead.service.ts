@@ -1944,18 +1944,18 @@ const _getLeadsBySourceAndAgentService = async (propIdRaw: Types.ObjectId | stri
   // Build final agents array
   // ------------------------------
   const agents = Object.values(agentMap).map((a: any) => {
-    const leads_per_source = sources.map((s) => ({
+    const leads_per_report = sources.map((s) => ({
       [s.title]: a.leads_per_source_map[s.title] || 0
     }));
 
     if (a.leads_per_source_map["Unknown"])
-      leads_per_source.push({ Unknown: a.leads_per_source_map["Unknown"] });
+      leads_per_report.push({ Unknown: a.leads_per_source_map["Unknown"] });
 
     return {
       agent_id: a.agent_id,
       agent_name: a.agent_name,
       lead_count: a.lead_count,
-      leads_per_source
+      leads_per_report
     };
   });
 
@@ -2172,19 +2172,19 @@ const _getLeadsByLabelAndAgentService = async (
 
   // Convert agent map → final array format
   const agents = Object.values(agentMap).map((agent: any) => {
-    const leads_per_label = labels.map((l) => ({
+    const leads_per_report = labels.map((l) => ({
       [l.title]: agent.leads_per_label_map[l.title] || 0,
     }));
 
     if (agent.leads_per_label_map["Unknown"]) {
-      leads_per_label.push({ Unknown: agent.leads_per_label_map["Unknown"] });
+      leads_per_report.push({ Unknown: agent.leads_per_label_map["Unknown"] });
     }
 
     return {
       agent_id: agent.agent_id,
       agent_name: agent.agent_name,
       lead_count: agent.lead_count,
-      leads_per_label,
+      leads_per_report,
     };
   });
 
@@ -2394,20 +2394,20 @@ const _getLeadsByStatusAndAgentService = async (propIdRaw: Types.ObjectId | stri
 
 
   const agents = Object.values(agentMap).map((a: any) => {
-    const leads_per_status = statuses.map((s) => ({
+    const leads_per_report = statuses.map((s) => ({
       [s.title]: a.leads_per_status_map[s.title] || 0
     }));
 
 
     if (a.leads_per_status_map["Unknown"]) {
-      leads_per_status.push({ Unknown: a.leads_per_status_map["Unknown"] });
+      leads_per_report.push({ Unknown: a.leads_per_status_map["Unknown"] });
     }
 
     return {
       agent_id: a.agent_id,
       agent_name: a.agent_name,
       lead_count: a.lead_count,
-      leads_per_status
+      leads_per_report
     };
   });
 
