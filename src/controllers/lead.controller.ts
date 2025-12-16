@@ -26,7 +26,7 @@ import {
   _editFollowUp,
 } from "../services/lead.service";
 import multer from "multer";
-import { _getLeadsTrendByTelecallerService, _getTelecallerStatsService } from "../services/master.service";
+import { _getConvertedLeadsPerAgentPerSourceService, _getLeadsTrendByTelecallerService, _getTelecallerStatsService } from "../services/master.service";
 
 interface UpdateLabelRequest {
   leadId: Types.ObjectId | string;
@@ -708,6 +708,32 @@ const GetTelecallerStatisticsController = async (req: any, res: any) => {
     return res.status(500).json(new SuccessResponse(error.message, 500));
   }
 };
+
+
+
+
+const GetStatisticsBySourceController = async (req: any, res: any) => {
+  try {
+
+    const propId = req.user.property_id;
+
+
+    const result = await _getConvertedLeadsPerAgentPerSourceService(
+      new Types.ObjectId(propId),
+    );
+    return res
+      .status(200)
+      .json(
+        new SuccessResponse(
+          "Leads trend data fetched successfully",
+          200,
+          result
+        )
+      );
+  } catch (error: any) {
+    return res.status(500).json(new SuccessResponse(error.message, 500));
+  }
+};
 export {
   FetchLeadDetails,
   NewFollowUp,
@@ -733,5 +759,6 @@ export {
   GetLeadsByStatusAndChatAgentController,
   EditFollowUp,
   GetLeadsTrendByTelecallerController,
-  GetTelecallerStatisticsController
+  GetTelecallerStatisticsController,
+  GetStatisticsBySourceController
 };

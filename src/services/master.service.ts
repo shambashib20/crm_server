@@ -500,6 +500,125 @@ const _getTelecallerStatsService = async (
 
 
 
+const _getConvertedLeadsPerAgentPerSourceService = async (
+  propIdRaw: Types.ObjectId | string
+) => {
+  const propId =
+    typeof propIdRaw === "string"
+      ? new Types.ObjectId(propIdRaw)
+      : propIdRaw;
+
+  // get telecaller role
+  const telecallerRole = await Role.findOne({ name: "Telecaller" });
+  if (!telecallerRole) {
+    return { totalConverted: 0, telecallers: [] };
+  }
+
+  const result = await Lead.aggregate([
+    {
+      $match: {
+        property_id: propId,
+        "meta.status": "CONVERTED TO CUSTOMER",
+      },
+    },
+
+    // join agent
+    {
+      $lookup: {
+        from: "users",
+        localField: "assigned_to",
+        foreignField: "_id",
+        as: "agent",
+      },
+    },
+    { $unwind: "$agent" },
+
+    // only telecallers
+    {
+      $match: {
+        "agent.role": telecallerRole._id,
+      },
+    },
+
+    // normalize source
+    {
+      $addFields: {
+        sourceId: { $ifNull: ["$meta.source", null] },
+      },
+    },
+
+    // group by agent + source
+    {
+      $group: {
+        _id: {
+          agentId: "$assigned_to",
+          agentName: "$agent.name",
+          sourceId: "$sourceId",
+        },
+        converted: { $sum: 1 },
+      },
+    },
+
+    // lookup source title
+    {
+      $lookup: {
+        from: "sources",
+        localField: "_id.sourceId",
+        foreignField: "_id",
+        as: "source",
+      },
+    },
+
+    {
+      $addFields: {
+        sourceTitle: {
+          $ifNull: [{ $arrayElemAt: ["$source.title", 0] }, "Unknown"],
+        },
+      },
+    },
+
+    // regroup per agent
+    {
+      $group: {
+        _id: {
+          agentId: "$_id.agentId",
+          agentName: "$_id.agentName",
+        },
+        total_converted: { $sum: "$converted" },
+        sources: {
+          $push: {
+            source: "$sourceTitle",
+            converted: "$converted",
+          },
+        },
+      },
+    },
+
+    // shape output
+    {
+      $project: {
+        _id: 0,
+        agent_id: "$_id.agentId",
+        agent_name: "$_id.agentName",
+        total_converted: 1,
+        sources: 1,
+      },
+    },
+
+    { $sort: { total_converted: -1 } },
+  ]);
+
+  const totalConverted = result.reduce(
+    (sum, r) => sum + r.total_converted,
+    0
+  );
+
+  return {
+    totalConverted,
+    telecallers: result,
+  };
+};
+
 
 
 export {
@@ -507,5 +626,6 @@ export {
   _getLeadsTrendByTelecallerService,
   _getUsersWithRolesInAllProperties,
   _getMasterStats,
-  _getTelecallerStatsService
+  _getTelecallerStatsService,
+  _getConvertedLeadsPerAgentPerSourceService
 };

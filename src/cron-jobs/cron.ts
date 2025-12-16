@@ -20,7 +20,7 @@ let isFbSyncRunning = false;
 
 const BASE_URL =
   process.env.NODE_ENV === "production"
-    ? "https://x3pywvw6x8.us-east-1.awsapprunner.com"
+    ? "https://ni9ptgy5tv.ap-south-1.awsapprunner.com"
     : // "https://crm-server-tsnj.onrender.com"
       "http://localhost:8850"; // 👈 LOCAL
 
