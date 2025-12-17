@@ -36,7 +36,7 @@ const _triggerLeadAutomationWebhook = async (lead: any) => {
       return;
     }
 
-    // ✅ Optional: Verify the status record
+    
     const status = await Status.findById(rule.status_id).lean();
     if (!status) {
       console.log("⚠️ Status not found for automation rule.");
