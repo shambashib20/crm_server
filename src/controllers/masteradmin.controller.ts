@@ -7,7 +7,7 @@ import {
 } from "../services/master.service";
 import SuccessResponse from "../middlewares/success.middleware";
 import User from "../models/user.model";
-import { _createPackageManually } from "../services/package.service";
+import { _createPackageManually, _updatePackageManually } from "../services/package.service";
 import { _createFeatureService, _fetchFeaturesService, _updateFeatureService } from "../services/feature.service";
 import { getDbStatus } from "../../config/db.config";
 import { checkRazorpayWebhookStatus } from "../health-checkers/razorpay-webhook-checker";
@@ -289,6 +289,55 @@ const UpdateFeatureController = async (req: any, res: any) => {
   }
 };
 
+const UpdatePackageManuallyController = async (req: any, res: any) => {
+  try {
+    const {
+      packageId,
+      title,
+      description,
+      validity,
+      validity_in_days,
+      price,
+      features,
+      status,
+      meta,
+    } = req.body;
+
+    if (!packageId) {
+      return res.status(400).json({
+        success: false,
+        message: "packageId is required",
+      });
+    }
+
+    const updatedBy = req.user?._id;
+
+    const result = await _updatePackageManually({
+      packageId,
+      title,
+      description,
+      validity: validity ? new Date(validity) : undefined,
+      validity_in_days:
+        validity_in_days !== undefined
+          ? parseInt(validity_in_days)
+          : undefined,
+      price: price !== undefined ? parseFloat(price) : undefined,
+      features: Array.isArray(features) ? features : undefined,
+      status,
+      meta,
+      updatedBy,
+    });
+
+    return res.status(200).json(new SuccessResponse("Pricing package", 200, result));
+  } catch (error: any) {
+    return res
+      .status(500)
+      .json(
+        new SuccessResponse(error.message || "Failed to update feature", 500)
+      );
+  }
+};
+
 export {
   GetCustomersInAllProperties,
   GetUsersWithRolesInAllPropertiesController,
@@ -298,5 +347,6 @@ export {
   getSystemHealth,
   BanOrUnbanVendorsController,
   FeaturesFetchController,
-  UpdateFeatureController
+  UpdateFeatureController,
+  UpdatePackageManuallyController
 };

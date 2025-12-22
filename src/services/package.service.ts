@@ -278,6 +278,118 @@ const _createPackageManually = async (
 };
 
 
+const _updatePackageManually = async (input: {
+  packageId: string;
+  title?: string;
+  description?: string;
+  validity?: Date;
+  validity_in_days?: number;
+  price?: number;
+  features?: string[];
+  status?: PackageStatus;
+  meta?: any;
+  updatedBy?: Types.ObjectId;
+}) => {
+  try {
+    const { packageId, features, meta, updatedBy, ...rest } = input;
+
+    if (!Types.ObjectId.isValid(packageId)) {
+      throw new Error("Invalid packageId");
+    }
+
+    const existingPackage = await Package.findById(packageId);
+    if (!existingPackage) {
+      throw new Error("Package not found");
+    }
+
+    /* ---------------- SAFE $set BUILD ---------------- */
+    const updateSet: any = {};
+
+    Object.entries(rest).forEach(([key, value]) => {
+      if (value !== undefined) {
+        updateSet[key] = value;
+      }
+    });
+
+    // Merge meta safely (do NOT overwrite)
+    if (meta) {
+      updateSet.meta = {
+        ...existingPackage.meta,
+        ...meta,
+      };
+    }
+
+    /* ---------------- FEATURE VALIDATION ---------------- */
+    let featureIds: Types.ObjectId[] | undefined;
+    if (features) {
+      featureIds = features.map((id) => new Types.ObjectId(id));
+
+      const validFeatures = await Feature.find({
+        _id: { $in: featureIds },
+      });
+
+      if (validFeatures.length !== featureIds.length) {
+        throw new Error("One or more feature IDs are invalid");
+      }
+
+      updateSet.features = featureIds;
+    }
+
+    /* ---------------- LOG ENTRY ---------------- */
+    const logEntry = {
+      title: "Package Updated",
+      description: `Package "${existingPackage.title}" was updated`,
+      status: PackageStatus.ACTIVE,
+      meta: {
+        updated_fields: Object.keys(updateSet),
+        updated_by: updatedBy || null,
+        source: "manual_package_update_service",
+      },
+    };
+
+    /* ---------------- UPDATE PACKAGE ---------------- */
+    const updatedPackage = await Package.findByIdAndUpdate(
+      packageId,
+      {
+        $set: updateSet,
+        $push: { logs: logEntry },
+      },
+      {
+        new: true,
+        runValidators: true,
+      }
+    );
+
+    /* ---------------- FEATURE ↔ PACKAGE RELINK ---------------- */
+    if (featureIds) {
+      await Feature.updateMany(
+        { _id: { $in: featureIds } },
+        {
+          $set: { "meta.package_id": updatedPackage!._id },
+          $push: {
+            logs: {
+              title: "Feature Re-linked to Package",
+              description: `Feature linked to package ${updatedPackage!.title}`,
+              status: "ACTIVE",
+              meta: { package_id: updatedPackage!._id },
+            },
+          },
+        }
+      );
+    }
+
+    return {
+      success: true,
+      message: "Package updated successfully",
+      data: updatedPackage,
+    };
+  } catch (error) {
+    console.error("Error updating package:", error);
+    throw error;
+  }
+};
+
+
 
 
 
@@ -288,4 +400,5 @@ export {
   _createPurchaseRecord,
   _createPaymentLinkForPackage,
   _createPackageManually,
+  _updatePackageManually
 };

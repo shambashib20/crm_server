@@ -7,6 +7,7 @@ import {
   GetUsersWithRolesInAllPropertiesController,
   ServerStatsController,
   UpdateFeatureController,
+  UpdatePackageManuallyController,
 } from "../controllers/masteradmin.controller";
 
 import express from "express";
@@ -71,5 +72,12 @@ masteradminRouter.patch(
   "/vendor/ban-or-unban",
   AuthMiddleware,
   BanOrUnbanVendorsController
+);
+
+
+masteradminRouter.patch(
+  "/package/update-manually",
+  AuthMiddleware,
+  UpdatePackageManuallyController
 )
 export default masteradminRouter;
