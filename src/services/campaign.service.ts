@@ -55,6 +55,10 @@ const _getCampaignTemplates = async (
 
   const [campaigns, total] = await Promise.all([
     CampaignTemplate.find({ property_id })
+      .populate({
+        path: "property_id",
+        select: "name",
+      })
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
@@ -87,6 +91,10 @@ const _getCampaignTemplatesInMasterPanel = async (
 
   const [campaigns, total] = await Promise.all([
     CampaignTemplate.find()
+      .populate({
+        path: "property_id",
+        select: "name",
+      })
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)

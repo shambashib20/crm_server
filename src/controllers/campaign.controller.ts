@@ -125,7 +125,9 @@ const FetchCampaignTemplatesInMasterPanelController = async (
   res: any
 ) => {
   try {
-    const result = await _getCampaignTemplatesInMasterPanel();
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const result = await _getCampaignTemplatesInMasterPanel(page, limit);
     return res
       .status(200)
       .json(
