@@ -109,7 +109,7 @@ const CreatePackageManually = async (req: any, res: any) => {
 
     const defaultMRIdCheck = await User.findOne({
       _id: userId,
-      name: "MR Superadmin",
+      name: "MASTER ADMIN",
     });
 
     if (!defaultMRIdCheck) {
