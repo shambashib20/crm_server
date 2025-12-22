@@ -12,6 +12,7 @@ import fs from "fs";
 import path from "path";
 import { generateOTP } from "../utils/random_digit_generator.util";
 import { sendEmail } from "../utils/email_service.util";
+import Property from "../models/property.model";
 
 const templatePath = path.join(__dirname, "../templates/otp_email.html");
 const templateSource = fs.readFileSync(templatePath, "utf8");
@@ -78,7 +79,8 @@ const _loginSuperAdmin = async (
   if (!user) {
     throw new Error("Invalid email");
   }
-  //   console.log("ldld", user);
+  if (user.is_banned)
+    return res.status(403).json({ message: "User is banned." });
 
   const isMatch = await bcrypt.compare(password.trim(), user.password);
   if (!isMatch) {
@@ -86,6 +88,9 @@ const _loginSuperAdmin = async (
   }
 
   const role = await Role.findById(user.role);
+  const property = await Property.findById(user.property_id);
+  if (property?.is_banned)
+    return res.status(403).json({ message: "Vendor is banned. Please contact admin!" });
 
   const accessToken = generateAccessToken(
     new Types.ObjectId(user._id),

@@ -54,6 +54,8 @@ const AuthMiddleware = async (
             return res.status(403).json({ message: "User is banned." });
 
           const property = await Property.findById(user.property_id);
+          if (property?.is_banned)
+            return res.status(403).json({ message: "Vendor is banned. Please contact admin!" });
           if (!property)
             return res
               .status(404)
@@ -143,6 +145,9 @@ const handleRefreshFlow = async (
       return res.status(403).json({ message: "User is banned." });
 
     const property = await Property.findById(user.property_id);
+
+    if (property?.is_banned)
+      return res.status(403).json({ message: "Vendor is banned. Please contact admin!" });
     if (!property)
       return res
         .status(404)

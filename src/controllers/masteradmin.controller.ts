@@ -1,11 +1,47 @@
+import os from "os";
 import {
   _fetchCustomersInAllProperties,
+  _getMasterStats,
   _getUsersWithRolesInAllProperties,
 } from "../services/master.service";
 import SuccessResponse from "../middlewares/success.middleware";
 import User from "../models/user.model";
 import { _createPackageManually } from "../services/package.service";
 import { _createFeatureService } from "../services/feature.service";
+import { getDbStatus } from "../../config/db.config";
+import { checkRazorpayWebhookStatus } from "../health-checkers/razorpay-webhook-checker";
+
+
+const SERVER_START_TIME = new Date();
+
+function formatUptime(startTime: Date) {
+  const now = new Date();
+  const diff = now.getTime() - startTime.getTime();
+
+  const seconds = Math.floor(diff / 1000) % 60;
+  const minutes = Math.floor(diff / (1000 * 60)) % 60;
+  const hours = Math.floor(diff / (1000 * 60 * 60)) % 24;
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+
+  return `${days} day, ${hours} hours, ${minutes} minutes, ${seconds} seconds ago`;
+}
+
+
+function getSystemHealth() {
+  const totalMem = os.totalmem();
+  const freeMem = os.freemem();
+  const usedMem = totalMem - freeMem;
+  const memUsagePercent = ((usedMem / totalMem) * 100).toFixed(2);
+
+  return {
+    cpuLoad: os.loadavg()[0].toFixed(2),
+    memory: {
+      totalGB: (totalMem / 1024 / 1024 / 1024).toFixed(2),
+      usedGB: (usedMem / 1024 / 1024 / 1024).toFixed(2),
+      usagePercent: memUsagePercent,
+    },
+  };
+}
 const GetCustomersInAllProperties = async (req: any, res: any) => {
   try {
     const page = parseInt(req.query.page) || 1;
@@ -125,9 +161,55 @@ const CreateFeatureController = async (req: any, res: any) => {
       );
   }
 };
+
+
+const ServerStatsController = async (req: any, res: any) => {
+  try {
+    // Fetch all status information in parallel for better performance
+    const [dbStatus, health, paymentWebhookStatus, masterStats] =
+      await Promise.all([
+        getDbStatus(),
+        getSystemHealth(),
+        checkRazorpayWebhookStatus(),
+        _getMasterStats(),
+      ]);
+
+    const serverStart = SERVER_START_TIME;
+    const uptimeMsg = formatUptime(SERVER_START_TIME);
+
+    res.status(200).json({
+      status: 200,
+      message: "Server and DB status fetched successfully!",
+      data: {
+        server: `ETC CRM server started on ${serverStart.toString()}, ${uptimeMsg}`,
+        dbStatus,
+        cpuLoad: health.cpuLoad,
+        memory: health.memory,
+        paymentWebhookStatus,
+        card_statistics: {
+          totalLeads: masterStats.totalLeads,
+          totalClients: masterStats.totalClients,
+          totalCustomers: masterStats.totalCustomers,
+          totalProperties: masterStats.totalProperties,
+          activeProperties: masterStats.activeProperties,
+        },
+      },
+    });
+  } catch (err: any) {
+    console.error("Error in Server Status:", err);
+    res.status(500).json({
+      status: 500,
+      message: "Error in fetching server status",
+      error: process.env.NODE_ENV === "development" ? err.message : undefined,
+    });
+  }
+}
+
 export {
   GetCustomersInAllProperties,
   GetUsersWithRolesInAllPropertiesController,
   CreatePackageManually,
-  CreateFeatureController,
+  CreateFeatureController, 
+  ServerStatsController,
+  getSystemHealth
 };

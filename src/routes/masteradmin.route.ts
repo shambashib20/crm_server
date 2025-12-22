@@ -3,6 +3,7 @@ import {
   CreatePackageManually,
   GetCustomersInAllProperties,
   GetUsersWithRolesInAllPropertiesController,
+  ServerStatsController,
 } from "../controllers/masteradmin.controller";
 
 import express from "express";
@@ -34,5 +35,13 @@ masteradminRouter.post(
   "/feature/create-manually",
   AuthMiddleware,
   CreateFeatureController
+)
+
+
+
+masteradminRouter.get(
+  "/server/stats",
+  AuthMiddleware,
+  ServerStatsController
 )
 export default masteradminRouter;
