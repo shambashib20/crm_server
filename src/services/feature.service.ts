@@ -2,6 +2,15 @@ import { Types } from "mongoose";
 import { FeatureLogsStatus, FeatureStatus } from "../dtos/feature.dto";
 import Feature from "../models/feature.model";
 
+
+interface UpdateFeatureInput {
+  featureId: Types.ObjectId | string;
+  title?: string;
+  description?: string;
+  status?: FeatureStatus;
+  meta?: any;
+}
+
 const _createFeatureService = async (input: {
   title: string;
   description: string;
@@ -88,6 +97,70 @@ const _fetchFeaturesService = async (
 };
 
 
+const _updateFeatureService = async (input: UpdateFeatureInput) => {
+  try {
+    const { featureId, title, description, status, meta } = input;
+
+    if (!Types.ObjectId.isValid(featureId)) {
+      throw new Error("Invalid featureId");
+    }
+
+    const feature = await Feature.findById(featureId);
+    if (!feature) {
+      throw new Error("Feature not found");
+    }
+
+    if (title && title.trim() !== feature.title) {
+      const existing = await Feature.findOne({
+        title: title.trim(),
+        _id: { $ne: featureId },
+      });
+
+      if (existing) {
+        throw new Error("A feature with this title already exists");
+      }
+    }
+
+    const updateSet: any = {};
+
+    if (title) updateSet.title = title;
+    if (description) updateSet.description = description;
+    if (status) updateSet.status = status;
+    if (meta) updateSet.meta = { ...feature.meta, ...meta };
+
+    const logEntry = {
+      title: "Feature Updated",
+      description: `Feature "${feature.title}" was updated successfully`,
+      status: FeatureLogsStatus.ACTIVE,
+      meta: {
+        updatedFields: Object.keys(updateSet),
+        source: "manual_update_feature_service",
+      },
+    };
+
+    const updatedFeature = await Feature.findByIdAndUpdate(
+      featureId,
+      {
+        $set: updateSet,
+        $push: { logs: logEntry },
+      },
+      {
+        new: true,
+        runValidators: true,
+      }
+    );
+    return {
+      success: true,
+      message: "Feature updated successfully",
+      data: updatedFeature,
+    };
+  } catch (error: any) {
+    console.error("Error updating feature:", error);
+    throw new Error(error.message || "Failed to update feature");
+  }
+
+}
 
 
-export { _createFeatureService, _fetchFeaturesService };
+
+export { _createFeatureService, _fetchFeaturesService, _updateFeatureService };

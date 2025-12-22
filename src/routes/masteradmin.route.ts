@@ -6,11 +6,13 @@ import {
   GetCustomersInAllProperties,
   GetUsersWithRolesInAllPropertiesController,
   ServerStatsController,
+  UpdateFeatureController,
 } from "../controllers/masteradmin.controller";
 
 import express from "express";
 
 import AuthMiddleware from "../middlewares/authentication.middleware";
+import PermissionMiddleware from "../middlewares/permission.middleware";
 
 const masteradminRouter = express.Router();
 
@@ -37,6 +39,15 @@ masteradminRouter.post(
   "/feature/create-manually",
   AuthMiddleware,
   CreateFeatureController
+);
+
+
+
+masteradminRouter.patch(
+  "/feature/update",
+  AuthMiddleware,
+  PermissionMiddleware("manage_user_permissions"),
+  UpdateFeatureController
 )
 
 

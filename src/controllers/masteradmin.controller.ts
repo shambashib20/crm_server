@@ -8,7 +8,7 @@ import {
 import SuccessResponse from "../middlewares/success.middleware";
 import User from "../models/user.model";
 import { _createPackageManually } from "../services/package.service";
-import { _createFeatureService, _fetchFeaturesService } from "../services/feature.service";
+import { _createFeatureService, _fetchFeaturesService, _updateFeatureService } from "../services/feature.service";
 import { getDbStatus } from "../../config/db.config";
 import { checkRazorpayWebhookStatus } from "../health-checkers/razorpay-webhook-checker";
 import { Types } from "mongoose";
@@ -258,6 +258,37 @@ const BanOrUnbanVendorsController = async (req: any, res: any) => {
   }
 }
 
+
+const UpdateFeatureController = async (req: any, res: any) => {
+  try {
+    const { featureId, title, description, status, meta } = req.body;
+
+    if (!featureId) {
+      return res
+        .status(400)
+        .json(new SuccessResponse("featureId is required", 400));
+    }
+
+    const result = await _updateFeatureService({
+      featureId,
+      title,
+      description,
+      status,
+      meta,
+    });
+
+    return res
+      .status(200)
+      .json(new SuccessResponse("Feature updated successfully", 200, result));
+  } catch (error: any) {
+    return res
+      .status(500)
+      .json(
+        new SuccessResponse(error.message || "Failed to update feature", 500)
+      );
+  }
+};
+
 export {
   GetCustomersInAllProperties,
   GetUsersWithRolesInAllPropertiesController,
@@ -266,5 +297,6 @@ export {
   ServerStatsController,
   getSystemHealth,
   BanOrUnbanVendorsController,
-  FeaturesFetchController
+  FeaturesFetchController,
+  UpdateFeatureController
 };
