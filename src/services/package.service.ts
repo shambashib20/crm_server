@@ -311,10 +311,15 @@ const _updatePackageManually = async (input: {
       }
     });
 
-    // Merge meta safely (do NOT overwrite)
-    if (meta) {
+    /* ---------------- SAFE META MERGE (FIX) ---------------- */
+    if (meta && typeof meta === "object") {
+      const existingMeta =
+        existingPackage.meta instanceof Map
+          ? Object.fromEntries(existingPackage.meta.entries())
+          : existingPackage.meta || {};
+
       updateSet.meta = {
-        ...existingPackage.meta,
+        ...existingMeta,
         ...meta,
       };
     }
