@@ -2,6 +2,7 @@ import {
   BanOrUnbanVendorsController,
   CreateFeatureController,
   CreatePackageManually,
+  FeaturesFetchController,
   GetCustomersInAllProperties,
   GetUsersWithRolesInAllPropertiesController,
   ServerStatsController,
@@ -37,6 +38,13 @@ masteradminRouter.post(
   AuthMiddleware,
   CreateFeatureController
 )
+
+
+masteradminRouter.post(
+  "/features/fetch",
+  AuthMiddleware,
+  FeaturesFetchController
+);
 
 
 

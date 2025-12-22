@@ -8,7 +8,7 @@ import {
 import SuccessResponse from "../middlewares/success.middleware";
 import User from "../models/user.model";
 import { _createPackageManually } from "../services/package.service";
-import { _createFeatureService } from "../services/feature.service";
+import { _createFeatureService, _fetchFeaturesService } from "../services/feature.service";
 import { getDbStatus } from "../../config/db.config";
 import { checkRazorpayWebhookStatus } from "../health-checkers/razorpay-webhook-checker";
 import { Types } from "mongoose";
@@ -164,6 +164,24 @@ const CreateFeatureController = async (req: any, res: any) => {
   }
 };
 
+const FeaturesFetchController = async (req: any, res: any) => {
+  try {
+    const is_table_view = req.body.is_table_view;
+    const page = parseInt(req.body.page) || 1;
+    const limit = parseInt(req.body.limit) || 10;
+    const result = await _fetchFeaturesService(is_table_view, page, limit);
+    return res
+      .status(200)
+      .json(new SuccessResponse("Features fetched successfully", 200, result));
+  }
+  catch (error: any) {
+    return res
+      .status(500)
+      .json(
+        new SuccessResponse(error.message || "Failed to fetch features", 500)
+      );
+  }
+};
 
 const ServerStatsController = async (req: any, res: any) => {
   try {
@@ -247,5 +265,6 @@ export {
   CreateFeatureController, 
   ServerStatsController,
   getSystemHealth,
-  BanOrUnbanVendorsController
+  BanOrUnbanVendorsController,
+  FeaturesFetchController
 };

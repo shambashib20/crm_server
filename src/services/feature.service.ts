@@ -1,3 +1,4 @@
+import { Types } from "mongoose";
 import { FeatureLogsStatus, FeatureStatus } from "../dtos/feature.dto";
 import Feature from "../models/feature.model";
 
@@ -41,4 +42,52 @@ const _createFeatureService = async (input: {
   }
 };
 
-export { _createFeatureService };
+const _fetchFeaturesService = async (
+  is_table_view: boolean,
+  page = 1,
+  limit = 10
+) => {
+  try {
+    let features: any[] = [];
+    let total = 0;
+
+    if (is_table_view) {
+      total = await Feature.countDocuments();
+
+      features = await Feature.find()
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .sort({ createdAt: -1 })
+        .lean();
+
+      return {
+        items: features,
+        pagination: {
+          totalItems: total,
+          totalPages: Math.ceil(total / limit),
+          currentPage: page,
+          limit,
+          hasNextPage: page * limit < total,
+          hasPrevPage: page > 1,
+        },
+      };
+    }
+
+    // 🔹 Non-table view (no pagination)
+    features = await Feature.find()
+      .sort({ createdAt: -1 })
+      .lean();
+
+    return {
+      items: features,
+    };
+  } catch (error) {
+    console.error("Fetch Features Service Error:", error);
+    throw error;
+  }
+};
+
+
+
+
+export { _createFeatureService, _fetchFeaturesService };
