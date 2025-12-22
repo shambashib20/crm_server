@@ -1,5 +1,6 @@
 import os from "os";
 import {
+  _banOrUnbanVendorsService,
   _fetchCustomersInAllProperties,
   _getMasterStats,
   _getUsersWithRolesInAllProperties,
@@ -10,6 +11,7 @@ import { _createPackageManually } from "../services/package.service";
 import { _createFeatureService } from "../services/feature.service";
 import { getDbStatus } from "../../config/db.config";
 import { checkRazorpayWebhookStatus } from "../health-checkers/razorpay-webhook-checker";
+import { Types } from "mongoose";
 
 
 const SERVER_START_TIME = new Date();
@@ -205,11 +207,45 @@ const ServerStatsController = async (req: any, res: any) => {
   }
 }
 
+
+const BanOrUnbanVendorsController = async (req: any, res: any) => {
+  try {
+    const { propertyId, ban } = req.body;
+
+    if (!propertyId || !Types.ObjectId.isValid(propertyId)) {
+      return res.status(400).json(new SuccessResponse("Invalid property ID", 400));
+    }
+
+    if (typeof ban !== "boolean") {
+      return res.status(400).json(new SuccessResponse("Invalid ban value", 400));
+    }
+
+    const updatedProperty = await _banOrUnbanVendorsService(
+      new Types.ObjectId(propertyId),
+      ban
+    );
+
+    return res.status(200).json(new SuccessResponse(
+      `Vendor has been ${ban ? "banned" : "unbanned"} successfully.`,
+      200,
+      updatedProperty
+    ));
+  } catch (error: any) {
+    console.error("Ban/Unban Vendor Error:", error);
+
+    return res.status(500).json({
+      status: "ERROR",
+      message: error.message || "Internal server error",
+    });
+  }
+}
+
 export {
   GetCustomersInAllProperties,
   GetUsersWithRolesInAllPropertiesController,
   CreatePackageManually,
   CreateFeatureController, 
   ServerStatsController,
-  getSystemHealth
+  getSystemHealth,
+  BanOrUnbanVendorsController
 };

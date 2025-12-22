@@ -1,4 +1,5 @@
 import {
+  BanOrUnbanVendorsController,
   CreateFeatureController,
   CreatePackageManually,
   GetCustomersInAllProperties,
@@ -43,5 +44,13 @@ masteradminRouter.get(
   "/server/stats",
   AuthMiddleware,
   ServerStatsController
+);
+
+
+
+masteradminRouter.patch(
+  "/vendor/ban-or-unban",
+  AuthMiddleware,
+  BanOrUnbanVendorsController
 )
 export default masteradminRouter;

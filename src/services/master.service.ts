@@ -4,7 +4,7 @@ import Status from "../models/status.model";
 import Lead from "../models/lead.model";
 import User from "../models/user.model";
 import Property from "../models/property.model";
-import { PropertyStatus } from "../dtos/property.dto";
+import { LogStatus, PropertyStatus } from "../dtos/property.dto";
 import Client from "../models/client.model";
 import Role from "../models/role.model";
 
@@ -621,11 +621,61 @@ const _getConvertedLeadsPerAgentPerSourceService = async (
 
 
 
+
+const _banOrUnbanVendorsService = async (
+  propertyId: Types.ObjectId,
+  ban: boolean
+) => {
+  const property = await Property.findById(propertyId);
+  if (!property) {
+    throw new Error("Property not found");
+  }
+
+  // If no state change, avoid unnecessary DB write
+  if (property.is_banned === ban) {
+    return property;
+  }
+
+  const logEntry = {
+    title: ban ? "Vendor Banned" : "Vendor Unbanned",
+    description: ban
+      ? `Vendor "${property.name}" has been banned by Master Admin.`
+      : `Vendor "${property.name}" has been unbanned by Master Admin.`,
+    status: LogStatus.ACTION,
+    meta: {
+      action: ban ? "BAN" : "UNBAN",
+      propertyId: property._id,
+    },
+  };
+
+  const updatedProperty = await Property.findByIdAndUpdate(
+    propertyId,
+    {
+      $set: {
+        is_banned: ban,
+        status: ban ? PropertyStatus.INACTIVE : PropertyStatus.ACTIVE,
+      },
+      $push: {
+        logs: logEntry,
+      },
+    },
+    {
+      new: true,
+      runValidators: true,
+    }
+  );
+
+  return updatedProperty;
+};
+
+
+
 export {
   _fetchCustomersInAllProperties,
   _getLeadsTrendByTelecallerService,
   _getUsersWithRolesInAllProperties,
   _getMasterStats,
   _getTelecallerStatsService,
-  _getConvertedLeadsPerAgentPerSourceService
+  _getConvertedLeadsPerAgentPerSourceService,
+  _banOrUnbanVendorsService
 };
