@@ -1095,13 +1095,14 @@ const _createLeadService = async (data: CreateLeadDto, ip: string) => {
 const _getMissedFollowUpsService = async (
   propId: Types.ObjectId
 ): Promise<MissedFollowUpLead[]> => {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const todayIST = moment()
+    .tz("Asia/Kolkata")
+    .startOf("day");
 
   const leads = await Lead.find(
     {
       property_id: propId,
-      "follow_ups.next_followup_date": { $lt: today },
+      "follow_ups.next_followup_date": { $lt: todayIST.toDate() },
     },
     {
       name: 1,
@@ -1131,41 +1132,57 @@ const _getMissedFollowUpsService = async (
       new Date(a.next_followup_date) > new Date(b.next_followup_date) ? a : b
     );
 
-    const followDate = new Date(latest.next_followup_date);
+    const followUpDateIST = moment(latest.next_followup_date)
+      .tz("Asia/Kolkata")
+      .startOf("day");
 
-    if (followDate < today) {
-      missed.push({
-        leadId: lead._id,
-        name: lead.name,
+    const missedDays = todayIST.diff(followUpDateIST, "days");
 
-        phone_number: lead.phone_number || "",
-        email: lead.email || "",
-        address: lead.address || "",
-        company_name: lead.company_name || "",
+    if (missedDays <= 0) continue;
 
+    const existingMeta = lead.meta || {};
+    const existingMissedArray =
+      Array.isArray(existingMeta.missed_followups_count)
+        ? existingMeta.missed_followups_count
+        : [];
 
-        status:
-          lead.status && typeof lead.status === "object" && lead.status.title
-            ? lead.status
-            : {},
+    const updatedMissedArray = [
+      ...existingMissedArray,
+      { days: missedDays },
+    ];
 
-        assigned_to:
-          lead.assigned_to && typeof lead.assigned_to === "object"
-            ? lead.assigned_to
-            : null,
+    missed.push({
+      leadId: lead._id,
+      name: lead.name,
+      phone_number: lead.phone_number || "",
+      email: lead.email || "",
+      address: lead.address || "",
+      company_name: lead.company_name || "",
 
-        labels:
-          Array.isArray(lead.labels) && lead.labels.length ? lead.labels : [],
+      status:
+        lead.status && typeof lead.status === "object" ? lead.status : {},
 
-        next_followup_date: followDate,
-        comment: latest.comment,
-        meta: lead.meta,
-      });
-    }
+      assigned_to:
+        lead.assigned_to && typeof lead.assigned_to === "object"
+          ? lead.assigned_to
+          : null,
+
+      labels: Array.isArray(lead.labels) ? lead.labels : [],
+
+      next_followup_date: followUpDateIST.toDate(),
+      comment: latest.comment,
+
+      meta: {
+        ...existingMeta,
+        missed_followups_count: updatedMissedArray,
+      },
+    });
   }
 
   missed.sort(
-    (a, b) => a.next_followup_date.getTime() - b.next_followup_date.getTime()
+    (a, b) =>
+      new Date(a.next_followup_date).getTime() -
+      new Date(b.next_followup_date).getTime()
   );
 
   return missed;
