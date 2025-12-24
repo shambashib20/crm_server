@@ -9,6 +9,7 @@ import {
   FetchLeadDetails,
   FetchMissedFollowupsForADay,
   FetchTodaysFollowups,
+  FetchTodaysFollowupsSuperadmin,
   GetLeadsByLabelAndChatAgentController,
   GetLeadsBySourceAndChatAgentController,
   GetLeadsByStatusAndChatAgentController,
@@ -154,6 +155,13 @@ leadRouter.get(
   AuthMiddleware,
   PermissionMiddleware("manage_leads"),
   FetchTodaysFollowups
+);
+
+leadRouter.get(
+  "/todays-followups/superadmin",
+  AuthMiddleware,
+  PermissionMiddleware("manage_leads"),
+  FetchTodaysFollowupsSuperadmin
 );
 
 leadRouter.get(

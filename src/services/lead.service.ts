@@ -2094,6 +2094,91 @@ const _getLeadsBySourceAndAgentService = async (propIdRaw: Types.ObjectId | stri
   };
 };
 
+const _getTodaysFollowupsForSuperadmin = async (
+  propertyId: Types.ObjectId
+) => {
+  // IST day boundaries
+  const startOfDay = moment()
+    .tz("Asia/Kolkata")
+    .startOf("day")
+    .toDate();
+
+  const endOfDay = moment()
+    .tz("Asia/Kolkata")
+    .endOf("day")
+    .toDate();
+
+  /**
+   * STEP 1: Fetch ALL leads with followups due today
+   * ❌ No assigned_to filter
+   */
+  const leads = await Lead.find({
+    property_id: propertyId,
+    follow_ups: {
+      $elemMatch: {
+        next_followup_date: {
+          $gte: startOfDay,
+          $lte: endOfDay,
+        },
+      },
+    },
+  })
+    .populate("assigned_to", "name email")
+    .populate("status", "name")
+    .populate("labels", "name")
+    .lean();
+
+  /**
+   * STEP 2: Filter only today's followups (safe-guard)
+   */
+  const processedLeads = leads.map((lead: any) => {
+    const todaysFollowUps = lead.follow_ups.filter((fu: any) => {
+      if (!fu.next_followup_date) return false;
+
+      const fuDate = moment(fu.next_followup_date)
+        .tz("Asia/Kolkata")
+        .toDate();
+
+      return fuDate >= startOfDay && fuDate <= endOfDay;
+    });
+
+    return {
+      ...lead,
+      todays_follow_ups: todaysFollowUps,
+    };
+  }).filter(l => l.todays_follow_ups.length > 0);
+
+  /**
+   * STEP 3: Count leads per agent (telecaller)
+   */
+  const agentWiseMap: Record<string, any> = {};
+
+  processedLeads.forEach((lead: any) => {
+    const agent = lead.assigned_to;
+
+    const agentId = agent?._id?.toString() || "UNASSIGNED";
+    const agentName = agent?.name || "Unassigned";
+
+    if (!agentWiseMap[agentId]) {
+      agentWiseMap[agentId] = {
+        agent_id: agentId,
+        agent_name: agentName,
+        lead_count: 0,
+      };
+    }
+
+    agentWiseMap[agentId].lead_count += 1;
+  });
+
+  const agentWiseCount = Object.values(agentWiseMap);
+
+  return {
+    total_upcoming_followups: processedLeads.length,
+    leads: processedLeads,
+    agentWiseCount,
+  };
+};
+
 
 
 const _getLeadsByLabelAndAgentService = async (
@@ -2553,4 +2638,5 @@ export {
   _getLeadsByLabelAndAgentService,
   _getLeadsByStatusAndAgentService,
   _editFollowUp,
+  _getTodaysFollowupsForSuperadmin
 };

@@ -24,6 +24,7 @@ import {
   _getLeadsByLabelAndAgentService,
   _getLeadsByStatusAndAgentService,
   _editFollowUp,
+  _getTodaysFollowupsForSuperadmin,
 } from "../services/lead.service";
 import multer from "multer";
 import { _getConvertedLeadsPerAgentPerSourceService, _getLeadsTrendByTelecallerService, _getTelecallerStatsService } from "../services/master.service";
@@ -576,6 +577,23 @@ const FetchTodaysFollowups = async (req: any, res: any) => {
   }
 };
 
+
+const FetchTodaysFollowupsSuperadmin = async (req: any, res: any) => {
+  try {
+    const propId = req.user.property_id;
+
+    const leads = await _getTodaysFollowupsForSuperadmin(propId);
+
+    return res
+      .status(200)
+      .json(
+        new SuccessResponse("Today's pending follow-ups fetched for superadmin", 200, leads)
+      );
+  } catch (err: any) {
+    return res.status(500).json(new SuccessResponse(err.message, 500));
+  }
+};
+
 const GetLeadsBySourceAndChatAgentController = async (req: any, res: any) => {
   try {
 
@@ -760,5 +778,6 @@ export {
   EditFollowUp,
   GetLeadsTrendByTelecallerController,
   GetTelecallerStatisticsController,
-  GetStatisticsBySourceController
+  GetStatisticsBySourceController,
+  FetchTodaysFollowupsSuperadmin
 };
