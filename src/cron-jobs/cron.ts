@@ -25,7 +25,7 @@ const BASE_URL =
       "http://localhost:8850"; // 👈 LOCAL
 
 
-cron.schedule("*/20 * * * *", async () => {
+cron.schedule("*/5 * * * *", async () => {
   if (isFbSyncRunning) {
     console.log("⚠️ FB sync already running, skipping this cycle.");
     return;
