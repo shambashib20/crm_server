@@ -2141,8 +2141,8 @@ const _getTodaysFollowupsForSuperadmin = async (
     },
   })
     .populate("assigned_to", "name email")
-    .populate("status", "name")
-    .populate("labels", "name")
+    .populate("status", "title")
+    .populate("labels", "title")
     .lean();
 
   /**
