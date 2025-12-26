@@ -1854,8 +1854,8 @@ const _getTodaysFollowups = async (
 
   const leads = await Lead.find(query)
     .populate("assigned_to", "name email")
-    .populate("status", "name")
-    .populate("labels", "name")
+    .populate("status", "title")
+    .populate("labels", "title")
     .lean(); 
 
 
