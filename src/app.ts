@@ -221,7 +221,6 @@ app.post("/lead/webhook", async (req: any, res: any) => {
   try {
     console.log("🚀 Running Facebook auto-sync (Webhook Mode)…");
 
-    
     const users = await User.find({});
     const superadmin = users.find((u: any) => {
       const fb = u.meta?.facebook || u.meta?.get?.("facebook");
@@ -236,6 +235,7 @@ app.post("/lead/webhook", async (req: any, res: any) => {
 
     const facebookMeta =
       superadmin.meta?.facebook || superadmin.meta?.get("facebook");
+
     const userAccessToken: string | undefined = facebookMeta?.token;
     const propertyId: Types.ObjectId = superadmin.property_id;
 
@@ -243,7 +243,6 @@ app.post("/lead/webhook", async (req: any, res: any) => {
       throw new Error("Superadmin Facebook not linked properly.");
     }
 
-    // 2️⃣ Fetch pages
     const pagesRes = await axios.get(`${GRAPH_API_BASE}/me/accounts`, {
       params: { access_token: userAccessToken },
     });
@@ -251,102 +250,76 @@ app.post("/lead/webhook", async (req: any, res: any) => {
     const pages = pagesRes.data.data || [];
     console.log(`📄 Found ${pages.length} Facebook pages.`);
 
-    let totalLeadsInserted = 0;
+    let totalInserted = 0;
 
     for (const page of pages) {
-      const pageAccessToken: string | undefined = page.access_token;
-      if (!pageAccessToken) continue;
-
+      if (!page.access_token) continue;
 
       const formsRes = await axios.get(
         `${GRAPH_API_BASE}/${page.id}/leadgen_forms`,
-        {
-          params: { access_token: pageAccessToken },
-        }
+        { params: { access_token: page.access_token } }
       );
 
-      const forms = formsRes.data.data || [];
-      console.log(`🧾 Page "${page.name}" has ${forms.length} forms.`);
-
-      for (const form of forms) {
+      for (const form of formsRes.data.data || []) {
         if (form.status !== "ACTIVE") continue;
 
         const detailsRes = await axios.get(`${GRAPH_API_BASE}/${form.id}`, {
           params: {
-            access_token: pageAccessToken,
+            access_token: page.access_token,
             fields: "id,name,tracking_parameters",
           },
         });
 
-        const formDetails = detailsRes.data;
-        const trackingParams = formDetails.tracking_parameters || [];
+        const trackingParams = detailsRes.data.tracking_parameters || [];
         let matchedLabel: any = null;
 
         for (const param of trackingParams) {
           if (param.key === "label") {
-            const cleanValue = param.value.trim();
-
-            const labelDoc = await Label.findOne({
-              title: new RegExp(`^${cleanValue}$`, "i"),
+            matchedLabel = await Label.findOne({
+              title: new RegExp(`^${param.value.trim()}$`, "i"),
               property_id: propertyId,
             });
-
-            if (labelDoc) {
-              matchedLabel = labelDoc;
-              break;
-            }
+            if (matchedLabel) break;
           }
         }
 
         if (!matchedLabel) continue;
 
-
-        const leadsRes = await axios.get(`${GRAPH_API_BASE}/${form.id}/leads`, {
-          params: { access_token: pageAccessToken, limit: 200 },
-        });
+        const leadsRes = await axios.get(
+          `${GRAPH_API_BASE}/${form.id}/leads`,
+          { params: { access_token: page.access_token, limit: 200 } }
+        );
 
         const leads = leadsRes.data.data || [];
-        console.log(`📨 Found ${leads.length} leads for form "${form.name}".`);
+        if (!leads.length) continue;
 
-
-        let status = await Status.findOne({
-          title: "New",
-          property_id: propertyId,
-        });
-
-        if (!status) {
-          status = await Status.create({
+        const status =
+          (await Status.findOne({ title: "New", property_id: propertyId })) ||
+          (await Status.create({
             title: "New",
             description: "Default status for new leads",
             property_id: propertyId,
             meta: { is_active: true },
-          });
-        }
+          }));
 
-        let source = await Source.findOne({
-          title: "Facebook",
-          property_id: propertyId,
-        });
-
-        if (!source) {
-          source = await Source.create({
+        const source =
+          (await Source.findOne({
+            title: "Facebook",
+            property_id: propertyId,
+          })) ||
+          (await Source.create({
             title: "Facebook",
             description: "Facebook Lead Ads",
             property_id: propertyId,
             meta: { is_active: true, is_editable: false },
-          });
-        }
-
+          }));
 
         const labelDoc = await Label.findById(matchedLabel._id);
         if (!labelDoc) continue;
 
-        labelDoc.meta = labelDoc.meta || {};
-        const agents: { agent_id: Types.ObjectId }[] =
-          labelDoc.meta.assigned_agents || [];
-
-        let lastIndex: number =
-          typeof labelDoc.meta.last_assigned_index === "number"
+        const agents = labelDoc.meta?.assigned_agents || [];
+        let lastIndex =
+          typeof labelDoc.meta?.last_assigned_index === "number"
             ? labelDoc.meta.last_assigned_index
             : -1;
 
@@ -356,24 +329,18 @@ app.post("/lead/webhook", async (req: any, res: any) => {
           property_id: propertyId,
         });
 
-        const toInsert: any[] = [];
+        const bulkOps: any[] = [];
 
         for (const fbLead of leads) {
           if (!fbLead?.id) continue;
 
-          const exists = await Lead.exists({
-            "meta.fb_lead_id": fbLead.id,
-          });
-          if (exists) continue;
+          let assignedTo: Types.ObjectId | null = null;
 
-
-          let assignedToId: Types.ObjectId | null = null;
-
-          if (agents.length > 0) {
+          if (agents.length) {
             lastIndex = (lastIndex + 1) % agents.length;
-            assignedToId = agents[lastIndex].agent_id;
+            assignedTo = agents[lastIndex].agent_id;
           } else {
-            assignedToId = fallbackUser?._id ?? null;
+            assignedTo = fallbackUser?._id ?? null;
           }
 
           const fields = (fbLead.field_data || []).reduce(
@@ -384,47 +351,53 @@ app.post("/lead/webhook", async (req: any, res: any) => {
             {}
           );
 
-          const comments = [`label::${matchedLabel.title}`];
-          for (const field of fbLead.field_data || []) {
-            comments.push(`${field.name}::${field.values[0]}`);
-          }
+          const comments = fbLead.field_data?.map(
+            (f: any) => `${f.name}::${f.values[0]}`
+          );
 
-          toInsert.push({
-            name: fields.full_name || fields.name || "Unnamed Lead",
-            email: fields.email || null,
-            phone_number: fields.phone_number || null,
-            comment: comments.join("\n"),
-            reference: "From Facebook",
-            labels: [matchedLabel._id],
-            status: status._id,
-            assigned_to: assignedToId,
-            property_id: propertyId,
-            meta: {
-              fb_lead_id: fbLead.id,
-              form_id: form.id,
-              page_id: page.id,
-              source: source._id,
-              ray_id: `ray-id-${uuidv4()}`,
-              status: "ACTIVE",
-            },
-            logs: [
-              {
-                title: "Lead created",
-                description: `Imported from Facebook form ${form.name}`,
-                status: LeadLogStatus.INFO,
+          bulkOps.push({
+            updateOne: {
+              filter: { "meta.fb_lead_id": fbLead.id },
+              update: {
+                $setOnInsert: {
+                  name: fields.full_name || fields.name || "Unnamed Lead",
+                  email: fields.email || null,
+                  phone_number: fields.phone_number || null,
+                  comment: comments.join("\n"),
+                  reference: "From Facebook",
+                  labels: [matchedLabel._id],
+                  status: status._id,
+                  assigned_to: assignedTo,
+                  property_id: propertyId,
+                  meta: {
+                    fb_lead_id: fbLead.id,
+                    form_id: form.id,
+                    page_id: page.id,
+                    source: source._id,
+                    ray_id: `ray-${uuidv4()}`,
+                    status: "ACTIVE",
+                  },
+                  logs: [
+                    {
+                      title: "Lead created",
+                      description: `Imported from Facebook form ${form.name}`,
+                      status: LeadLogStatus.INFO,
+                    },
+                  ],
+                  createdAt: new Date(),
+                },
               },
-            ],
+              upsert: true,
+            },
           });
         }
 
-        if (toInsert.length > 0) {
-          await Lead.insertMany(toInsert, { ordered: false });
-          console.log(`✅ Inserted ${toInsert.length} leads (Bulk mode).`);
-          totalLeadsInserted += toInsert.length;
+        if (bulkOps.length) {
+          const result = await Lead.bulkWrite(bulkOps, { ordered: false });
+          totalInserted += result.upsertedCount || 0;
         }
 
-
-        if (agents.length > 0) {
+        if (labelDoc && labelDoc.meta) {
           labelDoc.meta.last_assigned_index = lastIndex;
           labelDoc.markModified("meta");
           await labelDoc.save();
@@ -432,13 +405,12 @@ app.post("/lead/webhook", async (req: any, res: any) => {
       }
     }
 
-    console.log(`🎯 FB Sync Complete: ${totalLeadsInserted} new leads inserted.`);
+    console.log(`🎯 FB Sync Complete: ${totalInserted} new leads inserted.`);
 
     res.status(200).json({
       message: "Facebook leads synced successfully",
-      inserted: totalLeadsInserted,
+      inserted: totalInserted,
     });
-
   } catch (err: any) {
     console.error("❌ FB Webhook error:", err.response?.data || err.message);
     res.status(500).json({
@@ -447,6 +419,7 @@ app.post("/lead/webhook", async (req: any, res: any) => {
     });
   }
 });
+
 
 
  
