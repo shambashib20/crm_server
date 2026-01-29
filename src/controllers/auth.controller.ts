@@ -13,6 +13,9 @@ const LoginSuperAdminController = async (req: any, res: any) => {
 
   try {
     const result = await _loginSuperAdmin(email, password, res);
+
+    console.log("result=>", result);
+
     if (!result) {
       return res
         .status(400)
@@ -22,6 +25,9 @@ const LoginSuperAdminController = async (req: any, res: any) => {
       .status(200)
       .json(new SuccessResponse("User logged in successfully!", 200, result));
   } catch (error: any) {
+
+    console.log("error=>", error);
+
     return res.status(500).json(new SuccessResponse(error.message, 500));
   }
 };

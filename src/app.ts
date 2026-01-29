@@ -221,7 +221,7 @@ app.post("/lead/webhook", async (req: any, res: any) => {
   try {
     console.log("🚀 Running Facebook auto-sync (Webhook Mode)…");
 
-    const users = await User.find({});
+    const users = await User.find({}  );
     const superadmin = users.find((u: any) => {
       const fb = u.meta?.facebook || u.meta?.get?.("facebook");
       return fb?.token;

@@ -13,6 +13,8 @@ interface PurchaseRecordsDto {
   _id: Types.ObjectId;
   property_id: Types.ObjectId;
   package_id: Types.ObjectId;
+  start_date: Date;
+  end_date: Date;
   status: PurchaseStatus;
   meta?: Record<string, any>;
 }
