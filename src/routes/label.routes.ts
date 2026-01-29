@@ -11,7 +11,7 @@ import AuthMiddleware from "../middlewares/authentication.middleware";
 import PermissionMiddleware from "../middlewares/permission.middleware";
 import PricingMiddleware from "../middlewares/pricing.middleware";
 
-const   labelRouter = express.Router();
+const labelRouter = express.Router();
 
 labelRouter.get(
   "/all",

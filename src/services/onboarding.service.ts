@@ -141,7 +141,8 @@ const _createNewUserForOnboarding = async (
   phone_number: string,
   password: string,
   orgName: string,
-  orgDescription: string
+  orgDescription: string,
+  selectedPlan: string = "free"
 ) => {
   const validRoles = new Set([
     "Superadmin",
@@ -155,33 +156,18 @@ const _createNewUserForOnboarding = async (
   }
 
   try {
+    // 1️⃣ USER DUPLICATE CHECK
     const existingUser = await User.findOne({ $or: [{ email }, { name }] });
-    if (existingUser)
+    if (existingUser) {
       throw new Error("User with same email or name already exists.");
-
-    const existingClient = await Client.findOne({ name });
-
-    let rayId: string;
-    if (existingClient && existingClient.meta?.get("ray_id")) {
-      rayId = existingClient.meta.get("ray_id");
-    } else {
-      rayId = `ray-id-${uuidv4()}`;
     }
 
-    // --- Get default package with features ---
-    const pricingPlan = await Package.findOne({ title: "Free Plan" }).populate(
-      "features"
-    );
-    if (!pricingPlan) throw new Error("Default pricing plan not found.");
+    // 2️⃣ RAY ID
+    const existingClient = await Client.findOne({ name });
+    const rayId =
+      existingClient?.meta?.get("ray_id") || `ray-id-${uuidv4()}`;
 
-    // --- Prepare activated features for this property ---
-    const activated_features = pricingPlan.features.map((f: any) => ({
-      feature_id: f._id,
-      title: f.title,
-      limit: f.meta?.limit || 0,
-      used: 0, // initial usage
-    }));
-
+    // 3️⃣ CREATE PROPERTY (ALWAYS)
     const newProperty = await Property.create({
       meta: {
         ray_id: rayId,
@@ -206,21 +192,51 @@ const _createNewUserForOnboarding = async (
       status: PropertyStatus.ACTIVE,
     });
 
-    const newPurchaseRecord = await PurchaseRecordsModel.create({
-      property_id: newProperty._id,
-      package_id: pricingPlan._id,
-      status: PurchaseStatus.COMPLETED,
-      meta: { activated_features },
-    });
+    // 4️⃣ ASSIGN FREE PLAN ONLY IF SELECTED
+    if (!selectedPlan || selectedPlan === "free") {
+      const pricingPlan = await Package.findOne({
+        title: "Free Plan",
+      }).populate("features");
 
-    if (!newProperty.meta) {
-      newProperty.meta = new Map();
+      if (!pricingPlan) {
+        throw new Error("Default pricing plan not found.");
+      }
+
+      const now = new Date();
+      const validityInDays = pricingPlan.validity_in_days;
+      const validity = new Date(
+        now.getTime() + validityInDays * 24 * 60 * 60 * 1000
+      );
+
+      const activated_features = pricingPlan.features.map((f: any) => ({
+        feature_id: f._id,
+        title: f.title,
+        limit: f.meta?.limit || 0,
+        used: 0,
+        validity,
+        validity_in_days: validityInDays,
+        validity_left_till_expiration: validityInDays,
+      }));
+
+      const purchaseRecord = await PurchaseRecordsModel.create({
+        property_id: newProperty._id,
+        package_id: pricingPlan._id,
+        status: PurchaseStatus.COMPLETED,
+        meta: {
+          activated_features,
+          source: "onboarding_free",
+        },
+      });
+
+      newProperty?.meta?.set("active_package", purchaseRecord._id);
+      await newProperty.save();
     }
-    newProperty.meta.set("active_package", newPurchaseRecord._id);
-    await newProperty.save();
 
+    // 5️⃣ CREATE USER (ALWAYS)
     const role = await Role.findOne({ name: roleName });
-    if (!role) throw new Error(`Role '${roleName}' not found.`);
+    if (!role) {
+      throw new Error(`Role '${roleName}' not found.`);
+    }
 
     const newUser = await User.create({
       name,
@@ -242,9 +258,12 @@ const _createNewUserForOnboarding = async (
       property: newProperty,
     };
   } catch (error: any) {
-    throw new Error(`Error creating user for organization: ${error.message}`);
+    throw new Error(
+      `Error creating user for organization: ${error.message}`
+    );
   }
 };
+
 
 
 export { _createNewUserForOnboarding };

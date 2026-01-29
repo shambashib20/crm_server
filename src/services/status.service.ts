@@ -3,6 +3,7 @@ import Status from "../models/status.model";
 import Property from "../models/property.model";
 import { LogStatus } from "../dtos/property.dto";
 import User from "../models/user.model";
+import PurchaseRecordsModel from "../models/purchaserecords.model";
 
 const _fetchStatusInProperty = async (propId: Types.ObjectId) => {
   const DEFAULT_TITLES = ["New", "Processing", "Confirm", "Cancel"];
@@ -42,6 +43,7 @@ const _createStatusInProperty = async (
   propertyId: Types.ObjectId
 ) => {
   const now = new Date();
+
   const existingStatus = await Status.findOne({
     title: { $regex: new RegExp(`^${title}$`, "i") },
     property_id: propertyId,
@@ -53,6 +55,7 @@ const _createStatusInProperty = async (
     );
   }
 
+  // 1️⃣ Create status FIRST
   const newStatus = new Status({
     title,
     description,
@@ -64,6 +67,46 @@ const _createStatusInProperty = async (
     },
   });
 
+  await newStatus.save();
+
+  // 2️⃣ Load active package
+  const property = await Property.findById(propertyId);
+  const activePackageId = property?.meta?.get("active_package");
+
+  if (!activePackageId) {
+    throw new Error("No active package found");
+  }
+
+  const purchaseRecord = await PurchaseRecordsModel.findById(activePackageId);
+  if (!purchaseRecord) {
+    throw new Error("Active purchase record not found");
+  }
+
+  const features = purchaseRecord.meta?.activated_features || [];
+
+  const statusFeature = features.find(
+    (f: any) => f.title === "Statuses Limit"
+  );
+
+  if (!statusFeature) {
+    throw new Error("Statuses feature not found in active plan");
+  }
+
+  // 3️⃣ CHECK limit first
+  const used = Number(statusFeature.used || 0);
+  const limit = Number(statusFeature.limit || 0);
+
+  if (used >= limit) {
+    throw new Error("Statuses limit exceeded");
+  }
+
+  // 4️⃣ THEN increment
+  statusFeature.used = used + 1;
+
+  purchaseRecord.markModified("meta");
+  await purchaseRecord.save();
+
+  // 5️⃣ Workspace logs (optional but fine)
   await Property.findByIdAndUpdate(
     propertyId,
     {
@@ -71,7 +114,7 @@ const _createStatusInProperty = async (
       $push: {
         logs: {
           title: "A New Status created!",
-          description: `A new lead named (${newStatus.title}) was created!`,
+          description: `A new status (${newStatus.title}) was created!`,
           status: LogStatus.INFO,
           meta: { statusId: newStatus._id },
           createdAt: now,
@@ -82,10 +125,10 @@ const _createStatusInProperty = async (
     { new: true }
   );
 
-  await newStatus.save();
-
   return newStatus;
 };
+
+
 
 const _editStatusInProperty = async (
   statusId: Types.ObjectId,

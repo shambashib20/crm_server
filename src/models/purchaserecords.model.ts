@@ -18,17 +18,7 @@ const PurchaseRecordsSchema = new Schema<PurchaseRecordsDto & Document>(
       default: null,
     },
 
-      // 👇 ADD THIS
-    start_date: {
-      type: Date,
-      required: true,
-    },
 
-    // 👇 ADD THIS
-    end_date: {
-      type: Date,
-      required: true,
-    },
     
     status: {
       type: String,

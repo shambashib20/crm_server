@@ -69,7 +69,7 @@ const CreatePropertyForOnboarding = async (req: any, res: any) => {
       phone_number,
       password,
       orgName,
-      orgDescription
+      orgDescription,
     );
     return res
       .status(201)

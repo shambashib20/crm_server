@@ -31,6 +31,8 @@ const CreateStatusInProperty = async (req: any, res: any) => {
   const { title, description, color_code } = req.body;
 
   try {
+
+    
     const result = await _createStatusInProperty(
       title,
       description,
