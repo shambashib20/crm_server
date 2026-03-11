@@ -174,10 +174,15 @@ const HomePageLeads = async (req: any, res: any) => {
     } = req.body;
 
     const userPropId = req.user.property_id;
+    const userRole: string = req.user?.role?.name ?? "";
+    const isTelecaller = userRole === "Telecaller";
+
     const labelObjectIds = labelIds.map((id: string) => new Types.ObjectId(id));
-    const assignedToObjectIds = assignedTo.map(
-      (id: string) => new Types.ObjectId(id)
-    );
+
+    // Telecallers can only see leads assigned to themselves
+    const assignedToObjectIds = isTelecaller
+      ? [new Types.ObjectId(req.user._id)]
+      : assignedTo.map((id: string) => new Types.ObjectId(id));
 
     const assignedByUserIds = assignedBy.map(
       (id: string) => new Types.ObjectId(id)

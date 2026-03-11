@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find /c/Users/majum/OneDrive/Desktop/projects/crm_server/src -name \"*.ts\" -type f | xargs grep -l \"homeRouter\\\\|/home-page\" | head -5)"
+    ]
+  }
+}
