@@ -2,6 +2,7 @@ import {
   ArchiveSessionLeads,
   CreateExternalLeadsController,
   CreateLeadController,
+  CreateLeadByUserController,
   DeleteOrArchiveForLead,
   EditFollowUp,
   ExportLeadsController,
@@ -49,6 +50,14 @@ leadRouter.post(
   CreateLeadController
 );
 
+// Authenticated lead creation — Telecallers / Admins creating leads manually
+leadRouter.post(
+  "/create-by-user",
+  AuthMiddleware,
+  PermissionMiddleware("manage_leads"),
+  CreateLeadByUserController
+);
+
 leadRouter.get(
   "/info",
   AuthMiddleware,
@@ -94,7 +103,7 @@ leadRouter.patch(
 leadRouter.patch(
   "/update-chat-agent",
   AuthMiddleware,
-  PermissionMiddleware("manage_leads"),
+  PermissionMiddleware("assign_leads"),
   UpdateAssignmentForLead
 );
 

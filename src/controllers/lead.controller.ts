@@ -25,6 +25,8 @@ import {
   _getLeadsByStatusAndAgentService,
   _editFollowUp,
   _getTodaysFollowupsForSuperadmin,
+  _validateLeadOwnership,
+  _validateLeadOwnershipByRayId,
 } from "../services/lead.service";
 import multer from "multer";
 import { _getConvertedLeadsPerAgentPerSourceService, _getLeadsTrendByTelecallerService, _getTelecallerStatsService } from "../services/master.service";
@@ -40,7 +42,27 @@ const upload = multer({ dest: "uploads/" });
 const FetchLeadDetails = async (req: any, res: any) => {
   try {
     const { leadId } = req.query;
+    const userRole: string = req.user?.role?.name ?? "";
+    const userId = req.user?._id?.toString();
+
     const result = await _fetchLeadDetails(leadId);
+
+    // Only Superadmin can view any lead; everyone else only sees their own assigned leads
+    if (userRole !== "Superadmin") {
+      const assignedToId =
+        (result.assigned_to as any)?._id?.toString() ||
+        result.assigned_to?.toString();
+      if (assignedToId !== userId) {
+        return res
+          .status(403)
+          .json(
+            new SuccessResponse(
+              "Access denied: You can only view leads assigned to you.",
+              403
+            )
+          );
+      }
+    }
 
     return res
       .status(200)
@@ -56,6 +78,10 @@ const NewFollowUp = async (req: any, res: any) => {
   try {
     const userId = req.user._id;
     const propId = req.user.property_id;
+    const userRole: string = req.user?.role?.name ?? "";
+
+    await _validateLeadOwnership(req.body.leadId, userId.toString(), userRole);
+
     const result = await _createNewFollowUp(
       req.body.leadId,
       propId,
@@ -82,6 +108,9 @@ const NewFollowUp = async (req: any, res: any) => {
 const EditFollowUp = async (req: any, res: any) => {
   try {
     const userId = req.user._id;
+    const userRole: string = req.user?.role?.name ?? "";
+
+    await _validateLeadOwnership(req.body.leadId, userId.toString(), userRole);
 
     const result = await _editFollowUp(
       req.body.leadId,
@@ -106,12 +135,15 @@ const UpdateLabelForLead = async (req: any, res: any) => {
     const { leadId, labelIds } = req.body;
     const userId = req.user?._id;
     const propId = req.user?.property_id;
+    const userRole: string = req.user?.role?.name ?? "";
 
     if (!Array.isArray(labelIds) || labelIds.length === 0) {
       return res
         .status(400)
         .json({ message: "labelIds must be a non-empty array" });
     }
+
+    await _validateLeadOwnership(leadId, userId.toString(), userRole);
 
     await _updateLabelForLead(
       new Types.ObjectId(leadId),
@@ -133,12 +165,15 @@ const UpdateStatusForLead = async (req: any, res: any) => {
     const { leadId, statusId } = req.body;
     const userId = req.user?._id;
     const propId = req.user?.property_id;
+    const userRole: string = req.user?.role?.name ?? "";
 
     if (statusId === undefined || statusId === null || statusId === "") {
       return res
         .status(400)
         .json({ message: "statusId must be not be empty!" });
     }
+
+    await _validateLeadOwnership(leadId, userId.toString(), userRole);
 
     await _updateStatusForLead(
       new Types.ObjectId(leadId),
@@ -175,14 +210,15 @@ const HomePageLeads = async (req: any, res: any) => {
 
     const userPropId = req.user.property_id;
     const userRole: string = req.user?.role?.name ?? "";
-    const isTelecaller = userRole === "Telecaller";
+    const isSuperadmin = userRole === "Superadmin";
 
     const labelObjectIds = labelIds.map((id: string) => new Types.ObjectId(id));
 
-    // Telecallers can only see leads assigned to themselves
-    const assignedToObjectIds = isTelecaller
-      ? [new Types.ObjectId(req.user._id)]
-      : assignedTo.map((id: string) => new Types.ObjectId(id));
+    // Only Superadmin can see all leads across telecallers
+    // Every other role (Admin, Lead Manager, Telecaller) sees only their own assigned leads
+    const assignedToObjectIds = isSuperadmin
+      ? assignedTo.map((id: string) => new Types.ObjectId(id))
+      : [new Types.ObjectId(req.user._id)];
 
     const assignedByUserIds = assignedBy.map(
       (id: string) => new Types.ObjectId(id)
@@ -252,11 +288,63 @@ const CreateLeadController = async (req: any, res: any) => {
   }
 };
 
+// Authenticated users (Telecallers, Admins) create leads with explicit assignment
+const CreateLeadByUserController = async (req: any, res: any) => {
+  try {
+    const leadPayload = req.body;
+    const userId = new Types.ObjectId(req.user._id);
+    const propId = req.user.property_id;
+    const ip =
+      (req.headers["x-forwarded-for"] as string) ||
+      req.socket.remoteAddress ||
+      "0.0.0.0";
+
+    const lead = await _createLeadService(
+      { ...leadPayload, property_id: propId },
+      ip,
+      userId
+    );
+
+    return res
+      .status(201)
+      .json(new SuccessResponse("Lead created successfully", 201, lead));
+  } catch (error: any) {
+    const clientErrorMessages = [
+      "No Superadmin user found",
+      "Superadmin role not found",
+      "Label with ID",
+      "Workspace Linkage not found",
+      "Active package not found",
+      "Your plan does not include Leads Limit",
+      "Leads creation limit reached",
+      "The validity for lead creation expired",
+      "Status must contain a Status named New",
+      "Assigned user not found in this property",
+    ];
+
+    const statusCode = clientErrorMessages.some((msg) =>
+      error.message?.includes(msg)
+    )
+      ? 400
+      : 500;
+
+    return res.status(statusCode).json({
+      message: error.message || "Something went wrong",
+      status: statusCode === 400 ? "BAD_REQUEST" : "SERVER_ERROR",
+      data: null,
+    });
+  }
+};
+
 const GetMissedFollowUpsController = async (req: any, res: any) => {
   try {
     const propId = req.user.property_id;
+    const userRole: string = req.user?.role?.name ?? "";
+    const isSuperadmin = userRole === "Superadmin";
 
-    const missedFollowUps = await _getMissedFollowUpsService(propId);
+    // Non-Superadmin users only see missed follow-ups for their own leads
+    const filterUserId = isSuperadmin ? undefined : req.user._id;
+    const missedFollowUps = await _getMissedFollowUpsService(propId, filterUserId);
 
     return res
       .status(200)
@@ -297,10 +385,13 @@ const UpdateAssignmentForLead = async (req: any, res: any) => {
     const { leadId, chatAgentId } = req.body;
     const userId = req.user?._id;
     const propId = req.user?.property_id;
+    const userRole: string = req.user?.role?.name ?? "";
 
     if (!chatAgentId) {
       return res.status(400).json({ message: "chat agent id must be sent!" });
     }
+
+    await _validateLeadOwnership(leadId, userId.toString(), userRole);
 
     await _updateAssignedAgentForLead(
       new Types.ObjectId(leadId),
@@ -321,10 +412,13 @@ const DeleteOrArchiveForLead = async (req: any, res: any) => {
   try {
     const { rayId, deleteReason } = req.body;
     const userId = req.user?._id;
+    const userRole: string = req.user?.role?.name ?? "";
 
     if (!userId) {
       return res.status(400).json({ message: "user id must be sent!" });
     }
+
+    await _validateLeadOwnershipByRayId(rayId, userId.toString(), userRole);
 
     await _deleteOrArchiveLead(rayId, userId, deleteReason);
 
@@ -763,6 +857,7 @@ export {
   UpdateLabelForLead,
   HomePageLeads,
   CreateLeadController,
+  CreateLeadByUserController,
   GetMissedFollowUpsController,
   GetTodaysLeadsGrouped,
   UpdateAssignmentForLead,

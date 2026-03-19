@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(find /c/Users/majum/OneDrive/Desktop/projects/crm_server/src -name \"*.ts\" -type f | xargs grep -l \"homeRouter\\\\|/home-page\" | head -5)"
+      "Bash(find /c/Users/majum/OneDrive/Desktop/projects/crm_server/src -name \"*.ts\" -type f | xargs grep -l \"homeRouter\\\\|/home-page\" | head -5)",
+      "Bash(find /c/Users/majum/OneDrive/Desktop/projects/crm_server -type d -maxdepth 2 -not -path */node_modules/*)",
+      "Bash(npx tsc:*)"
     ]
   }
 }

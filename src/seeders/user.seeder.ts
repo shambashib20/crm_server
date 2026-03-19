@@ -44,6 +44,7 @@ export async function seedSuperadminUser() {
     password: passwordHash,
     meta: {
       ray_id,
+      is_active: true,
     },
     is_verified: true,
     reported: false,

@@ -5,6 +5,7 @@ import {
   _createUserForOrganization,
   _getUserdetails,
   _uploadProfilePicture,
+  _toggleUserActiveStatus,
 } from "../services/user.service";
 import SuccessResponse from "../middlewares/success.middleware";
 
@@ -93,10 +94,19 @@ const FetchPaginatedChatAgents = async (req: any, res: any) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
+    // filter_active=true → active only | filter_active=false → inactive only | omit → all
+    const filterActive =
+      req.query.filter_active === "true"
+        ? true
+        : req.query.filter_active === "false"
+        ? false
+        : undefined;
+
     const result = await _allPaginatedChatAgents(
       new Types.ObjectId(user.property_id),
       page,
-      limit
+      limit,
+      filterActive
     );
     return res
       .status(200)
@@ -131,10 +141,47 @@ const UploadProfilePhoto = async (req: any, res: any) => {
   }
 };
 
+const ToggleUserActiveStatusController = async (req: any, res: any) => {
+  try {
+    const { userId, is_active, reassign_to } = req.body;
+    const requestingUserId = req.user._id;
+    const propertyId = req.user.property_id;
+
+    if (!userId || is_active === undefined || is_active === null) {
+      return res
+        .status(400)
+        .json(
+          new SuccessResponse("userId and is_active are required.", 400)
+        );
+    }
+
+    const result = await _toggleUserActiveStatus(
+      new Types.ObjectId(userId),
+      Boolean(is_active),
+      new Types.ObjectId(requestingUserId),
+      new Types.ObjectId(propertyId),
+      reassign_to ? new Types.ObjectId(reassign_to) : undefined
+    );
+
+    return res
+      .status(200)
+      .json(
+        new SuccessResponse(
+          `User ${is_active ? "activated" : "deactivated"} successfully.`,
+          200,
+          result
+        )
+      );
+  } catch (error: any) {
+    return res.status(500).json(new SuccessResponse(error.message, 500));
+  }
+};
+
 export {
   GetUserDetails,
   CreateUserController,
   FetchChatAgents,
   UploadProfilePhoto,
   FetchPaginatedChatAgents,
+  ToggleUserActiveStatusController,
 };

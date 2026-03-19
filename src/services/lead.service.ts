@@ -748,23 +748,30 @@ const _leadCreationViaApi = async (
 
   const ray_id = `ray-id-${uuidv4()}`;
 
+  // Find the superadmin of this property to track accountability
+  const superAdminRoleForApi = await Role.findOne({ name: "Superadmin" });
+  const superAdminUserForApi = superAdminRoleForApi
+    ? await User.findOne({ property_id, role: superAdminRoleForApi._id }).select("_id")
+    : null;
+  const adminId = superAdminUserForApi?._id || null;
 
   // Create lead
   const newLead = new Lead({
     name: customer_name,
     company_name,
-    phone_number, 
+    phone_number,
     email,
     address,
     reference,
     comment,
     property_id,
     status: defaultStatus._id,
+    assigned_to: adminId,
+    assigned_by: adminId,
     logs: [
       {
         title: "Lead Created via API",
-        description: `(${customer_name}) named lead created externally through API with status with status ${defaultStatus.title
-          }.`,
+        description: `(${customer_name}) named lead created externally through API with status ${defaultStatus.title}.`,
         status: LeadLogStatus.ACTION,
         meta: { source: "API" },
         createdAt: now,
@@ -775,7 +782,8 @@ const _leadCreationViaApi = async (
       source: source._id,
       ray_id,
       status: "ACTIVE",
-    }
+      created_by: adminId?.toString(),
+    },
   });
 
 
@@ -883,54 +891,106 @@ const _leadCreationViaApi = async (
 };
 
 
-const _createLeadService = async (data: CreateLeadDto, ip: string) => {
+const _createLeadService = async (
+  data: CreateLeadDto,
+  ip: string,
+  creatorId?: Types.ObjectId
+) => {
   const now = new Date();
   const meta: Record<string, any> = data.meta || {};
   const locationData = await getLocationFromIP(ip);
   let assignedToId: Types.ObjectId | null = null;
+  let superAdminId: Types.ObjectId | null = null;
 
   // ---------------------------------------------------
-  // 🔹 ROUND-ROBIN ASSIGNMENT
+  // 🔹 FIND SUPERADMIN (used for fallback + accountability tracking)
   // ---------------------------------------------------
-  if (data.labels?.length) {
-    const label = await Label.findById(data.labels[0]);
-    if (!label) throw new Error(`Label with ID ${data.labels[0]} not found`);
+  const superAdminRole = await Role.findOne({ name: "Superadmin" });
+  if (!superAdminRole)
+    throw new Error("Superadmin role not found in this property!");
 
-    label.meta ||= {};
-    const assignedAgents = (label.meta.assigned_agents || []) as {
-      agent_id: Types.ObjectId;
-      assigned_at: Date;
-    }[];
+  const superAdminUser = await User.findOne({
+    property_id: data.property_id,
+    role: superAdminRole._id,
+  });
 
-    if (assignedAgents.length) {
-      const lastIndex = (label.meta.last_assigned_index as number) ?? 0;
-      const nextIndex = (lastIndex + 1) % assignedAgents.length;
-      assignedToId = assignedAgents[nextIndex].agent_id;
+  if (!superAdminUser)
+    throw new Error("No Superadmin user found in this property!");
 
-      label.meta.last_assigned_index = nextIndex;
-      label.markModified("meta");
-      await label.save();
+  superAdminId = superAdminUser._id;
+
+  if (creatorId) {
+    // ---------------------------------------------------
+    // 🔹 AUTHENTICATED USER CREATING LEAD (Telecaller / Admin)
+    // ---------------------------------------------------
+    if (data.assigned_to) {
+      // Validate the assignee belongs to the same property
+      const assigneeUser = await User.findOne({
+        _id: new Types.ObjectId(data.assigned_to),
+        property_id: data.property_id,
+      });
+      if (!assigneeUser)
+        throw new Error("Assigned user not found in this property!");
+      assignedToId = assigneeUser._id;
+    } else {
+      // Default: self-assign
+      assignedToId = creatorId;
+    }
+  } else {
+    // ---------------------------------------------------
+    // 🔹 EXTERNAL LEAD: ROUND-ROBIN ASSIGNMENT (active agents only)
+    // ---------------------------------------------------
+    if (data.labels?.length) {
+      const label = await Label.findById(data.labels[0]);
+      if (!label) throw new Error(`Label with ID ${data.labels[0]} not found`);
+
+      label.meta ||= {};
+      const assignedAgents = (label.meta.assigned_agents || []) as {
+        agent_id: Types.ObjectId;
+        assigned_at: Date;
+      }[];
+
+      if (assignedAgents.length) {
+        // Fetch all agents in one shot and build active-ID set
+        const agentIds = assignedAgents.map((a) => a.agent_id);
+        const activeUsers = await User.find({
+          _id: { $in: agentIds },
+          $or: [
+            { "meta.is_active": true },
+            { "meta.is_active": { $exists: false } },
+          ],
+        })
+          .select("_id")
+          .lean();
+        const activeSet = new Set(activeUsers.map((u) => u._id.toString()));
+
+        const lastIndex = (label.meta.last_assigned_index as number) ?? 0;
+
+        // Walk the ring starting from (lastIndex + 1), pick first active agent
+        for (let i = 1; i <= assignedAgents.length; i++) {
+          const tryIndex = (lastIndex + i) % assignedAgents.length;
+          if (activeSet.has(assignedAgents[tryIndex].agent_id.toString())) {
+            assignedToId = assignedAgents[tryIndex].agent_id;
+            label.meta.last_assigned_index = tryIndex;
+            label.markModified("meta");
+            await label.save();
+            break;
+          }
+        }
+        // If no active agent found in the ring, fall through to superadmin fallback
+      }
+    }
+
+    // ---------------------------------------------------
+    // 🔹 FALLBACK TO SUPERADMIN
+    // ---------------------------------------------------
+    if (!assignedToId) {
+      assignedToId = superAdminId;
     }
   }
 
-  // ---------------------------------------------------
-  // 🔹 FALLBACK TO SUPERADMIN
-  // ---------------------------------------------------
-  if (!assignedToId) {
-    const superAdminRole = await Role.findOne({ name: "Superadmin" });
-    if (!superAdminRole)
-      throw new Error("Superadmin role not found in this property!");
-
-    const superAdminUser = await User.findOne({
-      property_id: data.property_id,
-      role: superAdminRole._id,
-    });
-
-    if (!superAdminUser)
-      throw new Error("No Superadmin user found in this property!");
-
-    assignedToId = superAdminUser._id;
-  }
+  // Who is responsible for this lead (accountability)
+  const responsibleUserId = creatorId || superAdminId;
 
   // ---------------------------------------------------
   // 🔹 DEFAULT SOURCE & STATUS
@@ -953,7 +1013,7 @@ const _createLeadService = async (data: CreateLeadDto, ip: string) => {
     labels: data.labels?.map((id) => new Types.ObjectId(id)) || [],
     status: data.status || defaultStatus._id,
     assigned_to: assignedToId,
-    assigned_by: data.assigned_by ? new Types.ObjectId(data.assigned_by) : null,
+    assigned_by: responsibleUserId,
     property_id: data.property_id || defaultStatus.property_id,
     meta: {
       ray_id,
@@ -963,13 +1023,14 @@ const _createLeadService = async (data: CreateLeadDto, ip: string) => {
       whatsapp: meta.whatsapp || "",
       course: meta.course || "",
       stream: meta.stream || "",
+      created_by: responsibleUserId?.toString(),
     },
     logs: [
       {
         title: "Lead created",
-        description: `Lead created by ${data?.name || "Unknown"} with status ${
-          defaultStatus.title
-        }`,
+        description: creatorId
+          ? `Lead created by authenticated user with status ${defaultStatus.title}`
+          : `Lead created externally with status ${defaultStatus.title}`,
         status: LeadLogStatus.ACTION,
         meta: {},
         createdAt: now,
@@ -1093,17 +1154,25 @@ const _createLeadService = async (data: CreateLeadDto, ip: string) => {
 };
 
 const _getMissedFollowUpsService = async (
-  propId: Types.ObjectId
+  propId: Types.ObjectId,
+  userId?: Types.ObjectId
 ): Promise<MissedFollowUpLead[]> => {
   const todayIST = moment()
     .tz("Asia/Kolkata")
     .startOf("day");
 
+  const matchQuery: any = {
+    property_id: propId,
+    "follow_ups.next_followup_date": { $lt: todayIST.toDate() },
+  };
+
+  // Non-superadmin users only see missed follow-ups for their own leads
+  if (userId) {
+    matchQuery.assigned_to = new Types.ObjectId(userId);
+  }
+
   const leads = await Lead.find(
-    {
-      property_id: propId,
-      "follow_ups.next_followup_date": { $lt: todayIST.toDate() },
-    },
+    matchQuery,
     {
       name: 1,
       follow_ups: 1,
@@ -1245,9 +1314,29 @@ const _updateAssignedAgentForLead = async (
     throw new Error("Telecaller not found");
   }
 
+  // Fetch current lead to capture previous assignee for history tracking
+  const currentLead = await Lead.findById(leadId).select("assigned_to meta");
+  if (!currentLead) {
+    throw new Error("Lead not found!");
+  }
+
+  const previousAssigneeId = currentLead.assigned_to;
+  const existingPreviousAssignees = currentLead.meta?.previous_assignees || [];
+
+  // Build history entry for the outgoing assignee
+  const historyEntry = {
+    agent_id: previousAssigneeId,
+    unassigned_at: new Date(),
+    unassigned_by: userId,
+  };
+
   const updatedLead = await Lead.findByIdAndUpdate(
     leadId,
-    { assigned_to: existingChatAgent?._id, assigned_by: existingUser._id },
+    {
+      assigned_to: existingChatAgent._id,
+      assigned_by: existingUser._id,
+      $push: { "meta.previous_assignees": historyEntry },
+    },
     { new: true }
   );
 
@@ -2630,8 +2719,53 @@ const _getLeadsByStatusAndAgentService = async (propIdRaw: Types.ObjectId | stri
 
 
 
+/**
+ * Validates that the requesting user owns (is assigned to) a lead by leadId.
+ * Superadmin bypasses this check entirely.
+ */
+const _validateLeadOwnership = async (
+  leadId: Types.ObjectId | string,
+  userId: string,
+  userRole: string
+): Promise<void> => {
+  if (userRole === "Superadmin") return;
+
+  const lead = await Lead.findById(leadId).select("assigned_to");
+  if (!lead) throw new Error("Lead not found!");
+
+  const assignedTo = lead.assigned_to?.toString();
+  if (assignedTo !== userId) {
+    throw new Error(
+      "Access denied: You can only modify leads that are assigned to you."
+    );
+  }
+};
+
+/**
+ * Same as _validateLeadOwnership but looks up the lead by its ray_id (meta.ray_id).
+ */
+const _validateLeadOwnershipByRayId = async (
+  rayId: string,
+  userId: string,
+  userRole: string
+): Promise<void> => {
+  if (userRole === "Superadmin") return;
+
+  const lead = await Lead.findOne({ "meta.ray_id": rayId }).select("assigned_to");
+  if (!lead) throw new Error("Lead not found!");
+
+  const assignedTo = lead.assigned_to?.toString();
+  if (assignedTo !== userId) {
+    throw new Error(
+      "Access denied: You can only modify leads that are assigned to you."
+    );
+  }
+};
+
 export {
   _leadCreationViaApi,
+  _validateLeadOwnership,
+  _validateLeadOwnershipByRayId,
   _fetchLeadDetails,
   _createNewFollowUp,
   _updateLabelForLead,

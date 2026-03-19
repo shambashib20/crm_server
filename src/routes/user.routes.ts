@@ -3,6 +3,7 @@ import {
   FetchChatAgents,
   FetchPaginatedChatAgents,
   GetUserDetails,
+  ToggleUserActiveStatusController,
   UploadProfilePhoto,
 } from "../controllers/user.controller";
 
@@ -41,6 +42,14 @@ userRouter.post(
   "/profile-details/profile-image",
   AuthMiddleware,
   UploadProfilePhoto
-)
+);
+
+// Activate / deactivate an employee — Superadmin, Admin, Lead Manager only
+userRouter.patch(
+  "/toggle-active",
+  AuthMiddleware,
+  PermissionMiddleware("manage_staff"),
+  ToggleUserActiveStatusController
+);
 
 export default userRouter;

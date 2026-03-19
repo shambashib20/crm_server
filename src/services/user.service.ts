@@ -9,6 +9,7 @@ import { teleCallersCache } from "../cache/telecallers.cache";
 import NodeCache from "node-cache";
 import axios from "axios";
 import { WhatsAppDevice } from "../models/wapmonkeyusers.model";
+import Lead from "../models/lead.model";
 const TELECALLER_ROLE_NAME = "Telecaller";
 
 const userCache = new NodeCache({
@@ -112,7 +113,7 @@ const _createUserForOrganization = async (
       email,
       password: rawPassword,
       phone_number,
-      meta: { ray_id: `ray-id-${uuidv4()}` },
+      meta: { ray_id: `ray-id-${uuidv4()}`, is_active: true },
       role: role._id,
       property_id,
     });
@@ -232,53 +233,69 @@ const _allChatAgents = async (propertyId: Types.ObjectId) => {
   const users = await User.find({
     role: chatAgentRole._id,
     property_id: propertyId,
-  }).select("name");
+  }).select("name meta");
 
-  return users;
+  // Normalise meta Map → plain object so is_active is accessible
+  return users.map((u: any) => {
+    const metaObj =
+      u.meta instanceof Map ? Object.fromEntries(u.meta) : u.meta || {};
+    return {
+      _id: u._id,
+      name: u.name,
+      is_active: metaObj.is_active !== false, // default true if not set
+    };
+  });
 };
 
 const _allPaginatedChatAgents = async (
   propertyId: Types.ObjectId,
   page = 1,
-  limit = 10
+  limit = 10,
+  filterActive?: boolean // undefined = all, true = active only, false = inactive only
 ) => {
   const chatAgentRole = await Role.findOne({ name: "Telecaller" });
 
   if (!chatAgentRole) {
     return {
       chatAgents: [],
-      pagination: {
-        total: 0,
-        limit,
-        currentPage: page,
-        totalPages: 0,
-      },
+      pagination: { total: 0, limit, currentPage: page, totalPages: 0 },
     };
   }
 
-  const query = {
+  const query: any = {
     role: chatAgentRole._id,
     property_id: propertyId,
   };
+
+  if (filterActive === true) {
+    query.$or = [{ "meta.is_active": true }, { "meta.is_active": { $exists: false } }];
+  } else if (filterActive === false) {
+    query["meta.is_active"] = false;
+  }
 
   const total = await User.countDocuments(query);
   const totalPages = Math.ceil(total / limit);
   const skip = (page - 1) * limit;
 
   const chatAgents = await User.find(query)
-    .select("name email phone_number createdAt")
+    .select("name email phone_number meta createdAt")
     .skip(skip)
     .limit(limit)
-    .sort({ createdAt: -1 });
+    .sort({ createdAt: -1 })
+    .lean();
+
+  const enriched = chatAgents.map((u: any) => {
+    const metaObj =
+      u.meta instanceof Map ? Object.fromEntries(u.meta) : u.meta || {};
+    return {
+      ...u,
+      is_active: metaObj.is_active !== false,
+    };
+  });
 
   return {
-    chatAgents,
-    pagination: {
-      total,
-      limit,
-      currentPage: page,
-      totalPages,
-    },
+    chatAgents: enriched,
+    pagination: { total, limit, currentPage: page, totalPages },
   };
 };
 
@@ -321,10 +338,115 @@ const _uploadProfilePicture = async (
   }
 };
 
+/**
+ * Activate or deactivate an employee.
+ * When deactivating, all their active leads are bulk-transferred to reassignToUserId.
+ * Superadmin accounts cannot be deactivated.
+ * Only roles superior to Telecaller (Superadmin, Admin, Lead Manager) may call this.
+ */
+const _toggleUserActiveStatus = async (
+  targetUserId: Types.ObjectId,
+  isActive: boolean,
+  requestingUserId: Types.ObjectId,
+  propertyId: Types.ObjectId,
+  reassignToUserId?: Types.ObjectId
+) => {
+  const targetUser = await User.findById(targetUserId).populate<{
+    role: { name: string };
+  }>("role", "name");
+
+  if (!targetUser) throw new Error("User not found.");
+  if (targetUser.property_id?.toString() !== propertyId.toString())
+    throw new Error("User does not belong to your property.");
+
+  const targetRoleName = (targetUser.role as any)?.name;
+  if (targetRoleName === "Superadmin")
+    throw new Error("Cannot deactivate a Superadmin account.");
+
+  // When deactivating, transfer all active leads to the new assignee
+  let leadsTransferred = 0;
+  if (!isActive) {
+    if (!reassignToUserId)
+      throw new Error(
+        "reassign_to is required when deactivating a user — all their leads will be transferred."
+      );
+
+    const newAssignee = await User.findOne({
+      _id: reassignToUserId,
+      property_id: propertyId,
+    });
+    if (!newAssignee) throw new Error("Reassign target user not found in this property.");
+
+    const result = await Lead.updateMany(
+      {
+        assigned_to: targetUserId,
+        "meta.status": { $nin: ["ARCHIVED", "CONVERTED TO CUSTOMER"] },
+      },
+      {
+        $set: {
+          assigned_to: reassignToUserId,
+          assigned_by: requestingUserId,
+        },
+        $push: {
+          "meta.previous_assignees": {
+            agent_id: targetUserId,
+            unassigned_at: new Date(),
+            unassigned_by: requestingUserId,
+            reason: "user_deactivated",
+          },
+          logs: {
+            title: "Lead reassigned — user deactivated",
+            description: `Lead auto-transferred because the previous assignee was deactivated.`,
+            status: "ACTION",
+            meta: {
+              previous_assignee: targetUserId,
+              new_assignee: reassignToUserId,
+              deactivated_by: requestingUserId,
+            },
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+        },
+      }
+    );
+    leadsTransferred = result.modifiedCount;
+  }
+
+  // Update meta.is_active on the user
+  await User.findByIdAndUpdate(targetUserId, {
+    $set: { "meta.is_active": isActive },
+  });
+
+  // Audit log on property
+  await Property.findByIdAndUpdate(propertyId, {
+    $push: {
+      logs: {
+        title: isActive ? "Employee Activated" : "Employee Deactivated",
+        description: `User '${targetUser.name}' was ${isActive ? "activated" : "deactivated"} by admin. ${leadsTransferred} lead(s) transferred.`,
+        status: LogStatus.ACTION,
+        meta: {
+          targetUserId,
+          requestingUserId,
+          leadsTransferred,
+          reassignToUserId: reassignToUserId || null,
+        },
+      },
+    },
+  });
+
+  return {
+    userId: targetUserId,
+    name: targetUser.name,
+    is_active: isActive,
+    leads_transferred: leadsTransferred,
+  };
+};
+
 export {
   _getUserdetails,
   _createUserForOrganization,
   _allChatAgents,
   _uploadProfilePicture,
   _allPaginatedChatAgents,
+  _toggleUserActiveStatus,
 };
