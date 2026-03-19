@@ -73,6 +73,7 @@ export async function seedRolesAndPermissions() {
         permissionMap["assign_leads"],
         permissionMap["call_leads"],
         permissionMap["view_reports"],
+        permissionMap["manage_staff"],
       ],
     },
     {
@@ -82,6 +83,8 @@ export async function seedRolesAndPermissions() {
         permissionMap["view_leads"],
         permissionMap["chat_with_leads"],
         permissionMap["call_leads"],
+        permissionMap["assign_leads"],
+        permissionMap["manage_leads"],
       ],
     },
   ];
@@ -89,6 +92,31 @@ export async function seedRolesAndPermissions() {
   const existingRoles = await Role.countDocuments();
   if (existingRoles === 0) {
     await Role.insertMany(roles);
+  } else {
+    // Patch existing roles to include new permissions if missing
+    const patches: { roleName: string; permissions: string[] }[] = [
+      { roleName: "Telecaller", permissions: ["assign_leads", "manage_leads"] },
+      { roleName: "Lead Manager", permissions: ["manage_staff"] },
+    ];
+
+    for (const patch of patches) {
+      const role = await Role.findOne({ name: patch.roleName });
+      if (!role) continue;
+
+      const existingPermIds = role.permissions.map((p: any) => p.toString());
+      const toAdd = patch.permissions
+        .map((name) => permissionMap[name])
+        .filter((id) => id && !existingPermIds.includes(id.toString()));
+
+      if (toAdd.length > 0) {
+        await Role.findByIdAndUpdate(role._id, {
+          $addToSet: { permissions: { $each: toAdd } },
+        });
+        console.log(
+          `✅ '${patch.roleName}' role patched with ${toAdd.length} new permission(s)`
+        );
+      }
+    }
   }
 
   console.log("✅ Roles and Permissions Seeded Successfully");

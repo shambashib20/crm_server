@@ -250,6 +250,7 @@ const _createNewUserForOnboarding = async (
         onboardingStep: 1,
         createdAt: new Date(),
         ray_id: rayId,
+        is_active: true,
       },
     });
 
