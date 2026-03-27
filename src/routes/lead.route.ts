@@ -3,6 +3,7 @@ import {
   CreateExternalLeadsController,
   CreateLeadController,
   CreateLeadByUserController,
+  CreateLeadViaLabelController,
   DeleteOrArchiveForLead,
   EditFollowUp,
   ExportLeadsController,
@@ -151,6 +152,13 @@ leadRouter.get(
 );
 
 leadRouter.post("/create/external", CreateExternalLeadsController);
+
+// Public endpoint — Basic Auth (API key) + label-based lead creation (no pricing middleware)
+leadRouter.post(
+  "/create/via-label",
+  BasicAuthMiddleware,
+  CreateLeadViaLabelController
+);
 
 leadRouter.post(
   "/archived-leads",

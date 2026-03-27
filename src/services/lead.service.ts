@@ -4,7 +4,7 @@ import Property from "../models/property.model";
 import User from "../models/user.model";
 import { LogStatus } from "../dtos/property.dto";
 import Label from "../models/label.model";
-import { LeadDto, LeadLogStatus } from "../dtos/lead.dto";
+import { LeadDto, LeadLimitValidationStatus, LeadLogStatus } from "../dtos/lead.dto";
 import Status from "../models/status.model";
 import Role from "../models/role.model";
 import { v4 as uuidv4 } from "uuid";
@@ -711,6 +711,26 @@ const _homePageLeadService = async (
   return response;
 };
 
+// ---------------------------------------------------
+// 🔹 LEAD LIMIT VALIDATION — strict typed states
+// ---------------------------------------------------
+
+
+function _resolveLeadLimitStatus(
+  activePackage: any,
+  leadsFeature: any
+): LeadLimitValidationStatus {
+  if (!activePackage) return LeadLimitValidationStatus.NO_PACKAGE;
+  if (activePackage.status !== PurchaseStatus.COMPLETED)
+    return LeadLimitValidationStatus.PACKAGE_NOT_ACTIVE;
+  if (!leadsFeature) return LeadLimitValidationStatus.FEATURE_MISSING;
+  if (new Date() > new Date(leadsFeature.validity))
+    return LeadLimitValidationStatus.FEATURE_EXPIRED;
+  if (leadsFeature.used >= leadsFeature.limit)
+    return LeadLimitValidationStatus.LIMIT_REACHED;
+  return LeadLimitValidationStatus.OK;
+}
+
 const _leadCreationViaApi = async (
   leadData: ExternalLeadGenerationDto
 ) => {
@@ -799,70 +819,76 @@ const _leadCreationViaApi = async (
       : activePackageIdRaw;
 
   const activePackage = await PurchaseRecordsModel.findById(activePackageId);
-  if (!activePackage)
-    throw new Error("Active package not found for this property.");
-  if (activePackage.status !== PurchaseStatus.COMPLETED) {
-    throw new Error(
-      `Your current package is ${activePackage.status}. Please renew or upgrade.`
-    );
-  }
 
   // ---------------------------------------------------
-  // 🔹 VALIDATE FEATURE LIMIT
+  // 🔹 VALIDATE FEATURE LIMIT (exhaustive switch)
   // ---------------------------------------------------
   const activatedFeatures =
-    getMetaValue(activePackage.meta, "activated_features") || [];
-
+    getMetaValue(activePackage?.meta, "activated_features") || [];
   const leadsFeature = activatedFeatures.find(
     (f: any) => f.title === "Leads Limit"
   );
 
-  if (!leadsFeature)
-    throw new Error("Your plan does not include Leads Limit. Please upgrade.");
+  const limitStatus = _resolveLeadLimitStatus(activePackage, leadsFeature);
 
-  const validityDate = new Date(leadsFeature.validity);
-  if (new Date() > validityDate) {
-    throw new Error(
-      `Lead limit expired on ${validityDate.toLocaleDateString()}. Please renew your plan.`
-    );
-  }
+  switch (limitStatus) {
+    case LeadLimitValidationStatus.NO_PACKAGE:
+      throw new Error("Active package not found for this property.");
 
-  if (leadsFeature.used >= leadsFeature.limit) {
-    await Property.findByIdAndUpdate(
-      defaultStatus.property_id,
-      {
-        $push: {
-          logs: {
-            title: "Lead Creation Failed",
-            description: `Lead limit reached (${leadsFeature.used}/${leadsFeature.limit}). Lead (${leadData.customer_name}) NOT created.`,
-            status: LogStatus.WARNING,
-            meta: { leadPreview: leadData },
-            createdAt: now,
-            updatedAt: now,
+    case LeadLimitValidationStatus.PACKAGE_NOT_ACTIVE:
+      throw new Error(
+        `Your current package is ${activePackage?.status}. Please renew or upgrade.`
+      );
+
+    case LeadLimitValidationStatus.FEATURE_MISSING:
+      throw new Error("Your plan does not include Leads Limit. Please upgrade.");
+
+    case LeadLimitValidationStatus.FEATURE_EXPIRED:
+      throw new Error(
+        `Lead limit expired on ${new Date(leadsFeature.validity).toLocaleDateString()}. Please renew your plan.`
+      );
+
+    case LeadLimitValidationStatus.LIMIT_REACHED:
+      await Property.findByIdAndUpdate(
+        property_id,
+        {
+          $push: {
+            logs: {
+              title: "Lead Creation Failed",
+              description: `Lead limit reached (${leadsFeature.used}/${leadsFeature.limit}). Lead (${leadData.customer_name}) NOT created.`,
+              status: LogStatus.WARNING,
+              meta: { leadPreview: leadData },
+              createdAt: now,
+              updatedAt: now,
+            },
           },
         },
-      },
-      { new: true }
-    );
+        { new: true }
+      );
+      throw new Error(
+        `Lead limit reached. Used ${leadsFeature.used}/${leadsFeature.limit}.`
+      );
 
-    throw new Error(
-      `Lead limit reached. Used ${leadsFeature.used}/${leadsFeature.limit}.`
-    );
+    case LeadLimitValidationStatus.OK:
+      break;
+
+    default: {
+      const _exhaustive: never = limitStatus;
+      throw new Error(`Unhandled lead limit validation status: ${_exhaustive}`);
+    }
   }
 
  
   await newLead.save();
 
-
   await Property.findByIdAndUpdate(
-    defaultStatus.property_id,
+    property_id,
     {
       $inc: { usage_count: 1 },
       $push: {
         logs: {
           title: "Lead Created",
-          description: `(${customer_name}) named lead created externally through API with status with status ${defaultStatus.title
-            }.`,
+          description: `(${customer_name}) named lead created externally through API with status ${defaultStatus.title}.`,
           status: LogStatus.INFO,
           meta: { leadId: newLead._id },
           createdAt: now,
@@ -2762,6 +2788,231 @@ const _validateLeadOwnershipByRayId = async (
   }
 };
 
+// ---------------------------------------------------
+// 🔹 CREATE LEAD VIA BASIC AUTH + LABEL TITLE
+// ---------------------------------------------------
+const _createLeadViaLabel = async (
+  data: {
+    label_title: string;
+    name?: string;
+    company_name?: string;
+    phone_number?: string;
+    email?: string;
+    address?: string;
+    comment?: string;
+    reference?: string;
+    meta?: Record<string, any>;
+  },
+  property: any,
+  ip: string
+) => {
+  const now = new Date();
+  const property_id = property._id;
+
+  // 1. Find label by title within this property
+  const label = await Label.findOne({ title: data.label_title, property_id });
+  if (!label) {
+    throw new Error(
+      `Label "${data.label_title}" not found for this organisation.`
+    );
+  }
+
+  // 2. Round-robin assignment from label's assigned_agents
+  label.meta ||= {};
+  const assignedAgents = (label.meta.assigned_agents || []) as {
+    agent_id: Types.ObjectId;
+    assigned_at: Date;
+  }[];
+
+  let assignedToId: Types.ObjectId | null = null;
+
+  if (assignedAgents.length) {
+    const agentIds = assignedAgents.map((a) => a.agent_id);
+    const activeUsers = await User.find({
+      _id: { $in: agentIds },
+      $or: [
+        { "meta.is_active": true },
+        { "meta.is_active": { $exists: false } },
+      ],
+    })
+      .select("_id")
+      .lean();
+    const activeSet = new Set(activeUsers.map((u) => u._id.toString()));
+    const lastIndex = (label.meta.last_assigned_index as number) ?? 0;
+
+    for (let i = 1; i <= assignedAgents.length; i++) {
+      const tryIndex = (lastIndex + i) % assignedAgents.length;
+      if (activeSet.has(assignedAgents[tryIndex].agent_id.toString())) {
+        assignedToId = assignedAgents[tryIndex].agent_id;
+        label.meta.last_assigned_index = tryIndex;
+        label.markModified("meta");
+        await label.save();
+        break;
+      }
+    }
+  }
+
+  // Fallback to superadmin
+  if (!assignedToId) {
+    const superAdminRole = await Role.findOne({ name: "Superadmin" });
+    if (superAdminRole) {
+      const superAdminUser = await User.findOne({
+        property_id,
+        role: superAdminRole._id,
+      }).select("_id");
+      assignedToId = superAdminUser?._id ?? null;
+    }
+  }
+
+  // 3. Default status + source
+  const [defaultStatus, defaultSource] = await Promise.all([
+    Status.findOne({ title: "New" }),
+    Source.findOne({ title: "Website" }),
+  ]);
+  if (!defaultStatus)
+    throw new Error("Default status 'New' not found in the system.");
+
+  // 4. Location + ray_id
+  const locationData = await getLocationFromIP(ip);
+  const ray_id = `ray-id-${uuidv4()}`;
+
+  // 5. Validate package + leads limit (no middleware, done inline)
+  const activePackageIdRaw = getMetaValue(property.meta, "active_package");
+  if (!activePackageIdRaw)
+    throw new Error("No active package found for this organisation.");
+
+  const activePackageId =
+    typeof activePackageIdRaw === "string"
+      ? new Types.ObjectId(activePackageIdRaw)
+      : activePackageIdRaw;
+
+  const activePackage = await PurchaseRecordsModel.findById(activePackageId);
+
+  // ---------------------------------------------------
+  // 🔹 VALIDATE FEATURE LIMIT (exhaustive switch)
+  // ---------------------------------------------------
+  const activatedFeatures =
+    getMetaValue(activePackage?.meta, "activated_features") || [];
+  const leadsFeature = activatedFeatures.find(
+    (f: any) => f.title === "Leads Limit"
+  );
+
+  const limitStatus = _resolveLeadLimitStatus(activePackage, leadsFeature);
+
+  switch (limitStatus) {
+    case LeadLimitValidationStatus.NO_PACKAGE:
+      throw new Error("Active package not found for this organisation.");
+
+    case LeadLimitValidationStatus.PACKAGE_NOT_ACTIVE:
+      throw new Error(
+        `Your current package is ${activePackage?.status}. Please renew or upgrade.`
+      );
+
+    case LeadLimitValidationStatus.FEATURE_MISSING:
+      throw new Error(
+        "Your plan does not include a Leads Limit. Please upgrade."
+      );
+
+    case LeadLimitValidationStatus.FEATURE_EXPIRED:
+      throw new Error(
+        `Lead limit expired on ${new Date(leadsFeature.validity).toLocaleDateString()}. Please renew your plan.`
+      );
+
+    case LeadLimitValidationStatus.LIMIT_REACHED:
+      await Property.findByIdAndUpdate(
+        property_id,
+        {
+          $push: {
+            logs: {
+              title: "Lead Creation Failed",
+              description: `Lead limit reached (${leadsFeature.used}/${leadsFeature.limit}). Lead (${data.name || "unnamed"}) NOT created via Label API.`,
+              status: LogStatus.WARNING,
+              meta: { label_title: data.label_title },
+              createdAt: now,
+              updatedAt: now,
+            },
+          },
+        },
+        { new: true }
+      );
+      throw new Error(
+        `Lead limit reached. Used ${leadsFeature.used}/${leadsFeature.limit}.`
+      );
+
+    case LeadLimitValidationStatus.OK:
+      break;
+
+    default: {
+      const _exhaustive: never = limitStatus;
+      throw new Error(`Unhandled lead limit validation status: ${_exhaustive}`);
+    }
+  }
+
+  // 6. Build and save lead
+  const newLead = new Lead({
+    name: data.name,
+    company_name: data.company_name,
+    phone_number: data.phone_number,
+    email: data.email,
+    address: data.address,
+    comment: data.comment,
+    reference: data.reference,
+    labels: [label._id],
+    status: defaultStatus._id,
+    assigned_to: assignedToId,
+    assigned_by: assignedToId,
+    property_id,
+    meta: {
+      ray_id,
+      source: defaultSource?._id,
+      location: locationData,
+      status: "ACTIVE",
+      ...(data.meta || {}),
+      created_by: "LABEL_API",
+    },
+    logs: [
+      {
+        title: "Lead Created via Label API",
+        description: `Lead created externally via Basic Auth API using label "${data.label_title}" with status ${defaultStatus.title}.`,
+        status: LeadLogStatus.ACTION,
+        meta: { label_title: data.label_title, source: "LABEL_API" },
+        createdAt: now,
+        updatedAt: now,
+      },
+    ],
+  });
+
+  await newLead.save();
+
+  // 7. Record in property logs + increment usage_count
+  await Property.findByIdAndUpdate(
+    property_id,
+    {
+      $inc: { usage_count: 1 },
+      $push: {
+        logs: {
+          title: "Lead Created via Label API",
+          description: `Lead (${data.name || "unnamed"}) created via Basic Auth API using label "${data.label_title}".`,
+          status: LogStatus.INFO,
+          meta: { leadId: newLead._id, label_title: data.label_title },
+          createdAt: now,
+          updatedAt: now,
+        },
+      },
+    },
+    { new: true }
+  );
+
+  // 8. Increment Leads Limit used count in the package
+  await PurchaseRecordsModel.findOneAndUpdate(
+    { _id: activePackageId, "meta.activated_features.title": "Leads Limit" },
+    { $inc: { "meta.activated_features.$.used": 1 } },
+    { new: true }
+  );
+
+  return newLead;
+};
+
 export {
   _leadCreationViaApi,
   _validateLeadOwnership,
@@ -2789,5 +3040,7 @@ export {
   _getLeadsByLabelAndAgentService,
   _getLeadsByStatusAndAgentService,
   _editFollowUp,
-  _getTodaysFollowupsForSuperadmin
+  _getTodaysFollowupsForSuperadmin,
+  _createLeadViaLabel,
 };
+

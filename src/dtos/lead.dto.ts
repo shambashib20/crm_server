@@ -51,4 +51,13 @@ interface LeadDto {
   createdAt: Date;
 }
 
-export { LeadDto, LeadLog, Task, FollowUp, LeadLogStatus };
+enum LeadLimitValidationStatus {
+  OK = "OK",
+  NO_PACKAGE = "NO_PACKAGE",
+  PACKAGE_NOT_ACTIVE = "PACKAGE_NOT_ACTIVE",
+  FEATURE_MISSING = "FEATURE_MISSING",
+  FEATURE_EXPIRED = "FEATURE_EXPIRED",
+  LIMIT_REACHED = "LIMIT_REACHED",
+}
+
+export { LeadDto, LeadLog, Task, FollowUp, LeadLogStatus, LeadLimitValidationStatus };

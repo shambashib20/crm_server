@@ -27,6 +27,7 @@ import {
   _getTodaysFollowupsForSuperadmin,
   _validateLeadOwnership,
   _validateLeadOwnershipByRayId,
+  _createLeadViaLabel,
 } from "../services/lead.service";
 import multer from "multer";
 import { _getConvertedLeadsPerAgentPerSourceService, _getLeadsTrendByTelecallerService, _getTelecallerStatsService } from "../services/master.service";
@@ -851,6 +852,59 @@ const GetStatisticsBySourceController = async (req: any, res: any) => {
     return res.status(500).json(new SuccessResponse(error.message, 500));
   }
 };
+
+const CreateLeadViaLabelController = async (req: any, res: any) => {
+  try {
+    const property = req.property; // attached by BasicAuthMiddleware
+    const ip =
+      (req.headers["x-forwarded-for"] as string) ||
+      req.socket.remoteAddress ||
+      "0.0.0.0";
+
+    const {
+      label_title,
+      name,
+      company_name,
+      phone_number,
+      email,
+      address,
+      comment,
+      reference,
+      meta,
+    } = req.body;
+
+    if (!label_title) {
+      return res
+        .status(400)
+        .json(new SuccessResponse("label_title is required", 400));
+    }
+
+    const newLead = await _createLeadViaLabel(
+      {
+        label_title,
+        name,
+        company_name,
+        phone_number,
+        email,
+        address,
+        comment,
+        reference,
+        meta,
+      },
+      property,
+      ip
+    );
+
+    return res
+      .status(201)
+      .json(new SuccessResponse("Lead created successfully", 201, newLead));
+  } catch (err: any) {
+    return res
+      .status(500)
+      .json(new SuccessResponse(err.message || "Something went wrong", 500));
+  }
+};
+
 export {
   FetchLeadDetails,
   NewFollowUp,
@@ -879,5 +933,6 @@ export {
   GetLeadsTrendByTelecallerController,
   GetTelecallerStatisticsController,
   GetStatisticsBySourceController,
-  FetchTodaysFollowupsSuperadmin
+  FetchTodaysFollowupsSuperadmin,
+  CreateLeadViaLabelController,
 };
