@@ -369,6 +369,27 @@ const _fetchPaginatedProperties = async (
   };
 };
 
+const _fetchApiKeysService = async (propertyId: string) => {
+  const property = await Property.findById(propertyId);
+  if (!property) {
+    throw new Error("Property not found");
+  }
+
+  const keys: any[] = property.meta?.get("keys") || [];
+
+  // Populate label details for each key
+  const populated = await Promise.all(
+    keys.map(async (key: any) => {
+      const label = key.label_id
+        ? await Label.findById(key.label_id).select("title description meta").lean()
+        : null;
+      return { ...key, label };
+    })
+  );
+
+  return populated;
+};
+
 export {
   _fetchPropertyLogs,
   _fetchPropertyDetails,
@@ -378,4 +399,5 @@ export {
   _createApiKeyService,
   _fetchPaginatedProperties,
   _uploadWorkspaceProfilePicture,
+  _fetchApiKeysService,
 };
