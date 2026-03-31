@@ -14,7 +14,7 @@ const LoginSuperAdminController = async (req: any, res: any) => {
   try {
     const result = await _loginSuperAdmin(email, password, res);
 
-    console.log("result=>", result);
+
 
     if (!result) {
       return res

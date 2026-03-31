@@ -48,10 +48,15 @@ const AuthMiddleware = async (
             .select("-password")
             .populate("role");
 
+
+
           if (!user)
             return res.status(401).json({ message: "User not found." });
           if (user.is_banned)
             return res.status(403).json({ message: "User is banned." });
+          if (user.meta?.get("is_active") === false)
+            return res.status(403).json({ message: "Your account has been deactivated. Please contact admin." });
+
 
           const property = await Property.findById(user.property_id);
           if (property?.is_banned)
@@ -153,11 +158,12 @@ const handleRefreshFlow = async (
         .status(404)
         .json({ message: "Associated property not found." });
 
+
     // 🧠 Generate new short-lived access token
     const newAccessToken = generateAccessToken(
       new Types.ObjectId(user._id),
       new Types.ObjectId(user.property_id),
-      user?.meta?.ray_id as string
+      user?.meta?.get("ray_id") as string
     );
 
     const expiresInMs = 5 * 24 * 60 * 60 * 1000; // 5 days
