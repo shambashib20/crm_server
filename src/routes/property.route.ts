@@ -1,6 +1,7 @@
 import {
   CreateApiKeyController,
   CreatePropertyForOnboarding,
+  FetchApiKeysController,
   FetchProperties,
   FetchPropertyLogs,
   PropertyDetails,
@@ -51,6 +52,12 @@ propertyRouter.post(
   "/generate/api-key",
   AuthMiddleware,
   CreateApiKeyController
+);
+
+propertyRouter.get(
+  "/api-keys",
+  AuthMiddleware,
+  FetchApiKeysController
 );
 
 propertyRouter.post(
