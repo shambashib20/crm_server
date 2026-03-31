@@ -4,6 +4,7 @@ import {
   _loginSuperAdmin,
   _resetPasswordService,
   _updatePasswordService,
+  _logoutService,
 } from "../services/auth.service";
 
 import SuccessResponse from "../middlewares/success.middleware";
@@ -14,8 +15,6 @@ const LoginSuperAdminController = async (req: any, res: any) => {
   try {
     const result = await _loginSuperAdmin(email, password, res);
 
-
-
     if (!result) {
       return res
         .status(400)
@@ -25,10 +24,9 @@ const LoginSuperAdminController = async (req: any, res: any) => {
       .status(200)
       .json(new SuccessResponse("User logged in successfully!", 200, result));
   } catch (error: any) {
-
-    console.log("error=>", error);
-
-    return res.status(500).json(new SuccessResponse(error.message, 500));
+    const status = error.statusCode || 500;
+    const message = status < 500 ? error.message : "Something went wrong. Please try again.";
+    return res.status(status).json(new SuccessResponse(message, status));
   }
 };
 
@@ -46,7 +44,9 @@ const LoginForAllUsers = async (req: any, res: any) => {
       .status(200)
       .json(new SuccessResponse("User logged in successfully!", 200, result));
   } catch (error: any) {
-    return res.status(500).json(new SuccessResponse(error.message, 500));
+    const status = error.statusCode || 500;
+    const message = status < 500 ? error.message : "Something went wrong. Please try again.";
+    return res.status(status).json(new SuccessResponse(message, status));
   }
 };
 
@@ -80,17 +80,21 @@ const LogoutForAllUsers = async (req: any, res: any) => {
       .status(400)
       .json(new SuccessResponse("User is already logged out", 400));
   }
-  res.clearCookie("access_token", {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: true,
-  });
 
-  res.clearCookie("refresh_token", {
+  // Rotate ray_id so all previously issued tokens for this user are invalidated.
+  // This means a stolen cookie becomes useless the moment the real user logs out.
+  await _logoutService(accessToken, refreshToken);
+
+  const isProd = process.env.NODE_ENV === "production";
+  const cookieOptions = {
     httpOnly: true,
-    sameSite: "lax",
-    secure: true,
-  });
+    sameSite: (isProd ? "none" : "lax") as "none" | "lax",
+    secure: isProd,
+  };
+
+  res.clearCookie("access_token", cookieOptions);
+  res.clearCookie("refresh_token", cookieOptions);
+  res.clearCookie("access_token_expires_at", { ...cookieOptions, httpOnly: false });
 
   return res
     .status(200)
