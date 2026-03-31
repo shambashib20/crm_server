@@ -4,6 +4,7 @@ import { _createNewUserForOnboarding } from "../services/onboarding.service";
 import {
   _createApiKeyService,
   _createPropertyForOnboarding,
+  _fetchApiKeysService,
   _fetchPaginatedProperties,
   _fetchPropertyDetails,
   _fetchPropertyLogs,
@@ -170,16 +171,33 @@ const CreateApiKeyController = async (req: any, res: any) => {
         .json(new SuccessResponse("Property not found", 404));
     }
 
-    const { purpose, label_id } = req.body;
+    const { purpose, label_id, expiry_at } = req.body;
 
     const apiKey = await _createApiKeyService(propId, {
       purpose,
       label_id,
+      expiry_at: expiry_at ? new Date(expiry_at) : undefined,
     });
 
     return res
       .status(200)
       .json(new SuccessResponse(`Api key created successfully`, 200, apiKey));
+  } catch (err: any) {
+    return res
+      .status(500)
+      .json(new SuccessResponse(err.message || "Something went wrong", 500));
+  }
+};
+
+const FetchApiKeysController = async (req: any, res: any) => {
+  try {
+    const propId = req.user.property_id;
+
+    const keys = await _fetchApiKeysService(propId);
+
+    return res
+      .status(200)
+      .json(new SuccessResponse("API keys fetched successfully", 200, keys));
   } catch (err: any) {
     return res
       .status(500)
@@ -228,6 +246,7 @@ export {
   UpdatePropertyById,
   TogglePropertyLogReadStatus,
   CreateApiKeyController,
+  FetchApiKeysController,
   FetchProperties,
   UploadProfilePhotoforWorkspace,
 };
