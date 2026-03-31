@@ -57,6 +57,12 @@ const AuthMiddleware = async (
           if (user.meta?.get("is_active") === false)
             return res.status(403).json({ message: "Your account has been deactivated. Please contact admin." });
 
+          // 🛡️ Ray ID validation — token is bound to the session active at login.
+          // When the real user logs out, ray_id rotates in DB, so any stolen
+          // cookie is immediately dead on the next request.
+          if (decoded.ray_id !== user.meta?.get("ray_id")) {
+            return res.status(401).json({ message: "Session invalidated. Please log in again." });
+          }
 
           const property = await Property.findById(user.property_id);
           if (property?.is_banned)
@@ -90,7 +96,6 @@ const AuthMiddleware = async (
               console.error("❌ Invalid access token:", error.message);
               return res.status(401).json({
                 message: "Invalid or expired access token.",
-                error: error.message,
               });
           }
         }
@@ -148,6 +153,17 @@ const handleRefreshFlow = async (
     if (!user) return res.status(401).json({ message: "User not found." });
     if (user.is_banned)
       return res.status(403).json({ message: "User is banned." });
+    if (user.meta?.get("is_active") === false)
+      return res.status(403).json({ message: "Your account has been deactivated. Please contact admin." });
+
+    // 🛡️ Ray ID validation on refresh path — prevents a stolen refresh token
+    // from silently minting new access tokens after the real user has logged out.
+    if (decodedRefresh.ray_id !== user.meta?.get("ray_id")) {
+      res.clearCookie("access_token");
+      res.clearCookie("refresh_token");
+      res.clearCookie("access_token_expires_at");
+      return res.status(401).json({ message: "Session invalidated. Please log in again." });
+    }
 
     const property = await Property.findById(user.property_id);
 

@@ -1,4 +1,6 @@
 import bcrypt from "bcrypt";
+import jwt from "jsonwebtoken";
+import { v4 as uuidv4 } from "uuid";
 import User from "../models/user.model";
 import Role from "../models/role.model";
 import {
@@ -25,12 +27,22 @@ const _LoginForAllUsersService = async (
 ) => {
   const user = await User.findOne({ email }).populate("role");
   if (!user) {
-    throw new Error("Invalid email");
+    const err: any = new Error("Invalid email or password.");
+    err.statusCode = 401;
+    throw err;
   }
 
   const isMatch = await bcrypt.compare(password.trim(), user.password);
   if (!isMatch) {
-    throw new Error("Invalid password");
+    const err: any = new Error("Invalid email or password.");
+    err.statusCode = 401;
+    throw err;
+  }
+
+  if (user.meta?.get("is_active") === false) {
+    const err: any = new Error("Your account has been deactivated. Please contact admin.");
+    err.statusCode = 403;
+    throw err;
   }
 
   const role = await Role.findById(user.role);
@@ -38,11 +50,11 @@ const _LoginForAllUsersService = async (
   const accessToken = generateAccessToken(
     new Types.ObjectId(user._id),
     new Types.ObjectId(user.property_id),
-    user?.meta?.ray_id as string
+    user.meta?.get("ray_id") as string
   );
   const refreshToken = generateRefreshToken(
     new Types.ObjectId(user._id),
-    user?.meta?.ray_id as string
+    user.meta?.get("ray_id") as string
   );
   const isProd = process.env.NODE_ENV === "production";
   res.cookie("access_token", accessToken, {
@@ -77,14 +89,22 @@ const _loginSuperAdmin = async (
 ) => {
   const user = await User.findOne({ email }).populate("role");
   if (!user) {
-    throw new Error("Invalid email");
+    const err: any = new Error("Invalid email or password.");
+    err.statusCode = 401;
+    throw err;
   }
   if (user.is_banned)
     return res.status(403).json({ message: "User is banned." });
 
   const isMatch = await bcrypt.compare(password.trim(), user.password);
   if (!isMatch) {
-    throw new Error("Invalid password");
+    const err: any = new Error("Invalid email or password.");
+    err.statusCode = 401;
+    throw err;
+  }
+
+  if (user.meta?.get("is_active") === false) {
+    return res.status(403).json({ message: "Your account has been deactivated. Please contact admin." });
   }
 
   const role = await Role.findById(user.role);
@@ -95,11 +115,11 @@ const _loginSuperAdmin = async (
   const accessToken = generateAccessToken(
     new Types.ObjectId(user._id),
     new Types.ObjectId(user.property_id),
-    user?.meta?.ray_id as string
+    user.meta?.get("ray_id") as string
   );
   const refreshToken = generateRefreshToken(
     new Types.ObjectId(user._id),
-    user?.meta?.ray_id as string
+    user.meta?.get("ray_id") as string
   );
   const isProd = process.env.NODE_ENV === "production";
   res.cookie("access_token", accessToken, {
@@ -138,8 +158,11 @@ const _forgotPasswordService = async (
     : { email: emailOrPhone };
 
   const user = await User.findOne(query);
+
+  // Always return the same message whether the user exists or not.
+  // This prevents attackers from enumerating registered emails/phones.
   if (!user) {
-    throw new Error("User not found with provided credentials.");
+    return "OTP sent successfully.";
   }
 
   const otp = generateOTP();
@@ -191,7 +214,7 @@ const _resetPasswordService = async (
   }
 
   const now = new Date();
-  const expiration = new Date(user.meta?.forgot_password_otp_expiration);
+  const expiration = new Date(user.meta?.get("forgot_password_otp_expiration"));
 
   if (expiration.getTime() < now.getTime()) {
     throw new Error("OTP has expired.");
@@ -241,10 +264,46 @@ const _updatePasswordService = async (
   return "Password reset successfully.";
 };
 
+/**
+ * Rotates the user's ray_id on logout so any stolen tokens are immediately
+ * invalidated — the next request with the old token will fail ray_id validation.
+ */
+const _logoutService = async (
+  accessToken?: string,
+  refreshToken?: string
+): Promise<void> => {
+  const token = accessToken || refreshToken;
+  const secret = accessToken
+    ? process.env.JWT_SECRET
+    : process.env.JWT_REFRESH_SECRET;
+
+  if (!token || !secret) return;
+
+  let userId: string | null = null;
+
+  try {
+    const decoded: any = jwt.verify(token, secret);
+    userId = decoded.userId;
+  } catch (e: any) {
+    // Token may be expired but we still need the userId to rotate ray_id
+    if (e.name === "TokenExpiredError") {
+      const decoded: any = jwt.decode(token);
+      userId = decoded?.userId ?? null;
+    }
+  }
+
+  if (!userId) return;
+
+  await User.findByIdAndUpdate(userId, {
+    $set: { "meta.ray_id": `ray-id-${uuidv4()}` },
+  });
+};
+
 export {
   _LoginForAllUsersService,
   _loginSuperAdmin,
   _forgotPasswordService,
   _resetPasswordService,
   _updatePasswordService,
+  _logoutService,
 };
