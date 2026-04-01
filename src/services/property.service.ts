@@ -284,14 +284,9 @@ const _createApiKeyService = async (
     throw new Error("Property not found");
   }
 
-  const usageLimit = property.usage_limits || 0;
-  const usageCount = property.usage_count || 0;
+  const keyUsageLimit = 100;
+  const keyUsageCount = 0;
 
-  if (usageLimit - usageCount < 20) {
-    throw new Error(
-      "Not enough credits to generate API Key (requires 20 credits)"
-    );
-  }
 
   const encodedId = encodePropertyId(propertyId);
   const prefix = randomString(8);
@@ -315,6 +310,8 @@ const _createApiKeyService = async (
     purpose: keyData.purpose,
     status: "ACTIVE" as const,
     label_id: existingLabel._id,
+    usage_limit: keyUsageLimit,
+    usage_count: keyUsageCount,
   };
 
   const logEntry = {
