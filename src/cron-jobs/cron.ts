@@ -13,18 +13,17 @@ const getDaysLeft = (validityDate: Date): number => {
   const now = new Date();
   const diffMs = validityDate.getTime() - now.getTime();
   const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
-
   return diffDays > 0 ? diffDays : 0;
 };
+
 let isFbSyncRunning = false;
 
 const BASE_URL =
   process.env.NODE_ENV === "production"
     ? "https://mk9egvjms4.ap-south-1.awsapprunner.com"
-    : // "https://crm-server-tsnj.onrender.com"
-      "http://localhost:8850"; // 👈 LOCAL
+    : "http://localhost:8850";
 
-
+// ─── Facebook Leads Sync — every 5 min ───────────────────────────────────────
 cron.schedule("*/5 * * * *", async () => {
   if (isFbSyncRunning) {
     console.log("⚠️ FB sync already running, skipping this cycle.");
@@ -34,7 +33,6 @@ cron.schedule("*/5 * * * *", async () => {
   console.log("🚀 Running Facebook sync job...");
   try {
     await axios.post(`${BASE_URL}/lead/webhook`, {});
-
     console.log("Facebook leads fetched successfully.");
   } catch (error) {
     console.error("Error fetching leads:", error);
@@ -43,115 +41,109 @@ cron.schedule("*/5 * * * *", async () => {
   }
 });
 
+// ─── Email Campaign — daily midnight ─────────────────────────────────────────
 cron.schedule("0 0 * * *", async () => {
   console.log("⏰ Running daily email campaign job at midnight...");
   await sendMarketingEmails();
 });
 
+// ─── Feature Validity Update — every hour ────────────────────────────────────
+// FIX: was doing Property.find() + N individual PurchaseRecord queries + N saves.
+// Now: single query for all completed records + one bulkWrite.
 cron.schedule("0 * * * *", async () => {
-  console.log("⏰ Running daily feature validity update job...");
-
+  console.log("⏰ Running hourly feature validity update job...");
   try {
-    const properties = await Property.find();
+    const purchaseRecords = await PurchaseRecordsModel.find({
+      status: PurchaseStatus.COMPLETED,
+      "meta.activated_features": { $exists: true },
+    }).lean();
 
-    for (const property of properties) {
-      const propertyId = property._id;
+    const bulkOps: any[] = [];
 
-      const purchaseRecord = await PurchaseRecordsModel.findOne({
-        property_id: propertyId,
-        status: PurchaseStatus.COMPLETED,
-      }).sort({ createdAt: -1 });
-
-      if (!purchaseRecord) continue;
-      if (!purchaseRecord.meta?.activated_features) continue;
-
+    for (const record of purchaseRecords) {
+      const features: any[] = record.meta?.activated_features || [];
       let isUpdated = false;
 
-      purchaseRecord.meta.activated_features =
-        purchaseRecord.meta.activated_features.map(
-          (feature: {
-            validity: string | number | Date;
-            validity_left_till_expiration: number;
-          }) => {
-            if (feature.validity) {
-              let daysLeft = getDaysLeft(new Date(feature.validity));
-
-              daysLeft = Math.max(daysLeft, 0);
-
-              if (feature.validity_left_till_expiration !== daysLeft) {
-                feature.validity_left_till_expiration = daysLeft;
-                isUpdated = true;
-              }
-            }
-            return feature;
+      const updatedFeatures = features.map((feature: any) => {
+        if (feature.validity) {
+          const daysLeft = Math.max(getDaysLeft(new Date(feature.validity)), 0);
+          if (feature.validity_left_till_expiration !== daysLeft) {
+            isUpdated = true;
+            return { ...feature, validity_left_till_expiration: daysLeft };
           }
-        );
+        }
+        return feature;
+      });
 
       if (isUpdated) {
-        purchaseRecord.markModified("meta.activated_features");
-        await purchaseRecord.save();
-        console.log(
-          `✅ Updated validity_left_till_expiration for property ${propertyId}`
-        );
+        bulkOps.push({
+          updateOne: {
+            filter: { _id: record._id },
+            update: { $set: { "meta.activated_features": updatedFeatures } },
+          },
+        });
       }
     }
 
-    console.log("🎉 Daily feature validity job completed!");
+    if (bulkOps.length) {
+      await PurchaseRecordsModel.bulkWrite(bulkOps);
+      console.log(`✅ Updated validity for ${bulkOps.length} purchase records.`);
+    }
+
+    console.log("🎉 Feature validity job completed!");
   } catch (error) {
-    console.error("❌ Error in daily feature validity job:", error);
+    console.error("❌ Error in feature validity job:", error);
   }
 });
 
+// ─── WapMonkey Device Sync — every 2 min ─────────────────────────────────────
 cron.schedule("*/2 * * * *", async () => {
   console.log("🔁 Checking WapMonkey devices for new entries...");
   await _fetchAndSyncWapMonkeyDevices();
 });
 
+// ─── WhatsApp Device Sync — every 2 min ──────────────────────────────────────
+// FIX: was doing N individual WhatsAppDevice.findOne() + N user.save() calls.
+// Now: one query for all devices + one bulkWrite across all telecallers.
 cron.schedule("*/2 * * * *", async () => {
   console.log("⏰ Running WhatsApp device sync cron...");
-
   try {
-    const telecallerRole = await Role.findOne({ name: "Telecaller" }).select(
-      "_id"
-    );
-
+    const telecallerRole = await Role.findOne({ name: "Telecaller" }).select("_id").lean();
     if (!telecallerRole) {
-      console.log(
-        "⚠️ Telecaller role not found, skipping WhatsApp device sync."
-      );
+      console.log("⚠️ Telecaller role not found, skipping WhatsApp device sync.");
       return;
     }
-    const telecallers = await User.find({ role: telecallerRole._id }).select(
-      "_id name phone_number meta"
-    );
+
+    const telecallers = await User.find({ role: telecallerRole._id })
+      .select("_id name phone_number")
+      .lean();
+
     if (!telecallers.length) {
       console.log("⚠️ No telecallers found!");
       return;
     }
 
-    for (const user of telecallers) {
-      if (!user.phone_number) continue;
+    const phoneNumbers = telecallers.map((u: any) => u.phone_number).filter(Boolean);
 
-      const waDevice = await WhatsAppDevice.findOne({
-        mobile_no: user.phone_number,
-      });
-      if (!waDevice) {
-        console.log(
-          `❌ No device found for ${user.name} (${user.phone_number})`
-        );
-        continue;
-      }
+    const devices = await WhatsAppDevice.find({ mobile_no: { $in: phoneNumbers } }).lean();
+    const deviceMap = new Map(devices.map((d: any) => [d.mobile_no, d]));
 
-      user?.meta?.set("whatsapp_device", waDevice.toObject());
-      user.markModified("meta");
-      await user.save();
+    const bulkOps: any[] = telecallers
+      .filter((u: any) => u.phone_number && deviceMap.has(u.phone_number))
+      .map((u: any) => ({
+        updateOne: {
+          filter: { _id: u._id },
+          update: { $set: { "meta.whatsapp_device": deviceMap.get(u.phone_number) } },
+        },
+      }));
 
-      console.log(`✅ Updated ${user.name}'s meta with WhatsApp device.`);
+    if (bulkOps.length) {
+      await User.bulkWrite(bulkOps);
+      console.log(`✅ Synced ${bulkOps.length} WhatsApp devices.`);
     }
+
     console.log("🎉 WhatsApp device sync completed.");
   } catch (error) {
     console.error("❌ Error in WhatsApp device sync cron:", error);
   }
 });
-
-

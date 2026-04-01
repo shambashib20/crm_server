@@ -35,6 +35,14 @@ import AuthMiddleware from "../middlewares/authentication.middleware";
 import PermissionMiddleware from "../middlewares/permission.middleware";
 
 import { BasicAuthMiddleware } from "../middlewares/basic_auth.middleware";
+import { createRateLimiter } from "../middlewares/rate_limiter.middleware";
+
+// 10 requests per minute per API key for external lead creation
+const externalLeadRateLimiter = createRateLimiter({
+  windowMs: 60 * 1000,
+  maxRequests: 10,
+  message: "Rate limit exceeded. You can create at most 10 leads per minute per API key.",
+});
 
 const leadRouter = express.Router();
 
@@ -153,10 +161,11 @@ leadRouter.get(
 
 leadRouter.post("/create/external", CreateExternalLeadsController);
 
-// Public endpoint — Basic Auth (API key) + label-based lead creation (no pricing middleware)
+// Public endpoint — Basic Auth (API key) + rate limiter + label-based lead creation
 leadRouter.post(
   "/create/via-label",
   BasicAuthMiddleware,
+  externalLeadRateLimiter,
   CreateLeadViaLabelController
 );
 
