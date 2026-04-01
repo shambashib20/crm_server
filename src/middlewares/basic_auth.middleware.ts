@@ -30,13 +30,14 @@ export const BasicAuthMiddleware = async (
       });
     }
 
-    console.log("API Key (Base64):", base64Credentials);
+    // Decode Base64 — Apidog (and all HTTP clients) send Base64(apikey:password).
+    // We extract only the part before the colon as the actual API key value.
+    const decoded = Buffer.from(base64Credentials, "base64").toString("utf-8");
+    const apiKeyValue = decoded.split(":")[0];
 
     const properties = await Property.find({
-      "meta.keys.value": base64Credentials,
+      "meta.keys.value": apiKeyValue,
     });
-
-    console.log("Properties found:", properties.length);
 
     if (properties.length === 0) {
       return res
@@ -56,7 +57,7 @@ export const BasicAuthMiddleware = async (
         .json({ success: false, message: "No keys found for property" });
     }
 
-    const matchedKey = keys.find((k: any) => k.value === base64Credentials);
+    const matchedKey = keys.find((k: any) => k.value === apiKeyValue);
 
     if (!matchedKey) {
       return res
@@ -74,6 +75,15 @@ export const BasicAuthMiddleware = async (
       return res
         .status(403)
         .json({ success: false, message: "API Key has expired" });
+    }
+
+    if (
+      matchedKey.usage_limit !== undefined &&
+      matchedKey.usage_count >= matchedKey.usage_limit
+    ) {
+      return res
+        .status(429)
+        .json({ success: false, message: "API Key usage limit reached" });
     }
 
     // Attach property + API key

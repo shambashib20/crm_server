@@ -2804,7 +2804,8 @@ const _createLeadViaLabel = async (
     meta?: Record<string, any>;
   },
   property: any,
-  ip: string
+  ip: string,
+  apiKeyValue?: string
 ) => {
   const now = new Date();
   const property_id = property._id;
@@ -2852,16 +2853,16 @@ const _createLeadViaLabel = async (
     }
   }
 
-  // Fallback to superadmin
+  // Resolve property superadmin — always used for assigned_by regardless of who the lead is assigned to
+  const superAdminRole = await Role.findOne({ name: "Superadmin" });
+  const superAdminUser = superAdminRole
+    ? await User.findOne({ property_id, role: superAdminRole._id }).select("_id")
+    : null;
+  const superAdminId = superAdminUser?._id ?? null;
+
+  // Fallback: if no active agent available via round-robin, assign to superadmin
   if (!assignedToId) {
-    const superAdminRole = await Role.findOne({ name: "Superadmin" });
-    if (superAdminRole) {
-      const superAdminUser = await User.findOne({
-        property_id,
-        role: superAdminRole._id,
-      }).select("_id");
-      assignedToId = superAdminUser?._id ?? null;
-    }
+    assignedToId = superAdminId;
   }
 
   // 3. Default status + source
@@ -2960,7 +2961,7 @@ const _createLeadViaLabel = async (
     labels: [label._id],
     status: defaultStatus._id,
     assigned_to: assignedToId,
-    assigned_by: assignedToId,
+    assigned_by: superAdminId,
     property_id,
     meta: {
       ray_id,
@@ -3009,6 +3010,14 @@ const _createLeadViaLabel = async (
     { $inc: { "meta.activated_features.$.used": 1 } },
     { new: true }
   );
+
+  // 9. Increment usage_count on the API key that was used for this request
+  if (apiKeyValue) {
+    await Property.findOneAndUpdate(
+      { "meta.keys.value": apiKeyValue },
+      { $inc: { "meta.keys.$.usage_count": 1 } }
+    );
+  }
 
   return newLead;
 };

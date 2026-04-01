@@ -892,7 +892,8 @@ const CreateLeadViaLabelController = async (req: any, res: any) => {
         meta,
       },
       property,
-      ip
+      ip,
+      req.apiKey?.value
     );
 
     return res
