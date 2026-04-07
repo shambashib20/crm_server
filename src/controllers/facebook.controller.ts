@@ -213,8 +213,9 @@ const fetchLeads = async (req: Request, res: Response) => {
 const connectFacebookLeads = async (req: any, res: any) => {
   const userId = req.user._id;
   const { labelId } = req.query;
+  const labelIds = (Array.isArray(labelId) ? labelId : [labelId]).filter(Boolean);
   try {
-    const result = await _masterLeadService(userId, labelId);
+    const result = await _masterLeadService(userId, labelIds as any);
 
     return res
       .status(201)

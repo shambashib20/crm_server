@@ -2874,7 +2874,7 @@ const _createLeadViaLabel = async (
     throw new Error("Default status 'New' not found in the system.");
 
   // 4. Location + ray_id
-  const locationData = await getLocationFromIP(ip);
+  // const locationData = await getLocationFromIP(ip);
   const ray_id = `ray-id-${uuidv4()}`;
 
   // 5. Validate package + leads limit (no middleware, done inline)
@@ -2966,7 +2966,7 @@ const _createLeadViaLabel = async (
     meta: {
       ray_id,
       source: defaultSource?._id,
-      location: locationData,
+      // location: locationData,
       status: "ACTIVE",
       ...(data.meta || {}),
       created_by: "LABEL_API",
