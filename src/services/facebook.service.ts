@@ -85,7 +85,7 @@ const _getLeadsFromForm = async (formId: string, accessToken: string) => {
 
 const _masterLeadService = async (
   userId: Types.ObjectId,
-  labelId: Types.ObjectId
+  labelIds: Types.ObjectId[]
 ) => {
   const integration = await User.findById(userId);
   const facebookMeta = integration?.meta?.get("facebook");
@@ -98,9 +98,9 @@ const _masterLeadService = async (
     );
   }
 
-  const targetLabel = await Label.findById(labelId);
-  console.log("Target Label:", targetLabel?.title);
-  if (!targetLabel) throw new Error("Provided label not found");
+  const targetLabels = await Label.find({ _id: { $in: labelIds } });
+  if (!targetLabels.length) throw new Error("No matching labels found");
+  targetLabels.forEach((l) => console.log("Target Label:", l.title));
 
   const pagesRes = await axios.get(`${GRAPH_API_BASE}/me/accounts`, {
     params: { access_token: userAccessToken },
@@ -157,25 +157,27 @@ const _masterLeadService = async (
           // -----------------------------
           // 5) Match Label
           // -----------------------------
-          const targetTitle = targetLabel.title.trim().toLowerCase();
           let matchedLabel: any = null;
 
-          for (const param of trackingParams) {
-            if (!param?.key) continue;
+          outer: for (const label of targetLabels) {
+            const targetTitle = label.title.trim().toLowerCase();
+            for (const param of trackingParams) {
+              if (!param?.key) continue;
 
-            const key = param.key.trim().toLowerCase();
-            if (key !== "label" && key !== "labels") continue;
+              const key = param.key.trim().toLowerCase();
+              if (key !== "label" && key !== "labels") continue;
 
-            const paramValue = (param.value || "").trim().toLowerCase();
-            if (!paramValue) continue;
+              const paramValue = (param.value || "").trim().toLowerCase();
+              if (!paramValue) continue;
 
-            if (
-              targetTitle === paramValue ||
-              targetTitle.includes(paramValue) ||
-              paramValue.includes(targetTitle)
-            ) {
-              matchedLabel = targetLabel;
-              break;
+              if (
+                targetTitle === paramValue ||
+                targetTitle.includes(paramValue) ||
+                paramValue.includes(targetTitle)
+              ) {
+                matchedLabel = label;
+                break outer;
+              }
             }
           }
 
@@ -305,7 +307,7 @@ const _masterLeadService = async (
                 assignedToId = superAdminUser?._id || null;
               }
 
-              const commentLines = [`label::${targetLabel.title}`];
+              const commentLines = [`label::${matchedLabel.title}`];
               for (const f of fbLead.field_data || []) {
                 commentLines.push(
                   `${f.name}::${
@@ -375,14 +377,14 @@ const _masterLeadService = async (
             );
           }
 
-          await Property.findByIdAndUpdate(targetLabel?.property_id, {
+          await Property.findByIdAndUpdate(matchedLabel?.property_id, {
             $push: {
               logs: {
                 title: "Facebook Lead Import",
-                description: `Imported ${toInsert.length} new leads from Facebook form "${formDetails.name}" using label "${targetLabel.title}".`,
+                description: `Imported ${toInsert.length} new leads from Facebook form "${formDetails.name}" using label "${matchedLabel.title}".`,
                 status: LogStatus.SUCCESS,
                 meta: {
-                  label: targetLabel.title,
+                  label: matchedLabel.title,
                   imported_count: toInsert.length,
                   timestamp: new Date(),
                 },
