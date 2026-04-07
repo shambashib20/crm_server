@@ -343,6 +343,10 @@ const _uploadProfilePicture = async (
  * When deactivating, all their active leads are bulk-transferred to reassignToUserId.
  * Superadmin accounts cannot be deactivated.
  * Only roles superior to Telecaller (Superadmin, Admin, Lead Manager) may call this.
+ *
+ * Idempotent: concurrent calls with the same (userId, is_active) value are safe —
+ * the atomic conditional update ensures only one request performs the state change;
+ * subsequent identical requests return the current state without side-effects.
  */
 const _toggleUserActiveStatus = async (
   targetUserId: Types.ObjectId,
@@ -363,6 +367,32 @@ const _toggleUserActiveStatus = async (
   if (targetRoleName === "Superadmin")
     throw new Error("Cannot deactivate a Superadmin account.");
 
+  // Atomic guard: only proceed if the current state differs from the requested state.
+  // This makes the operation idempotent under concurrent calls — only one will win the
+  // CAS (compare-and-swap) update; the rest find no matching document and return early.
+  const stateChanged = await User.findOneAndUpdate(
+    {
+      _id: targetUserId,
+      $or: [
+        { "meta.is_active": { $ne: isActive } },
+        { "meta.is_active": { $exists: false } },
+      ],
+    },
+    { $set: { "meta.is_active": isActive } },
+    { new: false }
+  );
+
+  if (!stateChanged) {
+    // Already in the desired state — return current info without side-effects.
+    return {
+      userId: targetUserId,
+      name: targetUser.name,
+      is_active: isActive,
+      leads_transferred: 0,
+      already_in_state: true,
+    };
+  }
+
   // When deactivating, transfer all active leads to the new assignee
   let leadsTransferred = 0;
   if (!isActive) {
@@ -375,7 +405,8 @@ const _toggleUserActiveStatus = async (
       _id: reassignToUserId,
       property_id: propertyId,
     });
-    if (!newAssignee) throw new Error("Reassign target user not found in this property.");
+    if (!newAssignee)
+      throw new Error("Reassign target user not found in this property.");
 
     const result = await Lead.updateMany(
       {
@@ -412,11 +443,6 @@ const _toggleUserActiveStatus = async (
     leadsTransferred = result.modifiedCount;
   }
 
-  // Update meta.is_active on the user
-  await User.findByIdAndUpdate(targetUserId, {
-    $set: { "meta.is_active": isActive },
-  });
-
   // Audit log on property
   await Property.findByIdAndUpdate(propertyId, {
     $push: {
@@ -439,6 +465,7 @@ const _toggleUserActiveStatus = async (
     name: targetUser.name,
     is_active: isActive,
     leads_transferred: leadsTransferred,
+    already_in_state: false,
   };
 };
 
