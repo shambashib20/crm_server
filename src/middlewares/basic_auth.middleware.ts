@@ -13,7 +13,7 @@ export const BasicAuthMiddleware = async (
   try {
     const authHeader = req.headers.authorization || "";
 
-    console.log("Raw Auth Header:", authHeader);
+
 
     if (!authHeader.startsWith("Basic ")) {
       return res
@@ -90,7 +90,7 @@ export const BasicAuthMiddleware = async (
     (req as any).property = property;
     (req as any).apiKey = matchedKey;
 
-    console.log(property, "prop in middleware");
+
 
     return next();
   } catch (err: any) {

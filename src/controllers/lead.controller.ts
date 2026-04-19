@@ -861,8 +861,15 @@ const CreateLeadViaLabelController = async (req: any, res: any) => {
       req.socket.remoteAddress ||
       "0.0.0.0";
 
+    // label_id is stored on the API key itself — no need to pass it in the payload
+    const labelId = req.apiKey?.label_id;
+    if (!labelId) {
+      return res
+        .status(400)
+        .json(new SuccessResponse("API key is not bound to a label", 400));
+    }
+
     const {
-      label_title,
       name,
       company_name,
       phone_number,
@@ -873,15 +880,9 @@ const CreateLeadViaLabelController = async (req: any, res: any) => {
       meta,
     } = req.body;
 
-    if (!label_title) {
-      return res
-        .status(400)
-        .json(new SuccessResponse("label_title is required", 400));
-    }
-
     const newLead = await _createLeadViaLabel(
       {
-        label_title,
+        label_id: labelId,
         name,
         company_name,
         phone_number,

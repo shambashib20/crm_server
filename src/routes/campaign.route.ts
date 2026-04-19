@@ -3,6 +3,11 @@ import {
   EditCampaignTemplateController,
   FetchCampaignTemplatesController,
   FetchCampaignTemplatesInMasterPanelController,
+  FetchWhatsAppTemplateByIdController,
+  EditWhatsAppTemplateController,
+  FetchCampaignTemplateByIdController,
+  EditCampaignTemplateByIdController,
+  DeleteCampaignTemplateController,
 } from "../controllers/campaign.controller";
 
 import express from "express";
@@ -33,4 +38,27 @@ campaignRouter.get(
   AuthMiddleware,
   FetchCampaignTemplatesInMasterPanelController
 );
+
+campaignRouter.get(
+  "/whatsapp/:id",
+  AuthMiddleware,
+  FetchWhatsAppTemplateByIdController
+);
+
+campaignRouter.put(
+  "/whatsapp/edit/:id",
+  AuthMiddleware,
+  upload.array("attachments", 5),
+  EditWhatsAppTemplateController
+);
+
+campaignRouter.get("/template/:id", AuthMiddleware, FetchCampaignTemplateByIdController);
+campaignRouter.patch(
+  "/template/:id",
+  AuthMiddleware,
+  upload.array("attachments", 5),
+  EditCampaignTemplateByIdController
+);
+campaignRouter.delete("/template/:id", AuthMiddleware, DeleteCampaignTemplateController);
+
 export default campaignRouter;

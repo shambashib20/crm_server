@@ -119,9 +119,69 @@ const _getCampaignTemplatesInMasterPanel = async (
   };
 };
 
+const _getWhatsAppTemplateById = async (templateId: string) => {
+  const template = await CampaignTemplate.findOne({
+    _id: new Types.ObjectId(templateId),
+    type: "WHATSAPP",
+  })
+    .populate({ path: "property_id", select: "name" })
+    .lean();
+
+  if (!template) {
+    throw new Error("WhatsApp template not found.");
+  }
+
+  return template;
+};
+
+const _getCampaignTemplateById = async (
+  templateId: Types.ObjectId,
+  property_id: Types.ObjectId
+) => {
+  const template = await CampaignTemplate.findOne({
+    _id: templateId,
+    property_id,
+    "meta.is_deleted": { $ne: true },
+  })
+    .populate({ path: "property_id", select: "name" })
+    .lean();
+
+  if (!template) {
+    throw new Error("Template not found.");
+  }
+
+  return template;
+};
+
+const _deleteCampaignTemplate = async (
+  templateId: Types.ObjectId,
+  property_id: Types.ObjectId
+) => {
+  // Soft delete — idempotent: deleting an already-deleted template still returns success
+  const template = await CampaignTemplate.findOneAndUpdate(
+    { _id: templateId, property_id },
+    {
+      $set: {
+        "meta.is_deleted": true,
+        "meta.deleted_at": new Date(),
+      },
+    },
+    { new: true }
+  );
+
+  if (!template) {
+    throw new Error("Template not found or unauthorized access.");
+  }
+
+  return { deleted: true, templateId };
+};
+
 export {
   _createCampaignTemplate,
   _editCampaignTemplate,
   _getCampaignTemplates,
   _getCampaignTemplatesInMasterPanel,
+  _getWhatsAppTemplateById,
+  _getCampaignTemplateById,
+  _deleteCampaignTemplate,
 };

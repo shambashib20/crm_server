@@ -5,6 +5,8 @@ import SuccessResponse from "../middlewares/success.middleware";
 import {
   _createAutomationService,
   _fetchAutomationsByPropertyService,
+  _updateAutomationService,
+  _deleteAutomationService,
 } from "../services/automation.service";
 
 const CreateAutomationController = async (req: any, res: any) => {
@@ -58,4 +60,63 @@ const FetchAutomationController = async (req: any, res: any) => {
 
 
 
-export { CreateAutomationController, FetchAutomationController };
+const UpdateAutomationController = async (req: any, res: any) => {
+  try {
+    const { id } = req.params;
+    const property_id = req.user.property_id;
+    const payload = req.body;
+
+    if (!id) {
+      return res
+        .status(400)
+        .json(new SuccessResponse("Automation ID is required!", 400));
+    }
+
+    const updated = await _updateAutomationService(
+      new Types.ObjectId(id),
+      new Types.ObjectId(property_id),
+      payload
+    );
+
+    return res
+      .status(200)
+      .json(new SuccessResponse("Automation updated successfully!", 200, updated));
+  } catch (err: any) {
+    console.error("❌ Error in UpdateAutomationController:", err);
+    const status = err.message.includes("not found") ? 404 : 500;
+    return res.status(status).json(new SuccessResponse(err.message, status));
+  }
+};
+
+const DeleteAutomationController = async (req: any, res: any) => {
+  try {
+    const { id } = req.params;
+    const property_id = req.user.property_id;
+
+    if (!id) {
+      return res
+        .status(400)
+        .json(new SuccessResponse("Automation ID is required!", 400));
+    }
+
+    const result = await _deleteAutomationService(
+      new Types.ObjectId(id),
+      new Types.ObjectId(property_id)
+    );
+
+    return res
+      .status(200)
+      .json(new SuccessResponse("Automation deleted successfully!", 200, result));
+  } catch (err: any) {
+    console.error("❌ Error in DeleteAutomationController:", err);
+    const status = err.message.includes("not found") ? 404 : 500;
+    return res.status(status).json(new SuccessResponse(err.message, status));
+  }
+};
+
+export {
+  CreateAutomationController,
+  FetchAutomationController,
+  UpdateAutomationController,
+  DeleteAutomationController,
+};

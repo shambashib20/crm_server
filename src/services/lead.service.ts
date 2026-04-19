@@ -20,7 +20,7 @@ import {
 import { getMetaValue } from "../utils/meta.util";
 import PurchaseRecordsModel from "../models/purchaserecords.model";
 import { PurchaseStatus } from "../dtos/purchaserecords.dto";
-import { _triggerLeadAutomationWebhook } from "../webhooks/lead_automation.webhook";
+import { _triggerLeadAutomationWebhook, _triggerLabelAutomationWebhook } from "../webhooks/lead_automation.webhook";
 import { _triggerWhatsAppAutomation } from "../webhooks/whatsapp_automation.webhook";
 import {
   cacheSet,
@@ -2793,7 +2793,7 @@ const _validateLeadOwnershipByRayId = async (
 // ---------------------------------------------------
 const _createLeadViaLabel = async (
   data: {
-    label_title: string;
+    label_id: Types.ObjectId | string;
     name?: string;
     company_name?: string;
     phone_number?: string;
@@ -2810,11 +2810,11 @@ const _createLeadViaLabel = async (
   const now = new Date();
   const property_id = property._id;
 
-  // 1. Find label by title within this property
-  const label = await Label.findOne({ title: data.label_title, property_id });
+  // 1. Find label by ID stored on the API key — immune to label renames
+  const label = await Label.findOne({ _id: data.label_id, property_id });
   if (!label) {
     throw new Error(
-      `Label "${data.label_title}" not found for this organisation.`
+      `Label with ID "${data.label_id}" not found for this organisation.`
     );
   }
 
@@ -2928,7 +2928,7 @@ const _createLeadViaLabel = async (
               title: "Lead Creation Failed",
               description: `Lead limit reached (${leadsFeature.used}/${leadsFeature.limit}). Lead (${data.name || "unnamed"}) NOT created via Label API.`,
               status: LogStatus.WARNING,
-              meta: { label_title: data.label_title },
+              meta: { label_id: data.label_id, label_title: label.title },
               createdAt: now,
               updatedAt: now,
             },
@@ -2974,9 +2974,9 @@ const _createLeadViaLabel = async (
     logs: [
       {
         title: "Lead Created via Label API",
-        description: `Lead created externally via Basic Auth API using label "${data.label_title}" with status ${defaultStatus.title}.`,
+        description: `Lead created externally via Basic Auth API using label "${label.title}" with status ${defaultStatus.title}.`,
         status: LeadLogStatus.ACTION,
-        meta: { label_title: data.label_title, source: "LABEL_API" },
+        meta: { label_id: data.label_id, label_title: label.title, source: "LABEL_API" },
         createdAt: now,
         updatedAt: now,
       },
@@ -2984,6 +2984,11 @@ const _createLeadViaLabel = async (
   });
 
   await newLead.save();
+
+  // 7a. Trigger label-based WhatsApp automation (fire-and-forget — never block lead creation)
+  _triggerLabelAutomationWebhook(newLead, data.label_id).catch((err) =>
+    console.error("Label automation error:", err?.message ?? err)
+  );
 
   // 7. Record in property logs + increment usage_count
   await Property.findByIdAndUpdate(
@@ -2993,9 +2998,9 @@ const _createLeadViaLabel = async (
       $push: {
         logs: {
           title: "Lead Created via Label API",
-          description: `Lead (${data.name || "unnamed"}) created via Basic Auth API using label "${data.label_title}".`,
+          description: `Lead (${data.name || "unnamed"}) created via Basic Auth API using label "${label.title}".`,
           status: LogStatus.INFO,
-          meta: { leadId: newLead._id, label_title: data.label_title },
+          meta: { leadId: newLead._id, label_id: data.label_id, label_title: label.title },
           createdAt: now,
           updatedAt: now,
         },

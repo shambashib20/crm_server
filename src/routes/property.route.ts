@@ -8,6 +8,7 @@ import {
   TogglePropertyLogReadStatus,
   UpdatePropertyById,
   UploadProfilePhotoforWorkspace,
+  DeleteWorkspaceLogController,
 } from "../controllers/property.controller";
 
 import express from "express";
@@ -67,4 +68,11 @@ propertyRouter.post(
   // PermissionMiddleware("manage_leads"),
   FetchProperties
 );
+propertyRouter.delete(
+  "/logs/delete/:logId",
+  AuthMiddleware,
+  PermissionMiddleware("manage_leads"),
+  DeleteWorkspaceLogController
+);
+
 export default propertyRouter;

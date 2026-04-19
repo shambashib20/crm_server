@@ -1,4 +1,5 @@
 import Property from "../models/property.model";
+import ArchivedLog from "../models/archived.model";
 import { LogStatus, PropertyDto, PropertyStatus } from "../dtos/property.dto";
 import { Types } from "mongoose";
 
@@ -50,25 +51,40 @@ const _uploadWorkspaceProfilePicture = async (
   }
 };
 
-const _fetchPropertyLogs = async (propId: Types.ObjectId) => {
+const _fetchPropertyLogs = async (
+  propId: Types.ObjectId,
+  user_id: Types.ObjectId
+) => {
   try {
     const property = await Property.findById(propId, { logs: 1 });
+    if (!property) throw new Error("Property not found");
 
-    if (!property) {
-      throw new Error("Property not found");
-    }
+    // Collect log IDs this user has already archived
+    const userArchived = await ArchivedLog.find(
+      { property_id: propId, deleted_by: user_id },
+      { original_log_id: 1 }
+    ).lean();
 
-    const unreadLogs = property.logs.filter(
-      (log: any) => log.meta?.status !== "READ"
+    const archivedIds = new Set(
+      userArchived.map((a) => a.original_log_id.toString())
     );
 
-    return unreadLogs;
+    // Return logs not yet archived by this user and not marked READ by them
+    const visibleLogs = property.logs.filter((log: any) => {
+      if (archivedIds.has(log._id.toString())) return false;
+      return log.meta?.readStatus !== "READ";
+    });
+
+    return visibleLogs;
   } catch (error: any) {
     throw new Error(`Failed to fetch logs: ${error.message}`);
   }
 };
 
-const _fetchPropertyDetails = async (propId: Types.ObjectId) => {
+const _fetchPropertyDetails = async (
+  propId: Types.ObjectId,
+  user_id: Types.ObjectId
+) => {
   try {
     const property = await Property.findById(propId)
       .populate("role", "name")
@@ -96,9 +112,20 @@ const _fetchPropertyDetails = async (propId: Types.ObjectId) => {
       activePackageData = raw ? raw.toObject() : null;
     }
 
-    const unreadLogs = (property.logs || []).filter(
-      (log: any) => !(log.meta && log.meta.readStatus === "READ")
+    // Filter out logs this user has archived
+    const userArchived = await ArchivedLog.find(
+      { property_id: propId, deleted_by: user_id },
+      { original_log_id: 1 }
+    ).lean();
+
+    const archivedIds = new Set(
+      userArchived.map((a) => a.original_log_id.toString())
     );
+
+    const unreadLogs = (property.logs || []).filter((log: any) => {
+      if (archivedIds.has(log._id.toString())) return false;
+      return !(log.meta && log.meta.readStatus === "READ");
+    });
 
     const sortedLogs = [...unreadLogs].sort(
       (a: any, b: any) =>
@@ -387,6 +414,42 @@ const _fetchApiKeysService = async (propertyId: string) => {
   return populated;
 };
 
+const _deleteWorkspaceLogService = async (
+  property_id: Types.ObjectId,
+  log_id: Types.ObjectId,
+  deleted_by: Types.ObjectId
+) => {
+  const property = await Property.findById(property_id);
+  if (!property) throw new Error("Property not found");
+
+  const log = property.logs.find(
+    (l: any) => l._id?.toString() === log_id.toString()
+  );
+  if (!log) throw new Error("Log not found");
+
+  // Idempotency: if this user already archived this log, return existing record
+  const existing = await ArchivedLog.findOne({
+    original_log_id: log_id,
+    deleted_by,
+  });
+  if (existing) return existing;
+
+  // The log stays in property.logs for other users — only archived per-user
+  const archived = await ArchivedLog.create({
+    property_id,
+    original_log_id: log._id,
+    title: log.title,
+    description: log.description,
+    status: log.status,
+    original_meta: log.meta ?? {},
+    original_created_at: (log as any).createdAt ?? new Date(),
+    deleted_by,
+    deleted_at: new Date(),
+  });
+
+  return archived;
+};
+
 export {
   _fetchPropertyLogs,
   _fetchPropertyDetails,
@@ -397,4 +460,5 @@ export {
   _fetchPaginatedProperties,
   _uploadWorkspaceProfilePicture,
   _fetchApiKeysService,
+  _deleteWorkspaceLogService,
 };

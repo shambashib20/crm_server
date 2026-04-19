@@ -10,14 +10,19 @@ import {
   _fetchPropertyLogs,
   _updatePropertyById,
   _uploadWorkspaceProfilePicture,
+  _deleteWorkspaceLogService,
 } from "../services/property.service";
 import Property from "../models/property.model";
 
 const FetchPropertyLogs = async (req: any, res: any) => {
   try {
     const { id } = req.params;
+    const user_id = req.user._id;
 
-    const logs = await _fetchPropertyLogs(id);
+    const logs = await _fetchPropertyLogs(
+      new Types.ObjectId(id),
+      new Types.ObjectId(user_id)
+    );
     return res
       .status(200)
       .json(
@@ -33,8 +38,12 @@ const FetchPropertyLogs = async (req: any, res: any) => {
 const PropertyDetails = async (req: any, res: any) => {
   try {
     const propId = req.user.property_id;
+    const user_id = req.user._id;
 
-    const property = await _fetchPropertyDetails(propId);
+    const property = await _fetchPropertyDetails(
+      new Types.ObjectId(propId),
+      new Types.ObjectId(user_id)
+    );
     return res
       .status(200)
       .json(
@@ -239,6 +248,36 @@ const UploadProfilePhotoforWorkspace = async (req: any, res: any) => {
   }
 };
 
+const DeleteWorkspaceLogController = async (req: any, res: any) => {
+  try {
+    const property_id = req.user.property_id;
+    const user_id = req.user._id;
+    const { logId } = req.params;
+
+    if (!logId) {
+      return res
+        .status(400)
+        .json(new SuccessResponse("Log ID is required!", 400));
+    }
+
+    const archived = await _deleteWorkspaceLogService(
+      new Types.ObjectId(property_id),
+      new Types.ObjectId(logId),
+      new Types.ObjectId(user_id)
+    );
+
+    return res
+      .status(200)
+      .json(
+        new SuccessResponse("Workspace log deleted and archived successfully!", 200, archived)
+      );
+  } catch (error: any) {
+    console.error("❌ Error in DeleteWorkspaceLogController:", error);
+    const status = error.message.includes("not found") ? 404 : 500;
+    return res.status(status).json(new SuccessResponse(error.message, status));
+  }
+};
+
 export {
   FetchPropertyLogs,
   PropertyDetails,
@@ -249,4 +288,5 @@ export {
   FetchApiKeysController,
   FetchProperties,
   UploadProfilePhotoforWorkspace,
+  DeleteWorkspaceLogController,
 };
