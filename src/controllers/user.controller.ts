@@ -6,6 +6,7 @@ import {
   _getUserdetails,
   _uploadProfilePicture,
   _toggleUserActiveStatus,
+  _updateEmployeeDetails,
 } from "../services/user.service";
 import SuccessResponse from "../middlewares/success.middleware";
 
@@ -177,6 +178,34 @@ const ToggleUserActiveStatusController = async (req: any, res: any) => {
   }
 };
 
+const UpdateEmployeeDetailsController = async (req: any, res: any) => {
+  try {
+    const { id } = req.params;
+    const { name, email, phone_number } = req.body;
+    const requestingUserId = req.user._id;
+    const propertyId = req.user.property_id;
+
+    if (!id) {
+      return res
+        .status(400)
+        .json(new SuccessResponse("Employee ID is required.", 400));
+    }
+
+    const result = await _updateEmployeeDetails(
+      new Types.ObjectId(id),
+      new Types.ObjectId(requestingUserId),
+      new Types.ObjectId(propertyId),
+      { name, email, phone_number }
+    );
+
+    return res
+      .status(200)
+      .json(new SuccessResponse("Employee details updated successfully.", 200, result));
+  } catch (error: any) {
+    return res.status(500).json(new SuccessResponse(error.message, 500));
+  }
+};
+
 export {
   GetUserDetails,
   CreateUserController,
@@ -184,4 +213,5 @@ export {
   UploadProfilePhoto,
   FetchPaginatedChatAgents,
   ToggleUserActiveStatusController,
+  UpdateEmployeeDetailsController,
 };

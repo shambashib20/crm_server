@@ -469,6 +469,74 @@ const _toggleUserActiveStatus = async (
   };
 };
 
+const _updateEmployeeDetails = async (
+  targetUserId: Types.ObjectId,
+  requestingUserId: Types.ObjectId,
+  propertyId: Types.ObjectId,
+  updates: { name?: string; email?: string; phone_number?: string }
+) => {
+  const targetUser = await User.findById(targetUserId).populate<{
+    role: { name: string };
+  }>("role", "name");
+
+  if (!targetUser) throw new Error("User not found.");
+  if (targetUser.property_id?.toString() !== propertyId.toString())
+    throw new Error("User does not belong to your property.");
+
+  const targetRoleName = (targetUser.role as any)?.name;
+  if (targetRoleName === "Superadmin")
+    throw new Error("Cannot edit a Superadmin account.");
+
+  const { name, email, phone_number } = updates;
+
+  if (!name && !email && !phone_number)
+    throw new Error("At least one field (name, email, phone_number) is required.");
+
+  const conflictQuery: any[] = [];
+  if (name && name !== targetUser.name) conflictQuery.push({ name });
+  if (email && email !== targetUser.email) conflictQuery.push({ email });
+
+  if (conflictQuery.length) {
+    const conflict = await User.findOne({
+      $or: conflictQuery,
+      _id: { $ne: targetUserId },
+    });
+    if (conflict) throw new Error("Another user with the same name or email already exists.");
+  }
+
+  const patch: Record<string, any> = {};
+  if (name) patch.name = name.trim();
+  if (email) patch.email = email.trim().toLowerCase();
+  if (phone_number) patch.phone_number = phone_number.trim();
+
+  const updatedUser = await User.findByIdAndUpdate(
+    targetUserId,
+    { $set: patch },
+    { new: true }
+  ).select("name email phone_number role property_id meta");
+
+  const requestingUser = await User.findById(requestingUserId).select("name").lean();
+
+  await Property.findByIdAndUpdate(propertyId, {
+    $push: {
+      logs: {
+        title: "Employee Details Updated",
+        description: `Details of '${targetUser.name}' updated by '${
+          requestingUser?.name || "Unknown"
+        }'. Changed fields: ${Object.keys(patch).join(", ")}.`,
+        status: LogStatus.ACTION,
+        meta: {
+          targetUserId,
+          requestingUserId,
+          changedFields: patch,
+        },
+      },
+    },
+  });
+
+  return updatedUser;
+};
+
 export {
   _getUserdetails,
   _createUserForOrganization,
@@ -476,4 +544,5 @@ export {
   _uploadProfilePicture,
   _allPaginatedChatAgents,
   _toggleUserActiveStatus,
+  _updateEmployeeDetails,
 };

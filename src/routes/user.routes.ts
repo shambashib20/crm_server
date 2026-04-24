@@ -5,6 +5,7 @@ import {
   GetUserDetails,
   ToggleUserActiveStatusController,
   UploadProfilePhoto,
+  UpdateEmployeeDetailsController,
 } from "../controllers/user.controller";
 
 import express from "express";
@@ -50,6 +51,14 @@ userRouter.patch(
   AuthMiddleware,
   PermissionMiddleware("manage_staff"),
   ToggleUserActiveStatusController
+);
+
+// Update employee details — Superadmin, Admin, Lead Manager only
+userRouter.patch(
+  "/chat-agents/:id",
+  AuthMiddleware,
+  PermissionMiddleware("manage_staff"),
+  UpdateEmployeeDetailsController
 );
 
 export default userRouter;
