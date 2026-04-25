@@ -24,7 +24,7 @@ labelRouter.post(
   "/create",
   AuthMiddleware,
   PermissionMiddleware("manage_leads"),
-  PricingMiddleware("Labels Limit"),
+  // PricingMiddleware("Labels Limit"),
   CreateLabel
 );
 

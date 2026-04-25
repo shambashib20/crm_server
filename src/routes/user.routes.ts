@@ -6,6 +6,7 @@ import {
   ToggleUserActiveStatusController,
   UploadProfilePhoto,
   UpdateEmployeeDetailsController,
+  UpdateOwnProfileController,
 } from "../controllers/user.controller";
 
 import express from "express";
@@ -52,6 +53,9 @@ userRouter.patch(
   PermissionMiddleware("manage_staff"),
   ToggleUserActiveStatusController
 );
+
+// Self-service: any authenticated user updates their own profile
+userRouter.patch("/profile", AuthMiddleware, UpdateOwnProfileController);
 
 // Update employee details — Superadmin, Admin, Lead Manager only
 userRouter.patch(

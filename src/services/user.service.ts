@@ -469,6 +469,48 @@ const _toggleUserActiveStatus = async (
   };
 };
 
+const _updateOwnProfile = async (
+  userId: Types.ObjectId,
+  updates: { name?: string; email?: string; phone_number?: string; bio?: string }
+) => {
+  const { name, email, phone_number, bio } = updates;
+
+  if (!name && !email && !phone_number && bio === undefined)
+    throw new Error("At least one field (name, email, phone_number, bio) is required.");
+
+  const user = await User.findById(userId);
+  if (!user) throw new Error("User not found.");
+
+  // Uniqueness check for name and email
+  const conflictQuery: any[] = [];
+  if (name && name.trim() !== user.name) conflictQuery.push({ name: name.trim() });
+  if (email && email.trim().toLowerCase() !== user.email) conflictQuery.push({ email: email.trim().toLowerCase() });
+
+  if (conflictQuery.length) {
+    const conflict = await User.findOne({ $or: conflictQuery, _id: { $ne: userId } });
+    if (conflict) throw new Error("Another user with the same name or email already exists.");
+  }
+
+  const patch: Record<string, any> = {};
+  if (name) patch.name = name.trim();
+  if (email) patch.email = email.trim().toLowerCase();
+  if (phone_number) patch.phone_number = phone_number.trim();
+  if (bio !== undefined) patch["meta.bio"] = bio.trim();
+
+  const updatedUser = await User.findByIdAndUpdate(
+    userId,
+    { $set: patch },
+    { new: true }
+  )
+    .select("-password")
+    .lean();
+
+  // Invalidate the profile cache so the next GET returns fresh data
+  userCache.del(userId.toString());
+
+  return updatedUser;
+};
+
 const _updateEmployeeDetails = async (
   targetUserId: Types.ObjectId,
   requestingUserId: Types.ObjectId,
@@ -545,4 +587,5 @@ export {
   _allPaginatedChatAgents,
   _toggleUserActiveStatus,
   _updateEmployeeDetails,
+  _updateOwnProfile,
 };

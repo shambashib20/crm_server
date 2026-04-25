@@ -7,6 +7,7 @@ import {
   _uploadProfilePicture,
   _toggleUserActiveStatus,
   _updateEmployeeDetails,
+  _updateOwnProfile,
 } from "../services/user.service";
 import SuccessResponse from "../middlewares/success.middleware";
 
@@ -206,6 +207,21 @@ const UpdateEmployeeDetailsController = async (req: any, res: any) => {
   }
 };
 
+const UpdateOwnProfileController = async (req: any, res: any) => {
+  const userId = new Types.ObjectId(req.user._id);
+  const { name, email, phone_number, bio } = req.body;
+
+  try {
+    const result = await _updateOwnProfile(userId, { name, email, phone_number, bio });
+    return res
+      .status(200)
+      .json(new SuccessResponse("Profile updated successfully.", 200, result));
+  } catch (error: any) {
+    const status = error.message.includes("already exists") ? 409 : 400;
+    return res.status(status).json(new SuccessResponse(error.message, status));
+  }
+};
+
 export {
   GetUserDetails,
   CreateUserController,
@@ -214,4 +230,5 @@ export {
   FetchPaginatedChatAgents,
   ToggleUserActiveStatusController,
   UpdateEmployeeDetailsController,
+  UpdateOwnProfileController,
 };
