@@ -5,7 +5,8 @@
       "Bash(find /c/Users/majum/OneDrive/Desktop/projects/crm_server -type d -maxdepth 2 -not -path */node_modules/*)",
       "Bash(npx tsc:*)",
       "mcp__code-review-graph__semantic_search_nodes_tool",
-      "Bash(wc -l /c/Users/majum/OneDrive/Desktop/projects/crm_server/src/services/*.ts)"
+      "Bash(wc -l /c/Users/majum/OneDrive/Desktop/projects/crm_server/src/services/*.ts)",
+      "Bash(npm install *)"
     ]
   },
   "enableAllProjectMcpServers": true,

@@ -24,7 +24,7 @@ const BASE_URL =
     : "http://localhost:8850";
 
 // ─── Facebook Leads Sync — every 5 min ───────────────────────────────────────
-cron.schedule("*/5 * * * *", async () => {
+cron.schedule("*/15 * * * *", async () => {
   if (isFbSyncRunning) {
     console.log("⚠️ FB sync already running, skipping this cycle.");
     return;

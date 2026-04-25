@@ -193,7 +193,7 @@ const _forgotPasswordService = async (
     // Send OTP via Email
     const emailSubject = "Reset Password OTP";
     const emailText = `Your OTP is ${otp}. It will expire in 2 minutes.`;
-    const emailHtml = template({ name: user.name, OTP: otp });
+    const emailHtml = template({ username: user.name, OTP: otp });
 
     await sendEmail(user.email, emailSubject, emailText, emailHtml);
   }
