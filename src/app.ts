@@ -57,7 +57,7 @@ app.use(cookieParser());
 const PORT = process.env.PORT || 5000;
 
 app.use((req, res, next) => {
-  if (req.originalUrl === "/webhook/razorpay") return next();
+  if (req.originalUrl === "/webhook/razorpay" || req.originalUrl === "/api/facebook/webhook") return next();
   express.json()(req, res, next);
 });
 app.use("/api/facebook", facebookRoutes);

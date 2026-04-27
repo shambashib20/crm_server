@@ -1,11 +1,13 @@
 import { Request, Response } from "express";
 import axios from "axios";
 import qs from "querystring";
+import crypto from "crypto";
 import {
   _getLeadsFromForm,
   _getUserPages,
   _importLeadsByFormId,
   _masterLeadService,
+  _processWebhookLead,
 } from "../services/facebook.service";
 import Label from "../models/label.model";
 import Lead from "../models/lead.model";
@@ -246,6 +248,66 @@ const importFormLeadsManually = async (req: any, res: any) => {
   }
 };
 
+const verifyFacebookWebhook = (req: any, res: any) => {
+  const mode = req.query["hub.mode"];
+  const token = req.query["hub.verify_token"];
+  const challenge = req.query["hub.challenge"];
+
+  if (mode === "subscribe" && token === process.env.FACEBOOK_WEBHOOK_VERIFY_TOKEN) {
+    return res.status(200).send(challenge);
+  }
+  return res.status(403).json({ error: "Webhook verification failed" });
+};
+
+const validateFbSignature = (sig: string, rawBody: Buffer): boolean => {
+  if (!sig || !process.env.FB_APP_SECRET) return false;
+  const expected =
+    "sha256=" +
+    crypto
+      .createHmac("sha256", process.env.FB_APP_SECRET)
+      .update(rawBody)
+      .digest("hex");
+  try {
+    return crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected));
+  } catch {
+    return false;
+  }
+};
+
+const handleFacebookLeadEvent = async (req: any, res: any) => {
+  // Respond immediately — Facebook retries if no 200 within 20s
+  res.status(200).send("EVENT_RECEIVED");
+
+  const rawBody: Buffer = req.body;
+  const sig = req.headers["x-hub-signature-256"] as string;
+
+  if (!validateFbSignature(sig, rawBody)) {
+    console.warn("Facebook webhook: invalid signature — ignoring request");
+    return;
+  }
+
+  let body: any;
+  try {
+    body = JSON.parse(rawBody.toString());
+  } catch {
+    console.warn("Facebook webhook: could not parse body");
+    return;
+  }
+
+  if (body.object !== "page") return;
+
+  for (const entry of body.entry || []) {
+    for (const change of entry.changes || []) {
+      if (change.field !== "leadgen") continue;
+      const { leadgen_id, form_id, page_id } = change.value || {};
+      if (!leadgen_id || !form_id || !page_id) continue;
+      _processWebhookLead(leadgen_id, form_id, page_id).catch((err: any) =>
+        console.error(`Webhook: error processing lead ${leadgen_id}:`, err.message)
+      );
+    }
+  }
+};
+
 export {
   facebookLogin,
   facebookCallback,
@@ -253,4 +315,6 @@ export {
   fetchLeads,
   connectFacebookLeads,
   importFormLeadsManually,
+  verifyFacebookWebhook,
+  handleFacebookLeadEvent,
 };

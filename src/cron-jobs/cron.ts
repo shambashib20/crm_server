@@ -23,8 +23,8 @@ const BASE_URL =
     ? "https://mk9egvjms4.ap-south-1.awsapprunner.com"
     : "http://localhost:8850";
 
-// ─── Facebook Leads Sync — every 5 min ───────────────────────────────────────
-cron.schedule("*/15 * * * *", async () => {
+// ─── Facebook Leads Sync — daily 6 AM catch-up (webhooks handle real-time) ───
+cron.schedule("0 6 * * *", async () => {
   if (isFbSyncRunning) {
     console.log("⚠️ FB sync already running, skipping this cycle.");
     return;
