@@ -253,9 +253,18 @@ const verifyFacebookWebhook = (req: any, res: any) => {
   const token = req.query["hub.verify_token"];
   const challenge = req.query["hub.challenge"];
 
+  console.log("🔍 Facebook Webhook Verification Request:");
+  console.log("  - hub.mode:", mode);
+  console.log("  - hub.verify_token:", token);
+  console.log("  - hub.challenge:", challenge);
+  console.log("  - Expected token:", process.env.FACEBOOK_WEBHOOK_VERIFY_TOKEN);
+
   if (mode === "subscribe" && token === process.env.FACEBOOK_WEBHOOK_VERIFY_TOKEN) {
+    console.log("✅ Webhook verification successful!");
     return res.status(200).send(challenge);
   }
+
+  console.log("❌ Webhook verification failed");
   return res.status(403).json({ error: "Webhook verification failed" });
 };
 
