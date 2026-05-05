@@ -4,7 +4,11 @@ import Property from "../models/property.model";
 import User from "../models/user.model";
 import { LogStatus } from "../dtos/property.dto";
 import Label from "../models/label.model";
-import { LeadDto, LeadLimitValidationStatus, LeadLogStatus } from "../dtos/lead.dto";
+import {
+  LeadDto,
+  LeadLimitValidationStatus,
+  LeadLogStatus,
+} from "../dtos/lead.dto";
 import Status from "../models/status.model";
 import Role from "../models/role.model";
 import { v4 as uuidv4 } from "uuid";
@@ -20,7 +24,10 @@ import {
 import { getMetaValue } from "../utils/meta.util";
 import PurchaseRecordsModel from "../models/purchaserecords.model";
 import { PurchaseStatus } from "../dtos/purchaserecords.dto";
-import { _triggerLeadAutomationWebhook, _triggerLabelAutomationWebhook } from "../webhooks/lead_automation.webhook";
+import {
+  _triggerLeadAutomationWebhook,
+  _triggerLabelAutomationWebhook,
+} from "../webhooks/lead_automation.webhook";
 import { _triggerWhatsAppAutomation } from "../webhooks/whatsapp_automation.webhook";
 import {
   cacheSet,
@@ -97,6 +104,7 @@ interface CreateLeadDto {
   property_id?: Types.ObjectId;
   source?: Types.ObjectId;
   meta?: Record<string, any>;
+  createdAt?: Date | string; // 👈 bas yeh
 }
 
 interface ImportOptions {
@@ -144,7 +152,7 @@ const _fetchLeadDetails = async (leadId: Types.ObjectId) => {
 
   if (existingLead.meta?.source) {
     const sourceDoc = await Source.findById(existingLead.meta.source).select(
-      "title description meta"
+      "title description meta",
     );
     existingLead.meta.source = sourceDoc;
   }
@@ -159,7 +167,7 @@ const _createNewFollowUp = async (
   nextFollowUp: string,
   comment: string,
   attachmentUrl?: string,
-  audioAttachmentUrl?: string
+  audioAttachmentUrl?: string,
 ) => {
   const existingUser = await User.findById(userId).select("name");
   if (!existingUser) {
@@ -197,7 +205,7 @@ const _createNewFollowUp = async (
         follow_ups: newFollowUp,
       },
     },
-    { new: true }
+    { new: true },
   ).select("name");
 
   if (!updatedLead) {
@@ -220,7 +228,7 @@ const _createNewFollowUp = async (
       $inc: { usage_count: 1 },
       $push: { logs: logEntry },
     },
-    { new: true }
+    { new: true },
   );
   const leadLogEntry = {
     title: "Lead Follow up created",
@@ -238,7 +246,7 @@ const _createNewFollowUp = async (
         logs: leadLogEntry,
       },
     },
-    { new: true }
+    { new: true },
   ).select("name");
 
   return {
@@ -253,7 +261,7 @@ const _editFollowUp = async (
   nextFollowUp?: string,
   comment?: string,
   attachmentUrl?: string,
-  audioAttachmentUrl?: string
+  audioAttachmentUrl?: string,
 ) => {
   const existingUser = await User.findById(userId).select("name");
   if (!existingUser) {
@@ -266,7 +274,7 @@ const _editFollowUp = async (
   }
 
   const followUpIndex = lead.follow_ups.findIndex(
-    (f: any) => f._id.toString() === followUpId.toString()
+    (f: any) => f._id.toString() === followUpId.toString(),
   );
 
   if (followUpIndex === -1) {
@@ -294,10 +302,10 @@ const _editFollowUp = async (
           ...acc,
           [`follow_ups.$.${key}`]: val,
         }),
-        {}
+        {},
       ),
     },
-    { new: true }
+    { new: true },
   ).select("name follow_ups property_id");
 
   if (!updatedLead) {
@@ -320,7 +328,7 @@ const _editFollowUp = async (
   await Property.findByIdAndUpdate(
     updatedLead.property_id,
     { $push: { logs: logEntry } },
-    { new: true }
+    { new: true },
   );
 
   // Add lead-specific log
@@ -341,7 +349,7 @@ const _editFollowUp = async (
 
   // ✅ FIX HERE
   const updatedFollowUpObj = updatedLead.follow_ups.find(
-    (f: any) => f._id.toString() === followUpId.toString()
+    (f: any) => f._id.toString() === followUpId.toString(),
   );
 
   return {
@@ -353,7 +361,7 @@ const _updateLabelForLead = async (
   leadId: Types.ObjectId,
   propId: Types.ObjectId,
   userId: Types.ObjectId,
-  labelIds: Types.ObjectId[] | string[]
+  labelIds: Types.ObjectId[] | string[],
 ) => {
   const existingUser = await User.findById(userId).select("name");
   if (!existingUser) {
@@ -363,7 +371,7 @@ const _updateLabelForLead = async (
   const updatedLead = await Lead.findByIdAndUpdate(
     leadId,
     { labels: labelIds },
-    { new: true }
+    { new: true },
   ).populate("labels");
 
   if (!updatedLead) {
@@ -395,7 +403,7 @@ const _updateLabelForLead = async (
     {
       $push: { logs: logEntry },
     },
-    { new: true }
+    { new: true },
   );
 
   await Lead.findByIdAndUpdate(
@@ -407,7 +415,7 @@ const _updateLabelForLead = async (
     },
     {
       new: true,
-    }
+    },
   );
 };
 
@@ -419,11 +427,11 @@ const _homePageLeadService = async (
   searchString: string,
   sortBy: string,
   is_table_view: boolean,
-  start_date: string, // Add start_date parameter
-  end_date: string, // Add end_date parameter
+  start_date: string,
+  end_date: string,
   page = 1,
   limit = 10,
-  userPropId: Types.ObjectId
+  userPropId: Types.ObjectId,
 ) => {
   const query: any = {
     property_id: userPropId,
@@ -433,29 +441,47 @@ const _homePageLeadService = async (
   // ✅ Date Range Filter
   if (start_date || end_date) {
     query.createdAt = {};
-
     if (start_date) {
       const startDate = new Date(start_date);
       startDate.setHours(0, 0, 0, 0);
       query.createdAt.$gte = startDate;
     }
-
     if (end_date) {
-      // End of the day for end_date
       const endDate = new Date(end_date);
       endDate.setHours(23, 59, 59, 999);
       query.createdAt.$lte = endDate;
     }
   }
 
-  let validLabelIds: Types.ObjectId[] = [];
+  // ✅ Label Filter — "no_label" support added
   if (labelIds.length > 0) {
-    const existingLabels = await Label.find({
-      _id: { $in: labelIds },
-      property_id: userPropId,
-    }).lean();
-    validLabelIds = existingLabels.map((label) => label._id);
-    if (validLabelIds.length > 0) {
+    const hasNoLabel = labelIds.some((id: any) => id.toString() === "no_label");
+    const realLabelIds = labelIds.filter(
+      (id: any) => id.toString() !== "no_label",
+    );
+
+    let validLabelIds: Types.ObjectId[] = [];
+
+    if (realLabelIds.length > 0) {
+      const existingLabels = await Label.find({
+        _id: { $in: realLabelIds },
+        property_id: userPropId,
+      }).lean();
+      validLabelIds = existingLabels.map((label) => label._id);
+    }
+
+    if (hasNoLabel && validLabelIds.length > 0) {
+      // Dono — no label wale + specific label wale
+      query.$or = [
+        { labels: { $in: validLabelIds } },
+        { labels: { $size: 0 } },
+        { labels: { $exists: false } },
+      ];
+    } else if (hasNoLabel) {
+      // Sirf no label wale
+      query.$or = [{ labels: { $size: 0 } }, { labels: { $exists: false } }];
+    } else if (validLabelIds.length > 0) {
+      // Sirf specific labels wale
       query.labels = { $in: validLabelIds };
     }
   }
@@ -485,7 +511,6 @@ const _homePageLeadService = async (
   }
 
   // ✅ Source Names
-
   if (sourceNames.length > 0) {
     query["meta.source"] = {
       $in: sourceNames.map((id) => new Types.ObjectId(id)),
@@ -493,13 +518,25 @@ const _homePageLeadService = async (
   }
 
   // ✅ Search
+  // ⚠️ Note: agar search aur label dono saath hain toh $or conflict ho sakta hai
+  // isliye search ko $and mein wrap kiya
   if (searchString?.trim()) {
     const searchRegex = new RegExp(searchString.trim(), "i");
-    query.$or = [
-      { name: { $regex: searchRegex } },
-      { phone_number: { $regex: searchRegex } },
-      { email: { $regex: searchRegex } },
-    ];
+    const searchCondition = {
+      $or: [
+        { name: { $regex: searchRegex } },
+        { phone_number: { $regex: searchRegex } },
+        { email: { $regex: searchRegex } },
+      ],
+    };
+
+    if (query.$or) {
+      // label filter ne already $or use kiya hai — dono ko $and mein wrap karo
+      query.$and = [{ $or: query.$or }, searchCondition];
+      delete query.$or;
+    } else {
+      query.$or = searchCondition.$or;
+    }
   }
 
   const cardProjection = {
@@ -508,7 +545,7 @@ const _homePageLeadService = async (
     email: 1,
     comment: 1,
     reference: 1,
-    logs: 1, // if heavy, consider selecting last log only (see later)
+    logs: 1,
     labels: 1,
     assigned_to: 1,
     assigned_by: 1,
@@ -520,69 +557,36 @@ const _homePageLeadService = async (
     updatedAt: 1,
   };
 
-  // ✅ Sort options
   const tableProjection = {};
 
-  // -----------------------------
-  // Build sort
-  // -----------------------------
   let sort: any = { createdAt: -1 };
   if (sortBy === "by_created_date") sort = { createdAt: -1 };
-  // note: you were sorting by next_followup in-app using JS. We keep same behavior:
-  // fetch (with projection) then sort in-memory for that specific flow.
 
-  // -----------------------------
-  // CACHING STRATEGY
-  // - Card view: snapshot cache (short TTL), because UI often requests same filters
-  // - Table view: cache per query+page (short TTL)
-  // TTL recommendations: card 30s-60s, table 60s-120s
-  // -----------------------------
   const cachePrefix = "home_leads_v1";
-  const cacheKeyPayload = {
-    query,
-    page,
-    limit,
-    is_table_view,
-    sortBy,
-  };
+  const cacheKeyPayload = { query, page, limit, is_table_view, sortBy };
   const cacheKey = makeCacheKey(cachePrefix, cacheKeyPayload);
 
-  // Try redis first
   try {
     const cached = await cacheGet(cacheKey);
-    if (cached) {
-      return cached; // cached response already has leads + statuses + pagination
-    }
+    if (cached) return cached;
   } catch (err) {
-    // redis might be down — continue to DB fallback
     console.warn("Redis read failed", err);
   }
 
-  // Acquire a light lock to avoid stampede
   const lockKey = `${cacheKey}:lock`;
   const lockToken = await acquireLock(lockKey, 5000);
 
-  // If we didn't get lock, wait briefly and try cache again
   if (!lockToken) {
-    // short sleep, then check cache again
     await new Promise((r) => setTimeout(r, 150));
     const cached = await cacheGet(cacheKey);
     if (cached) return cached;
-    // else continue (no lock) — it's okay, we'll read DB
   }
 
-  // -----------------------------
-  // DB fetch (no aggregation)
-  // - Use lean() to reduce mongoose overhead
-  // - Limit & skip for table view
-  // - For card view: limit to 150 (safe), do light populate
-  // -----------------------------
   let leads: any[] = [];
   let total = 0;
 
   if (is_table_view) {
     total = await Lead.countDocuments(query);
-
     leads = await Lead.find(query, tableProjection as any)
       .sort(sort)
       .skip((page - 1) * limit)
@@ -593,7 +597,6 @@ const _homePageLeadService = async (
       .populate({ path: "labels", select: "_id title description meta" })
       .lean();
   } else {
-    // Card view (snapshot)
     leads = await Lead.find(query, cardProjection as any)
       .sort(sort)
       .skip((page - 1) * limit)
@@ -606,10 +609,6 @@ const _homePageLeadService = async (
     total = await Lead.countDocuments(query);
   }
 
-  // -----------------------------
-  // Enrich follow_ups created_by users (same efficient approach)
-  // Get set of follow created_by IDs across the fetched leads only
-  // -----------------------------
   const createdBySet = new Set<string>();
   for (const lead of leads) {
     (lead.follow_ups || []).forEach((fu: any) => {
@@ -622,10 +621,11 @@ const _homePageLeadService = async (
   if (createdBySet.size > 0) {
     const users = await User.find(
       { _id: { $in: Array.from(createdBySet) } },
-      "name title email"
+      "name title email",
     ).lean();
     followUsersMap = new Map(users.map((u) => [u._id.toString(), u]));
   }
+
   leads.forEach((lead) => {
     (lead.follow_ups || []).forEach((fu: any) => {
       const id = fu?.meta?.created_by?.toString();
@@ -636,7 +636,7 @@ const _homePageLeadService = async (
 
   if (leads.length > 1) {
     const latest = leads.reduce((a, b) =>
-      new Date(a.createdAt) > new Date(b.createdAt) ? a : b
+      new Date(a.createdAt) > new Date(b.createdAt) ? a : b,
     );
     leads = [
       latest,
@@ -645,7 +645,7 @@ const _homePageLeadService = async (
   }
 
   if (sortBy === "by_next_followup_date") {
-    const leadsExceptLatest = leads.slice(1); // skip latest lead
+    const leadsExceptLatest = leads.slice(1);
     leadsExceptLatest.sort((a, b) => {
       const aNext = getEarliestFollowUpDate(a.follow_ups);
       const bNext = getEarliestFollowUpDate(b.follow_ups);
@@ -657,9 +657,6 @@ const _homePageLeadService = async (
     leads = [leads[0], ...leadsExceptLatest];
   }
 
-  // -----------------------------
-  // Statuses (cache recommended separately)
-  // -----------------------------
   const statusesCacheKey = `statuses:${userPropId.toString()}`;
   let statuses = await cacheGet(statusesCacheKey);
   if (!statuses) {
@@ -675,7 +672,9 @@ const _homePageLeadService = async (
       ...propertyStatuses,
       ...defaultStatuses.filter(
         (def) =>
-          !propertyStatuses.some((p) => p._id.toString() === def._id.toString())
+          !propertyStatuses.some(
+            (p) => p._id.toString() === def._id.toString(),
+          ),
       ),
     ].map((s) => ({ ...s, _id: s._id.toString() }));
 
@@ -695,13 +694,9 @@ const _homePageLeadService = async (
     },
   };
 
-
- 
   try {
     const ttl = is_table_view ? 120 : 45;
     await cacheSet(cacheKey, response, ttl);
-
-    // release lock if we acquired it
     if (lockToken) await releaseLock(lockKey, lockToken);
   } catch (err) {
     console.warn("Redis write failed", err);
@@ -715,10 +710,9 @@ const _homePageLeadService = async (
 // 🔹 LEAD LIMIT VALIDATION — strict typed states
 // ---------------------------------------------------
 
-
 function _resolveLeadLimitStatus(
   activePackage: any,
-  leadsFeature: any
+  leadsFeature: any,
 ): LeadLimitValidationStatus {
   if (!activePackage) return LeadLimitValidationStatus.NO_PACKAGE;
   if (activePackage.status !== PurchaseStatus.COMPLETED)
@@ -731,9 +725,7 @@ function _resolveLeadLimitStatus(
   return LeadLimitValidationStatus.OK;
 }
 
-const _leadCreationViaApi = async (
-  leadData: ExternalLeadGenerationDto
-) => {
+const _leadCreationViaApi = async (leadData: ExternalLeadGenerationDto) => {
   const {
     customer_name,
     company_name,
@@ -771,7 +763,10 @@ const _leadCreationViaApi = async (
   // Find the superadmin of this property to track accountability
   const superAdminRoleForApi = await Role.findOne({ name: "Superadmin" });
   const superAdminUserForApi = superAdminRoleForApi
-    ? await User.findOne({ property_id, role: superAdminRoleForApi._id }).select("_id")
+    ? await User.findOne({
+        property_id,
+        role: superAdminRoleForApi._id,
+      }).select("_id")
     : null;
   const adminId = superAdminUserForApi?._id || null;
 
@@ -806,7 +801,6 @@ const _leadCreationViaApi = async (
     },
   });
 
-
   if (!property) throw new Error("Workspace Linkage not found.");
 
   const activePackageIdRaw = getMetaValue(property.meta, "active_package");
@@ -826,7 +820,7 @@ const _leadCreationViaApi = async (
   const activatedFeatures =
     getMetaValue(activePackage?.meta, "activated_features") || [];
   const leadsFeature = activatedFeatures.find(
-    (f: any) => f.title === "Leads Limit"
+    (f: any) => f.title === "Leads Limit",
   );
 
   const limitStatus = _resolveLeadLimitStatus(activePackage, leadsFeature);
@@ -837,15 +831,17 @@ const _leadCreationViaApi = async (
 
     case LeadLimitValidationStatus.PACKAGE_NOT_ACTIVE:
       throw new Error(
-        `Your current package is ${activePackage?.status}. Please renew or upgrade.`
+        `Your current package is ${activePackage?.status}. Please renew or upgrade.`,
       );
 
     case LeadLimitValidationStatus.FEATURE_MISSING:
-      throw new Error("Your plan does not include Leads Limit. Please upgrade.");
+      throw new Error(
+        "Your plan does not include Leads Limit. Please upgrade.",
+      );
 
     case LeadLimitValidationStatus.FEATURE_EXPIRED:
       throw new Error(
-        `Lead limit expired on ${new Date(leadsFeature.validity).toLocaleDateString()}. Please renew your plan.`
+        `Lead limit expired on ${new Date(leadsFeature.validity).toLocaleDateString()}. Please renew your plan.`,
       );
 
     case LeadLimitValidationStatus.LIMIT_REACHED:
@@ -863,10 +859,10 @@ const _leadCreationViaApi = async (
             },
           },
         },
-        { new: true }
+        { new: true },
       );
       throw new Error(
-        `Lead limit reached. Used ${leadsFeature.used}/${leadsFeature.limit}.`
+        `Lead limit reached. Used ${leadsFeature.used}/${leadsFeature.limit}.`,
       );
 
     case LeadLimitValidationStatus.OK:
@@ -878,7 +874,6 @@ const _leadCreationViaApi = async (
     }
   }
 
- 
   await newLead.save();
 
   await Property.findByIdAndUpdate(
@@ -896,31 +891,28 @@ const _leadCreationViaApi = async (
         },
       },
     },
-    { new: true }
+    { new: true },
   );
-
 
   const updatedPackage = await PurchaseRecordsModel.findOneAndUpdate(
     { _id: activePackageId, "meta.activated_features.title": "Leads Limit" },
     { $inc: { "meta.activated_features.$.used": 1 } },
-    { new: true }
+    { new: true },
   );
   if (!updatedPackage) {
     throw new Error("Failed to update feature usage in package.");
   }
 
-  // TODO: just call this function in future, to ensure that whenever a lead is created externally, you can send whatsapp mesages by deicidng a default agent in advance! 
+  // TODO: just call this function in future, to ensure that whenever a lead is created externally, you can send whatsapp mesages by deicidng a default agent in advance!
   // await _triggerLeadAutomationWebhook(newLead);
-
 
   return newLead;
 };
 
-
 const _createLeadService = async (
   data: CreateLeadDto,
   ip: string,
-  creatorId?: Types.ObjectId
+  creatorId?: Types.ObjectId,
 ) => {
   const now = new Date();
   const meta: Record<string, any> = data.meta || {};
@@ -1038,6 +1030,7 @@ const _createLeadService = async (
     ...data,
     labels: data.labels?.map((id) => new Types.ObjectId(id)) || [],
     status: data.status || defaultStatus._id,
+    createdAt: data.createdAt ? new Date(data.createdAt) : now, // 👈 yeh
     assigned_to: assignedToId,
     assigned_by: responsibleUserId,
     property_id: data.property_id || defaultStatus.property_id,
@@ -1089,7 +1082,7 @@ const _createLeadService = async (
   // ---------------------------------------------------
   if (activePackage.status !== PurchaseStatus.COMPLETED) {
     throw new Error(
-      `Your current package is ${activePackage.status}. Please renew or upgrade.`
+      `Your current package is ${activePackage.status}. Please renew or upgrade.`,
     );
   }
 
@@ -1100,7 +1093,7 @@ const _createLeadService = async (
     getMetaValue(activePackage.meta, "activated_features") || [];
 
   const leadsFeature = activatedFeatures.find(
-    (f: any) => f.title === "Leads Limit"
+    (f: any) => f.title === "Leads Limit",
   );
 
   if (!leadsFeature)
@@ -1109,7 +1102,7 @@ const _createLeadService = async (
   const validityDate = new Date(leadsFeature.validity);
   if (new Date() > validityDate) {
     throw new Error(
-      `Lead limit expired on ${validityDate.toLocaleDateString()}. Please renew your plan.`
+      `Lead limit expired on ${validityDate.toLocaleDateString()}. Please renew your plan.`,
     );
   }
 
@@ -1128,11 +1121,11 @@ const _createLeadService = async (
           },
         },
       },
-      { new: true }
+      { new: true },
     );
 
     throw new Error(
-      `Lead limit reached. Used ${leadsFeature.used}/${leadsFeature.limit}.`
+      `Lead limit reached. Used ${leadsFeature.used}/${leadsFeature.limit}.`,
     );
   }
 
@@ -1159,13 +1152,13 @@ const _createLeadService = async (
         },
       },
     },
-    { new: true }
+    { new: true },
   );
 
   const updatedPackage = await PurchaseRecordsModel.findOneAndUpdate(
     { _id: activePackageId, "meta.activated_features.title": "Leads Limit" },
     { $inc: { "meta.activated_features.$.used": 1 } },
-    { new: true }
+    { new: true },
   );
   if (!updatedPackage) {
     throw new Error("Failed to update feature usage in package.");
@@ -1181,11 +1174,9 @@ const _createLeadService = async (
 
 const _getMissedFollowUpsService = async (
   propId: Types.ObjectId,
-  userId?: Types.ObjectId
+  userId?: Types.ObjectId,
 ): Promise<MissedFollowUpLead[]> => {
-  const todayIST = moment()
-    .tz("Asia/Kolkata")
-    .startOf("day");
+  const todayIST = moment().tz("Asia/Kolkata").startOf("day");
 
   const matchQuery: any = {
     property_id: propId,
@@ -1197,21 +1188,18 @@ const _getMissedFollowUpsService = async (
     matchQuery.assigned_to = new Types.ObjectId(userId);
   }
 
-  const leads = await Lead.find(
-    matchQuery,
-    {
-      name: 1,
-      follow_ups: 1,
-      status: 1,
-      assigned_to: 1,
-      labels: 1,
-      meta: 1,
-      phone_number: 1,
-      email: 1,
-      company_name: 1,
-      addresss: 1,
-    }
-  )
+  const leads = await Lead.find(matchQuery, {
+    name: 1,
+    follow_ups: 1,
+    status: 1,
+    assigned_to: 1,
+    labels: 1,
+    meta: 1,
+    phone_number: 1,
+    email: 1,
+    company_name: 1,
+    addresss: 1,
+  })
 
     .populate<{ status: any }>("status", "title")
     .populate<{ assigned_to: any }>("assigned_to", "name email")
@@ -1224,7 +1212,7 @@ const _getMissedFollowUpsService = async (
     if (!lead.follow_ups?.length) continue;
 
     const latest = lead.follow_ups.reduce((a: any, b: any) =>
-      new Date(a.next_followup_date) > new Date(b.next_followup_date) ? a : b
+      new Date(a.next_followup_date) > new Date(b.next_followup_date) ? a : b,
     );
 
     const followUpDateIST = moment(latest.next_followup_date)
@@ -1236,15 +1224,13 @@ const _getMissedFollowUpsService = async (
     if (missedDays <= 0) continue;
 
     const existingMeta = lead.meta || {};
-    const existingMissedArray =
-      Array.isArray(existingMeta.missed_followups_count)
-        ? existingMeta.missed_followups_count
-        : [];
+    const existingMissedArray = Array.isArray(
+      existingMeta.missed_followups_count,
+    )
+      ? existingMeta.missed_followups_count
+      : [];
 
-    const updatedMissedArray = [
-      ...existingMissedArray,
-      { days: missedDays },
-    ];
+    const updatedMissedArray = [...existingMissedArray, { days: missedDays }];
 
     missed.push({
       leadId: lead._id,
@@ -1254,8 +1240,7 @@ const _getMissedFollowUpsService = async (
       address: lead.address || "",
       company_name: lead.company_name || "",
 
-      status:
-        lead.status && typeof lead.status === "object" ? lead.status : {},
+      status: lead.status && typeof lead.status === "object" ? lead.status : {},
 
       assigned_to:
         lead.assigned_to && typeof lead.assigned_to === "object"
@@ -1277,13 +1262,11 @@ const _getMissedFollowUpsService = async (
   missed.sort(
     (a, b) =>
       new Date(a.next_followup_date).getTime() -
-      new Date(b.next_followup_date).getTime()
+      new Date(b.next_followup_date).getTime(),
   );
 
   return missed;
 };
-
-
 
 const _getTodayLeadsGrouped = async (propId: Types.ObjectId) => {
   const today = new Date();
@@ -1324,7 +1307,7 @@ const _updateAssignedAgentForLead = async (
   leadId: Types.ObjectId,
   propId: Types.ObjectId,
   userId: Types.ObjectId,
-  chatAgentId: Types.ObjectId
+  chatAgentId: Types.ObjectId,
 ) => {
   const existingUser = await User.findById(userId).select("name");
   if (!existingUser) {
@@ -1363,7 +1346,7 @@ const _updateAssignedAgentForLead = async (
       assigned_by: existingUser._id,
       $push: { "meta.previous_assignees": historyEntry },
     },
-    { new: true }
+    { new: true },
   );
 
   if (!updatedLead) {
@@ -1395,7 +1378,7 @@ const _updateAssignedAgentForLead = async (
     {
       $push: { logs: logEntry },
     },
-    { new: true }
+    { new: true },
   );
 
   await Lead.findByIdAndUpdate(
@@ -1407,14 +1390,14 @@ const _updateAssignedAgentForLead = async (
     },
     {
       new: true,
-    }
+    },
   );
 };
 
 const _deleteOrArchiveLead = async (
   rayId: string,
   userId: Types.ObjectId,
-  deleteReason: string
+  deleteReason: string,
 ) => {
   const existingLead = await Lead.findOne({ "meta.ray_id": rayId });
   if (!existingLead) {
@@ -1434,7 +1417,7 @@ const _deleteOrArchiveLead = async (
         deleteReason,
       },
     },
-    { new: true }
+    { new: true },
   );
 
   if (!updatedLead) {
@@ -1463,7 +1446,7 @@ const _deleteOrArchiveLead = async (
     {
       $push: { logs: logEntry },
     },
-    { new: true }
+    { new: true },
   );
 
   await Lead.findByIdAndUpdate(
@@ -1475,14 +1458,14 @@ const _deleteOrArchiveLead = async (
     },
     {
       new: true,
-    }
+    },
   );
 };
 
 const _getLeadStatusStatsService = async (
   agentId: Types.ObjectId,
   startDate?: string,
-  endDate?: string
+  endDate?: string,
 ) => {
   const matchStage: any = {
     "meta.status": { $ne: "ARCHIVED" },
@@ -1551,7 +1534,7 @@ const _getLeadStatusStatsService = async (
 const _getLeadSourceStatsService = async (
   agentId: Types.ObjectId,
   startDate?: string,
-  endDate?: string
+  endDate?: string,
 ) => {
   const matchStage: any = {};
 
@@ -1626,7 +1609,7 @@ const _archiveThisSessionsLeadService = async (propertyId: Types.ObjectId) => {
       $set: {
         "meta.status": "ARCHIVED",
       },
-    }
+    },
   );
 
   const logEntry = {
@@ -1654,7 +1637,7 @@ const _updateStatusForLead = async (
   leadId: Types.ObjectId,
   propId: Types.ObjectId,
   userId: Types.ObjectId,
-  statusId: Types.ObjectId | string
+  statusId: Types.ObjectId | string,
 ) => {
   const existingUser = await User.findById(userId).select("name");
   if (!existingUser) {
@@ -1668,7 +1651,7 @@ const _updateStatusForLead = async (
   const updatedLead = await Lead.findByIdAndUpdate(
     leadId,
     { status: statusId },
-    { new: true }
+    { new: true },
   ).populate("status");
 
   if (!updatedLead) {
@@ -1700,7 +1683,7 @@ const _updateStatusForLead = async (
     {
       $push: { logs: logEntry },
     },
-    { new: true }
+    { new: true },
   );
 
   await Lead.findByIdAndUpdate(
@@ -1712,7 +1695,7 @@ const _updateStatusForLead = async (
     },
     {
       new: true,
-    }
+    },
   );
 };
 
@@ -1720,7 +1703,7 @@ const _importLeadsFromExcel = async (
   filePath: string,
   ip: string,
   propertyId: string,
-  options: ImportOptions = {}
+  options: ImportOptions = {},
 ) => {
   try {
     // Read and parse Excel file
@@ -1736,7 +1719,7 @@ const _importLeadsFromExcel = async (
 
     if (rows.length > 500) {
       throw new Error(
-        `Too many leads in the sheet. Maximum allowed is 500, but got ${rows.length}.`
+        `Too many leads in the sheet. Maximum allowed is 500, but got ${rows.length}.`,
       );
     }
 
@@ -1749,7 +1732,7 @@ const _importLeadsFromExcel = async (
 
       if (!sourceObject) {
         throw new Error(
-          `Source with ID ${options.source_id} not found or doesn't belong to this property`
+          `Source with ID ${options.source_id} not found or doesn't belong to this property`,
         );
       }
     }
@@ -1797,11 +1780,11 @@ const _importLeadsFromExcel = async (
     const result = await bulkInsertLeadsWithValidation(
       leadDtos,
       ip,
-      new Types.ObjectId(propertyId)
+      new Types.ObjectId(propertyId),
     );
 
     console.log(
-      `Import completed: ${result.success} successful, ${result.failed} failed`
+      `Import completed: ${result.success} successful, ${result.failed} failed`,
     );
 
     // Log errors if any
@@ -1855,11 +1838,9 @@ const _exportLeadsFromDBToExcel = async () => {
   return excelBuffer;
 };
 
-
-
 const _getMissedFollowUpsForDay = async (
   userId: Types.ObjectId,
-  propertyId?: string
+  propertyId?: string,
 ) => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -1883,7 +1864,7 @@ const _getMissedFollowUpsForDay = async (
 
   const filteredLeads = leads.map((lead) => {
     const missedFollowUps = lead.follow_ups.filter(
-      (fu: any) => fu.next_followup_date && fu.next_followup_date < today
+      (fu: any) => fu.next_followup_date && fu.next_followup_date < today,
     );
     return {
       ...lead,
@@ -1897,7 +1878,7 @@ const _getMissedFollowUpsForDay = async (
 const _fetchPaginatedArchivedLeads = async (
   propId: Types.ObjectId,
   page: number = 1,
-  limit: number = 10
+  limit: number = 10,
 ) => {
   const skip = (page - 1) * limit;
 
@@ -1937,17 +1918,11 @@ const _fetchPaginatedArchivedLeads = async (
 
 const _getTodaysFollowups = async (
   userId: Types.ObjectId,
-  propertyId?: string
+  propertyId?: string,
 ) => {
-  const startOfDay = moment()
-    .tz("Asia/Kolkata")
-    .startOf("day")
-    .toDate();
+  const startOfDay = moment().tz("Asia/Kolkata").startOf("day").toDate();
 
-  const endOfDay = moment()
-    .tz("Asia/Kolkata")
-    .endOf("day")
-    .toDate();
+  const endOfDay = moment().tz("Asia/Kolkata").endOf("day").toDate();
 
   const query: any = {
     follow_ups: {
@@ -1971,8 +1946,7 @@ const _getTodaysFollowups = async (
     .populate("assigned_to", "name email")
     .populate("status", "title")
     .populate("labels", "title")
-    .lean(); 
-
+    .lean();
 
   const filteredLeads = leads.map((lead: any) => {
     const todaysFollowUps = lead.follow_ups.filter((fu: any) => {
@@ -1982,10 +1956,7 @@ const _getTodaysFollowups = async (
         .tz("Asia/Kolkata")
         .toDate();
 
-      return (
-        followUpDate >= startOfDay &&
-        followUpDate <= endOfDay
-      );
+      return followUpDate >= startOfDay && followUpDate <= endOfDay;
     });
 
     return {
@@ -1994,13 +1965,12 @@ const _getTodaysFollowups = async (
     };
   });
 
-
-  return filteredLeads.filter(
-    (lead) => lead.todays_follow_ups.length > 0
-  );
+  return filteredLeads.filter((lead) => lead.todays_follow_ups.length > 0);
 };
 
-const _getLeadsBySourceAndAgentService = async (propIdRaw: Types.ObjectId | string) => {
+const _getLeadsBySourceAndAgentService = async (
+  propIdRaw: Types.ObjectId | string,
+) => {
   const propId =
     typeof propIdRaw === "string" ? new Types.ObjectId(propIdRaw) : propIdRaw;
 
@@ -2008,7 +1978,9 @@ const _getLeadsBySourceAndAgentService = async (propIdRaw: Types.ObjectId | stri
   const telecallerRole = await Role.findOne({ name: "Telecaller" });
 
   // Get ALL sources for this property
-  const sources = await Source.find({ property_id: propId }).sort({ createdAt: 1 });
+  const sources = await Source.find({ property_id: propId }).sort({
+    createdAt: 1,
+  });
 
   // Build map sourceId → title
   const sourcesMap: Record<string, string> = {};
@@ -2018,7 +1990,7 @@ const _getLeadsBySourceAndAgentService = async (propIdRaw: Types.ObjectId | stri
 
   const baseMatch = {
     property_id: propId,
-    "meta.status": { $nin: ["ARCHIVED", "CONVERTED TO CUSTOMER"] }
+    "meta.status": { $nin: ["ARCHIVED", "CONVERTED TO CUSTOMER"] },
   };
 
   // Total leads
@@ -2032,20 +2004,20 @@ const _getLeadsBySourceAndAgentService = async (propIdRaw: Types.ObjectId | stri
   const sourceWiseCounts = await Lead.aggregate([
     { $match: baseMatch },
 
-  // bring assigned user (may be null)
+    // bring assigned user (may be null)
     {
       $lookup: {
         from: "users",
         localField: "assigned_to",
         foreignField: "_id",
         as: "assignedUser",
-      }
+      },
     },
     {
       $unwind: {
         path: "$assignedUser",
-        preserveNullAndEmptyArrays: true
-      }
+        preserveNullAndEmptyArrays: true,
+      },
     },
 
     // group by agent + source
@@ -2054,11 +2026,11 @@ const _getLeadsBySourceAndAgentService = async (propIdRaw: Types.ObjectId | stri
         _id: {
           agentId: { $ifNull: ["$assigned_to", null] }, // unassigned
           agentName: { $ifNull: ["$assignedUser.name", "Unassigned"] },
-          sourceId: { $ifNull: ["$meta.source", null] }
+          sourceId: { $ifNull: ["$meta.source", null] },
         },
-        count: { $sum: 1 }
-      }
-    }
+        count: { $sum: 1 },
+      },
+    },
   ]);
 
   // ------------------------------
@@ -2082,7 +2054,7 @@ const _getLeadsBySourceAndAgentService = async (propIdRaw: Types.ObjectId | stri
         agent_id: rawAgentId || null,
         agent_name: agentName,
         lead_count: 0,
-        leads_per_source_map: {}
+        leads_per_source_map: {},
       };
     }
 
@@ -2096,7 +2068,7 @@ const _getLeadsBySourceAndAgentService = async (propIdRaw: Types.ObjectId | stri
   // ------------------------------
   const agents = Object.values(agentMap).map((a: any) => {
     const leads_per_report = sources.map((s) => ({
-      [s.title]: a.leads_per_source_map[s.title] || 0
+      [s.title]: a.leads_per_source_map[s.title] || 0,
     }));
 
     if (a.leads_per_source_map["Unknown"])
@@ -2106,7 +2078,7 @@ const _getLeadsBySourceAndAgentService = async (propIdRaw: Types.ObjectId | stri
       agent_id: a.agent_id,
       agent_name: a.agent_name,
       lead_count: a.lead_count,
-      leads_per_report
+      leads_per_report,
     };
   });
 
@@ -2130,32 +2102,32 @@ const _getLeadsBySourceAndAgentService = async (propIdRaw: Types.ObjectId | stri
       {
         $match: {
           ...baseMatch,
-          "follow_ups.next_followup_date": { $lt: today }
-        }
+          "follow_ups.next_followup_date": { $lt: today },
+        },
       },
       {
         $lookup: {
           from: "users",
           localField: "assigned_to",
           foreignField: "_id",
-          as: "assignedUser"
-        }
+          as: "assignedUser",
+        },
       },
       { $unwind: { path: "$assignedUser", preserveNullAndEmptyArrays: true } },
       { $match: { "assignedUser.role": telecallerRole._id } },
       {
         $group: {
           _id: { agentId: "$assigned_to", agentName: "$assignedUser.name" },
-          missedCount: { $sum: 1 }
-        }
-      }
+          missedCount: { $sum: 1 },
+        },
+      },
     ]);
 
     missed_followups.total = missed.reduce((s, r) => s + r.missedCount, 0);
     missed_followups.telecallers = missed.map((r) => ({
       agent_id: r._id.agentId,
       agent_name: r._id.agentName,
-      missed_count: r.missedCount
+      missed_count: r.missedCount,
     }));
   }
 
@@ -2169,30 +2141,30 @@ const _getLeadsBySourceAndAgentService = async (propIdRaw: Types.ObjectId | stri
       {
         $match: {
           ...baseMatch,
-          "meta.status": "CONVERTED TO CUSTOMER"
-        }
+          "meta.status": "CONVERTED TO CUSTOMER",
+        },
       },
       {
         $lookup: {
           from: "users",
           localField: "assigned_to",
           foreignField: "_id",
-          as: "assignedUser"
-        }
+          as: "assignedUser",
+        },
       },
       { $unwind: { path: "$assignedUser", preserveNullAndEmptyArrays: true } },
       { $match: { "assignedUser.role": telecallerRole._id } },
       {
         $group: {
           _id: { agentId: "$assigned_to", agentName: "$assignedUser.name" },
-          convertedCount: { $sum: 1 }
-        }
-      }
+          convertedCount: { $sum: 1 },
+        },
+      },
     ]);
 
     conversion_rates.totalConverted = converted.reduce(
       (s, r) => s + r.convertedCount,
-      0
+      0,
     );
 
     conversion_rates.telecallers = converted.map((r) => {
@@ -2209,7 +2181,7 @@ const _getLeadsBySourceAndAgentService = async (propIdRaw: Types.ObjectId | stri
         agent_id: r._id.agentId,
         agent_name: r._id.agentName,
         converted: r.convertedCount,
-        conversion_rate: Number(rate.toFixed(2))
+        conversion_rate: Number(rate.toFixed(2)),
       };
     });
   }
@@ -2222,23 +2194,15 @@ const _getLeadsBySourceAndAgentService = async (propIdRaw: Types.ObjectId | stri
     agents,
     unassigned: { lead_count: unassignedCount },
     missed_followups,
-    conversion_rates
+    conversion_rates,
   };
 };
 
-const _getTodaysFollowupsForSuperadmin = async (
-  propertyId: Types.ObjectId
-) => {
+const _getTodaysFollowupsForSuperadmin = async (propertyId: Types.ObjectId) => {
   // IST day boundaries
-  const startOfDay = moment()
-    .tz("Asia/Kolkata")
-    .startOf("day")
-    .toDate();
+  const startOfDay = moment().tz("Asia/Kolkata").startOf("day").toDate();
 
-  const endOfDay = moment()
-    .tz("Asia/Kolkata")
-    .endOf("day")
-    .toDate();
+  const endOfDay = moment().tz("Asia/Kolkata").endOf("day").toDate();
 
   /**
    * STEP 1: Fetch ALL leads with followups due today
@@ -2263,22 +2227,24 @@ const _getTodaysFollowupsForSuperadmin = async (
   /**
    * STEP 2: Filter only today's followups (safe-guard)
    */
-  const processedLeads = leads.map((lead: any) => {
-    const todaysFollowUps = lead.follow_ups.filter((fu: any) => {
-      if (!fu.next_followup_date) return false;
+  const processedLeads = leads
+    .map((lead: any) => {
+      const todaysFollowUps = lead.follow_ups.filter((fu: any) => {
+        if (!fu.next_followup_date) return false;
 
-      const fuDate = moment(fu.next_followup_date)
-        .tz("Asia/Kolkata")
-        .toDate();
+        const fuDate = moment(fu.next_followup_date)
+          .tz("Asia/Kolkata")
+          .toDate();
 
-      return fuDate >= startOfDay && fuDate <= endOfDay;
-    });
+        return fuDate >= startOfDay && fuDate <= endOfDay;
+      });
 
-    return {
-      ...lead,
-      todays_follow_ups: todaysFollowUps,
-    };
-  }).filter(l => l.todays_follow_ups.length > 0);
+      return {
+        ...lead,
+        todays_follow_ups: todaysFollowUps,
+      };
+    })
+    .filter((l) => l.todays_follow_ups.length > 0);
 
   /**
    * STEP 3: Count leads per agent (telecaller)
@@ -2311,10 +2277,8 @@ const _getTodaysFollowupsForSuperadmin = async (
   };
 };
 
-
-
 const _getLeadsByLabelAndAgentService = async (
-  propIdRaw: Types.ObjectId | string
+  propIdRaw: Types.ObjectId | string,
 ) => {
   const propId =
     typeof propIdRaw === "string" ? new Types.ObjectId(propIdRaw) : propIdRaw;
@@ -2350,7 +2314,7 @@ const _getLeadsByLabelAndAgentService = async (
 
     { $unwind: { path: "$labels", preserveNullAndEmptyArrays: true } },
 
-  // bring assigned user (to get agent name)
+    // bring assigned user (to get agent name)
     {
       $lookup: {
         from: "users",
@@ -2466,10 +2430,7 @@ const _getLeadsByLabelAndAgentService = async (
       },
     ]);
 
-    missed_followups.total = missed.reduce(
-      (sum, r) => sum + r.missedCount,
-      0
-    );
+    missed_followups.total = missed.reduce((sum, r) => sum + r.missedCount, 0);
     missed_followups.telecallers = missed.map((r) => ({
       agent_id: r._id.agentId,
       agent_name: r._id.agentName,
@@ -2513,7 +2474,7 @@ const _getLeadsByLabelAndAgentService = async (
 
     conversion_rates.totalConverted = converted.reduce(
       (sum, r) => sum + r.convertedCount,
-      0
+      0,
     );
 
     conversion_rates.telecallers = converted.map((r) => {
@@ -2544,14 +2505,18 @@ const _getLeadsByLabelAndAgentService = async (
   };
 };
 
-
-const _getLeadsByStatusAndAgentService = async (propIdRaw: Types.ObjectId | string) => {
+const _getLeadsByStatusAndAgentService = async (
+  propIdRaw: Types.ObjectId | string,
+) => {
   // normalize propId
-  const propId = typeof propIdRaw === "string" ? new Types.ObjectId(propIdRaw) : propIdRaw;
+  const propId =
+    typeof propIdRaw === "string" ? new Types.ObjectId(propIdRaw) : propIdRaw;
 
   // fetch telecaller role and statuses
   const telecallerRole = await Role.findOne({ name: "Telecaller" });
-  const statuses = await Status.find({ property_id: propId }).sort({ createdAt: 1 });
+  const statuses = await Status.find({ property_id: propId }).sort({
+    createdAt: 1,
+  });
 
   // build map statusId(string) => title for reliable mapping later
   const statusesMap: Record<string, string> = {};
@@ -2561,7 +2526,7 @@ const _getLeadsByStatusAndAgentService = async (propIdRaw: Types.ObjectId | stri
 
   const baseMatch = {
     property_id: propId,
-    "meta.status": { $nin: ["ARCHIVED", "CONVERTED TO CUSTOMER"] }
+    "meta.status": { $nin: ["ARCHIVED", "CONVERTED TO CUSTOMER"] },
   };
 
   // total leads
@@ -2574,30 +2539,28 @@ const _getLeadsByStatusAndAgentService = async (propIdRaw: Types.ObjectId | stri
   const statusWiseCounts = await Lead.aggregate([
     { $match: baseMatch },
 
-  // bring assigned user (just to capture name) but not required for status matching
+    // bring assigned user (just to capture name) but not required for status matching
     {
       $lookup: {
         from: "users",
         localField: "assigned_to",
         foreignField: "_id",
-        as: "assignedUser"
-      }
+        as: "assignedUser",
+      },
     },
     { $unwind: { path: "$assignedUser", preserveNullAndEmptyArrays: true } },
-
 
     {
       $group: {
         _id: {
-          agentId: { $ifNull: ["$assigned_to", null] },    // null for unassigned
+          agentId: { $ifNull: ["$assigned_to", null] }, // null for unassigned
           agentName: { $ifNull: ["$assignedUser.name", "Unassigned"] },
-          statusId: { $ifNull: ["$status", null] }         // may be null
+          statusId: { $ifNull: ["$status", null] }, // may be null
         },
-        count: { $sum: 1 }
-      }
-    }
+        count: { $sum: 1 },
+      },
+    },
   ]);
-
 
   const agentMap: Record<string, any> = {};
 
@@ -2606,9 +2569,9 @@ const _getLeadsByStatusAndAgentService = async (propIdRaw: Types.ObjectId | stri
     const agentKey = rawAgentId ? String(rawAgentId) : "UNASSIGNED";
     const agentName = row._id.agentName || "Unassigned";
 
-
     const statusId = row._id.statusId ? String(row._id.statusId) : null;
-    const statusTitle = statusId && statusesMap[statusId] ? statusesMap[statusId] : "Unknown";
+    const statusTitle =
+      statusId && statusesMap[statusId] ? statusesMap[statusId] : "Unknown";
 
     const cnt = row.count || 0;
 
@@ -2617,23 +2580,20 @@ const _getLeadsByStatusAndAgentService = async (propIdRaw: Types.ObjectId | stri
         agent_id: agentKey === "UNASSIGNED" ? null : rawAgentId,
         agent_name: agentName,
         lead_count: 0,
-        leads_per_status_map: {} as Record<string, number>
+        leads_per_status_map: {} as Record<string, number>,
       };
     }
 
     agentMap[agentKey].lead_count += cnt;
 
-
     agentMap[agentKey].leads_per_status_map[statusTitle] =
       (agentMap[agentKey].leads_per_status_map[statusTitle] || 0) + cnt;
   });
 
-
   const agents = Object.values(agentMap).map((a: any) => {
     const leads_per_report = statuses.map((s) => ({
-      [s.title]: a.leads_per_status_map[s.title] || 0
+      [s.title]: a.leads_per_status_map[s.title] || 0,
     }));
-
 
     if (a.leads_per_status_map["Unknown"]) {
       leads_per_report.push({ Unknown: a.leads_per_status_map["Unknown"] });
@@ -2643,13 +2603,13 @@ const _getLeadsByStatusAndAgentService = async (propIdRaw: Types.ObjectId | stri
       agent_id: a.agent_id,
       agent_name: a.agent_name,
       lead_count: a.lead_count,
-      leads_per_report
+      leads_per_report,
     };
   });
 
-
-  const unassignedCount = agentMap["UNASSIGNED"] ? agentMap["UNASSIGNED"].lead_count : 0;
-
+  const unassignedCount = agentMap["UNASSIGNED"]
+    ? agentMap["UNASSIGNED"].lead_count
+    : 0;
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -2659,76 +2619,85 @@ const _getLeadsByStatusAndAgentService = async (propIdRaw: Types.ObjectId | stri
     const missed = await Lead.aggregate([
       {
         $match: Object.assign({}, baseMatch, {
-          "follow_ups.next_followup_date": { $lt: today }
-        })
+          "follow_ups.next_followup_date": { $lt: today },
+        }),
       },
       {
         $lookup: {
           from: "users",
           localField: "assigned_to",
           foreignField: "_id",
-          as: "assignedUser"
-        }
+          as: "assignedUser",
+        },
       },
       { $unwind: { path: "$assignedUser", preserveNullAndEmptyArrays: true } },
       {
-        $match: { "assignedUser.role": telecallerRole._id }
+        $match: { "assignedUser.role": telecallerRole._id },
       },
       {
         $group: {
           _id: { agentId: "$assigned_to", agentName: "$assignedUser.name" },
-          missedCount: { $sum: 1 }
-        }
-      }
+          missedCount: { $sum: 1 },
+        },
+      },
     ]);
 
-    missed_followups.total = missed.reduce((s: number, r: any) => s + r.missedCount, 0);
+    missed_followups.total = missed.reduce(
+      (s: number, r: any) => s + r.missedCount,
+      0,
+    );
     missed_followups.telecallers = missed.map((r: any) => ({
       agent_id: r._id.agentId,
       agent_name: r._id.agentName,
-      missed_count: r.missedCount
+      missed_count: r.missedCount,
     }));
   }
-
 
   let conversion_rates = { totalConverted: 0, telecallers: [] as any[] };
   if (telecallerRole) {
     const converted = await Lead.aggregate([
       {
         $match: Object.assign({}, baseMatch, {
-          "meta.status": "CONVERTED TO CUSTOMER"
-        })
+          "meta.status": "CONVERTED TO CUSTOMER",
+        }),
       },
       {
         $lookup: {
           from: "users",
           localField: "assigned_to",
           foreignField: "_id",
-          as: "assignedUser"
-        }
+          as: "assignedUser",
+        },
       },
       { $unwind: { path: "$assignedUser", preserveNullAndEmptyArrays: true } },
       {
-        $match: { "assignedUser.role": telecallerRole._id }
+        $match: { "assignedUser.role": telecallerRole._id },
       },
       {
         $group: {
           _id: { agentId: "$assigned_to", agentName: "$assignedUser.name" },
-          convertedCount: { $sum: 1 }
-        }
-      }
+          convertedCount: { $sum: 1 },
+        },
+      },
     ]);
 
-    conversion_rates.totalConverted = converted.reduce((s: number, r: any) => s + r.convertedCount, 0);
+    conversion_rates.totalConverted = converted.reduce(
+      (s: number, r: any) => s + r.convertedCount,
+      0,
+    );
     conversion_rates.telecallers = converted.map((r: any) => {
       const agentIdStr = r._id.agentId ? String(r._id.agentId) : null;
-      const telecallerTotal = agentIdStr && agentMap[agentIdStr] ? agentMap[agentIdStr].lead_count : 0;
-      const rate = telecallerTotal > 0 ? (r.convertedCount / telecallerTotal) * 100 : 0;
+      const telecallerTotal =
+        agentIdStr && agentMap[agentIdStr]
+          ? agentMap[agentIdStr].lead_count
+          : 0;
+      const rate =
+        telecallerTotal > 0 ? (r.convertedCount / telecallerTotal) * 100 : 0;
       return {
         agent_id: r._id.agentId,
         agent_name: r._id.agentName,
         converted: r.convertedCount,
-        conversion_rate: Number(rate.toFixed(2))
+        conversion_rate: Number(rate.toFixed(2)),
       };
     });
   }
@@ -2738,12 +2707,9 @@ const _getLeadsByStatusAndAgentService = async (propIdRaw: Types.ObjectId | stri
     agents,
     unassigned: { lead_count: unassignedCount },
     missed_followups,
-    conversion_rates
+    conversion_rates,
   };
 };
-
-
-
 
 /**
  * Validates that the requesting user owns (is assigned to) a lead by leadId.
@@ -2752,7 +2718,7 @@ const _getLeadsByStatusAndAgentService = async (propIdRaw: Types.ObjectId | stri
 const _validateLeadOwnership = async (
   leadId: Types.ObjectId | string,
   userId: string,
-  userRole: string
+  userRole: string,
 ): Promise<void> => {
   if (userRole === "Superadmin") return;
 
@@ -2762,7 +2728,7 @@ const _validateLeadOwnership = async (
   const assignedTo = lead.assigned_to?.toString();
   if (assignedTo !== userId) {
     throw new Error(
-      "Access denied: You can only modify leads that are assigned to you."
+      "Access denied: You can only modify leads that are assigned to you.",
     );
   }
 };
@@ -2773,17 +2739,19 @@ const _validateLeadOwnership = async (
 const _validateLeadOwnershipByRayId = async (
   rayId: string,
   userId: string,
-  userRole: string
+  userRole: string,
 ): Promise<void> => {
   if (userRole === "Superadmin") return;
 
-  const lead = await Lead.findOne({ "meta.ray_id": rayId }).select("assigned_to");
+  const lead = await Lead.findOne({ "meta.ray_id": rayId }).select(
+    "assigned_to",
+  );
   if (!lead) throw new Error("Lead not found!");
 
   const assignedTo = lead.assigned_to?.toString();
   if (assignedTo !== userId) {
     throw new Error(
-      "Access denied: You can only modify leads that are assigned to you."
+      "Access denied: You can only modify leads that are assigned to you.",
     );
   }
 };
@@ -2805,7 +2773,7 @@ const _createLeadViaLabel = async (
   },
   property: any,
   ip: string,
-  apiKeyValue?: string
+  apiKeyValue?: string,
 ) => {
   const now = new Date();
   const property_id = property._id;
@@ -2814,7 +2782,7 @@ const _createLeadViaLabel = async (
   const label = await Label.findOne({ _id: data.label_id, property_id });
   if (!label) {
     throw new Error(
-      `Label with ID "${data.label_id}" not found for this organisation.`
+      `Label with ID "${data.label_id}" not found for this organisation.`,
     );
   }
 
@@ -2856,7 +2824,9 @@ const _createLeadViaLabel = async (
   // Resolve property superadmin — always used for assigned_by regardless of who the lead is assigned to
   const superAdminRole = await Role.findOne({ name: "Superadmin" });
   const superAdminUser = superAdminRole
-    ? await User.findOne({ property_id, role: superAdminRole._id }).select("_id")
+    ? await User.findOne({ property_id, role: superAdminRole._id }).select(
+        "_id",
+      )
     : null;
   const superAdminId = superAdminUser?._id ?? null;
 
@@ -2895,7 +2865,7 @@ const _createLeadViaLabel = async (
   const activatedFeatures =
     getMetaValue(activePackage?.meta, "activated_features") || [];
   const leadsFeature = activatedFeatures.find(
-    (f: any) => f.title === "Leads Limit"
+    (f: any) => f.title === "Leads Limit",
   );
 
   const limitStatus = _resolveLeadLimitStatus(activePackage, leadsFeature);
@@ -2906,17 +2876,17 @@ const _createLeadViaLabel = async (
 
     case LeadLimitValidationStatus.PACKAGE_NOT_ACTIVE:
       throw new Error(
-        `Your current package is ${activePackage?.status}. Please renew or upgrade.`
+        `Your current package is ${activePackage?.status}. Please renew or upgrade.`,
       );
 
     case LeadLimitValidationStatus.FEATURE_MISSING:
       throw new Error(
-        "Your plan does not include a Leads Limit. Please upgrade."
+        "Your plan does not include a Leads Limit. Please upgrade.",
       );
 
     case LeadLimitValidationStatus.FEATURE_EXPIRED:
       throw new Error(
-        `Lead limit expired on ${new Date(leadsFeature.validity).toLocaleDateString()}. Please renew your plan.`
+        `Lead limit expired on ${new Date(leadsFeature.validity).toLocaleDateString()}. Please renew your plan.`,
       );
 
     case LeadLimitValidationStatus.LIMIT_REACHED:
@@ -2934,10 +2904,10 @@ const _createLeadViaLabel = async (
             },
           },
         },
-        { new: true }
+        { new: true },
       );
       throw new Error(
-        `Lead limit reached. Used ${leadsFeature.used}/${leadsFeature.limit}.`
+        `Lead limit reached. Used ${leadsFeature.used}/${leadsFeature.limit}.`,
       );
 
     case LeadLimitValidationStatus.OK:
@@ -2976,7 +2946,11 @@ const _createLeadViaLabel = async (
         title: "Lead Created via Label API",
         description: `Lead created externally via Basic Auth API using label "${label.title}" with status ${defaultStatus.title}.`,
         status: LeadLogStatus.ACTION,
-        meta: { label_id: data.label_id, label_title: label.title, source: "LABEL_API" },
+        meta: {
+          label_id: data.label_id,
+          label_title: label.title,
+          source: "LABEL_API",
+        },
         createdAt: now,
         updatedAt: now,
       },
@@ -2987,7 +2961,7 @@ const _createLeadViaLabel = async (
 
   // 7a. Trigger label-based WhatsApp automation (fire-and-forget — never block lead creation)
   _triggerLabelAutomationWebhook(newLead, data.label_id).catch((err) =>
-    console.error("Label automation error:", err?.message ?? err)
+    console.error("Label automation error:", err?.message ?? err),
   );
 
   // 7. Record in property logs + increment usage_count
@@ -3000,27 +2974,31 @@ const _createLeadViaLabel = async (
           title: "Lead Created via Label API",
           description: `Lead (${data.name || "unnamed"}) created via Basic Auth API using label "${label.title}".`,
           status: LogStatus.INFO,
-          meta: { leadId: newLead._id, label_id: data.label_id, label_title: label.title },
+          meta: {
+            leadId: newLead._id,
+            label_id: data.label_id,
+            label_title: label.title,
+          },
           createdAt: now,
           updatedAt: now,
         },
       },
     },
-    { new: true }
+    { new: true },
   );
 
   // 8. Increment Leads Limit used count in the package
   await PurchaseRecordsModel.findOneAndUpdate(
     { _id: activePackageId, "meta.activated_features.title": "Leads Limit" },
     { $inc: { "meta.activated_features.$.used": 1 } },
-    { new: true }
+    { new: true },
   );
 
   // 9. Increment usage_count on the API key that was used for this request
   if (apiKeyValue) {
     await Property.findOneAndUpdate(
       { "meta.keys.value": apiKeyValue },
-      { $inc: { "meta.keys.$.usage_count": 1 } }
+      { $inc: { "meta.keys.$.usage_count": 1 } },
     );
   }
 
@@ -3046,7 +3024,6 @@ export {
   _updateStatusForLead,
   _importLeadsFromExcel,
   _exportLeadsFromDBToExcel,
-
   _getMissedFollowUpsForDay,
   _fetchPaginatedArchivedLeads,
   _getTodaysFollowups,
@@ -3057,4 +3034,3 @@ export {
   _getTodaysFollowupsForSuperadmin,
   _createLeadViaLabel,
 };
-

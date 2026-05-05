@@ -67,7 +67,7 @@ const _createUserForOrganization = async (
   phone_number: string,
   password: string,
   property_id: Types.ObjectId,
-  userId: Types.ObjectId
+  userId: Types.ObjectId,
 ) => {
   const validRoles = new Set(["Admin", "Lead Manager", "Telecaller"]);
   if (!validRoles.has(roleName)) {
@@ -107,7 +107,6 @@ const _createUserForOrganization = async (
 
     const rawPassword = password?.trim() || `${roleName}@123`;
 
-    
     let user = await User.create({
       name,
       email,
@@ -117,7 +116,6 @@ const _createUserForOrganization = async (
       role: role._id,
       property_id,
     });
-
 
     if (roleName === "Telecaller") {
       console.log("🔍 Searching WhatsApp device for Telecaller", phone_number);
@@ -133,10 +131,8 @@ const _createUserForOrganization = async (
           $set: { "meta.whatsapp_device": userDevice },
         });
 
-
         user = (await User.findById(user._id)) || user;
       }
-
 
       const officeDevice = await WhatsAppDevice.findOne({
         device_name: OFFICE_DEVICE_NAME,
@@ -144,7 +140,7 @@ const _createUserForOrganization = async (
 
       if (!officeDevice) {
         console.error(
-          "❌ Office device not found! Cannot send WhatsApp message."
+          "❌ Office device not found! Cannot send WhatsApp message.",
         );
       } else {
         console.log("📨 Sending WhatsApp credentials to telecaller...");
@@ -171,19 +167,18 @@ You can access the CRM here: (Ignore link for testing)
               numbers: phone_number,
               device_token: officeDevice.u_device_token,
             },
-            { headers: { Authorization: API_KEY } }
+            { headers: { Authorization: API_KEY } },
           );
 
           console.log(
             "✅ WhatsApp message sent successfully to:",
-            phone_number
+            phone_number,
           );
         } catch (err: any) {
           console.error("❌ Failed sending WhatsApp message:", err.message);
         }
       }
     }
-
 
     const updateOps: any = {
       $push: {
@@ -221,17 +216,17 @@ You can access the CRM here: (Ignore link for testing)
   }
 };
 
-
-
 const _allChatAgents = async (propertyId: Types.ObjectId) => {
-  const chatAgentRole = await Role.findOne({ name: "Telecaller" });
+  const chatAgentRole = await Role.find({
+    name: { $in: ["Telecaller", "Admin", "Superadmin"] },
+  });
 
-  if (!chatAgentRole) {
-    return [];
-  }
+ if (!chatAgentRole.length) {
+   return [];
+ }
 
   const users = await User.find({
-    role: chatAgentRole._id,
+    role: { $in: chatAgentRole.map((r) => r._id) },
     property_id: propertyId,
   }).select("name meta");
 
@@ -251,7 +246,7 @@ const _allPaginatedChatAgents = async (
   propertyId: Types.ObjectId,
   page = 1,
   limit = 10,
-  filterActive?: boolean // undefined = all, true = active only, false = inactive only
+  filterActive?: boolean, // undefined = all, true = active only, false = inactive only
 ) => {
   const chatAgentRole = await Role.findOne({ name: "Telecaller" });
 
@@ -268,7 +263,10 @@ const _allPaginatedChatAgents = async (
   };
 
   if (filterActive === true) {
-    query.$or = [{ "meta.is_active": true }, { "meta.is_active": { $exists: false } }];
+    query.$or = [
+      { "meta.is_active": true },
+      { "meta.is_active": { $exists: false } },
+    ];
   } else if (filterActive === false) {
     query["meta.is_active"] = false;
   }
@@ -301,7 +299,7 @@ const _allPaginatedChatAgents = async (
 
 const _uploadProfilePicture = async (
   fileUrl: string,
-  userId: Types.ObjectId
+  userId: Types.ObjectId,
 ) => {
   try {
     const existingUser = await User.findById(userId);
@@ -318,8 +316,8 @@ const _uploadProfilePicture = async (
       existingUser.meta instanceof Map
         ? Object.fromEntries(existingUser.meta)
         : typeof existingUser.meta === "object"
-        ? existingUser.meta
-        : {};
+          ? existingUser.meta
+          : {};
 
     const updatedUser = await User.findByIdAndUpdate(
       userId,
@@ -329,7 +327,7 @@ const _uploadProfilePicture = async (
           profile_picture_data: existingFile._id,
         },
       },
-      { new: true }
+      { new: true },
     );
 
     return updatedUser;
@@ -353,7 +351,7 @@ const _toggleUserActiveStatus = async (
   isActive: boolean,
   requestingUserId: Types.ObjectId,
   propertyId: Types.ObjectId,
-  reassignToUserId?: Types.ObjectId
+  reassignToUserId?: Types.ObjectId,
 ) => {
   const targetUser = await User.findById(targetUserId).populate<{
     role: { name: string };
@@ -379,7 +377,7 @@ const _toggleUserActiveStatus = async (
       ],
     },
     { $set: { "meta.is_active": isActive } },
-    { new: false }
+    { new: false },
   );
 
   if (!stateChanged) {
@@ -398,7 +396,7 @@ const _toggleUserActiveStatus = async (
   if (!isActive) {
     if (!reassignToUserId)
       throw new Error(
-        "reassign_to is required when deactivating a user — all their leads will be transferred."
+        "reassign_to is required when deactivating a user — all their leads will be transferred.",
       );
 
     const newAssignee = await User.findOne({
@@ -438,7 +436,7 @@ const _toggleUserActiveStatus = async (
             updatedAt: new Date(),
           },
         },
-      }
+      },
     );
     leadsTransferred = result.modifiedCount;
   }
@@ -471,24 +469,39 @@ const _toggleUserActiveStatus = async (
 
 const _updateOwnProfile = async (
   userId: Types.ObjectId,
-  updates: { name?: string; email?: string; phone_number?: string; bio?: string }
+  updates: {
+    name?: string;
+    email?: string;
+    phone_number?: string;
+    bio?: string;
+  },
 ) => {
   const { name, email, phone_number, bio } = updates;
 
   if (!name && !email && !phone_number && bio === undefined)
-    throw new Error("At least one field (name, email, phone_number, bio) is required.");
+    throw new Error(
+      "At least one field (name, email, phone_number, bio) is required.",
+    );
 
   const user = await User.findById(userId);
   if (!user) throw new Error("User not found.");
 
   // Uniqueness check for name and email
   const conflictQuery: any[] = [];
-  if (name && name.trim() !== user.name) conflictQuery.push({ name: name.trim() });
-  if (email && email.trim().toLowerCase() !== user.email) conflictQuery.push({ email: email.trim().toLowerCase() });
+  if (name && name.trim() !== user.name)
+    conflictQuery.push({ name: name.trim() });
+  if (email && email.trim().toLowerCase() !== user.email)
+    conflictQuery.push({ email: email.trim().toLowerCase() });
 
   if (conflictQuery.length) {
-    const conflict = await User.findOne({ $or: conflictQuery, _id: { $ne: userId } });
-    if (conflict) throw new Error("Another user with the same name or email already exists.");
+    const conflict = await User.findOne({
+      $or: conflictQuery,
+      _id: { $ne: userId },
+    });
+    if (conflict)
+      throw new Error(
+        "Another user with the same name or email already exists.",
+      );
   }
 
   const patch: Record<string, any> = {};
@@ -500,7 +513,7 @@ const _updateOwnProfile = async (
   const updatedUser = await User.findByIdAndUpdate(
     userId,
     { $set: patch },
-    { new: true }
+    { new: true },
   )
     .select("-password")
     .lean();
@@ -515,7 +528,7 @@ const _updateEmployeeDetails = async (
   targetUserId: Types.ObjectId,
   requestingUserId: Types.ObjectId,
   propertyId: Types.ObjectId,
-  updates: { name?: string; email?: string; phone_number?: string }
+  updates: { name?: string; email?: string; phone_number?: string },
 ) => {
   const targetUser = await User.findById(targetUserId).populate<{
     role: { name: string };
@@ -532,7 +545,9 @@ const _updateEmployeeDetails = async (
   const { name, email, phone_number } = updates;
 
   if (!name && !email && !phone_number)
-    throw new Error("At least one field (name, email, phone_number) is required.");
+    throw new Error(
+      "At least one field (name, email, phone_number) is required.",
+    );
 
   const conflictQuery: any[] = [];
   if (name && name !== targetUser.name) conflictQuery.push({ name });
@@ -543,7 +558,10 @@ const _updateEmployeeDetails = async (
       $or: conflictQuery,
       _id: { $ne: targetUserId },
     });
-    if (conflict) throw new Error("Another user with the same name or email already exists.");
+    if (conflict)
+      throw new Error(
+        "Another user with the same name or email already exists.",
+      );
   }
 
   const patch: Record<string, any> = {};
@@ -554,10 +572,12 @@ const _updateEmployeeDetails = async (
   const updatedUser = await User.findByIdAndUpdate(
     targetUserId,
     { $set: patch },
-    { new: true }
+    { new: true },
   ).select("name email phone_number role property_id meta");
 
-  const requestingUser = await User.findById(requestingUserId).select("name").lean();
+  const requestingUser = await User.findById(requestingUserId)
+    .select("name")
+    .lean();
 
   await Property.findByIdAndUpdate(propertyId, {
     $push: {
