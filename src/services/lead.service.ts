@@ -107,6 +107,22 @@ interface CreateLeadDto {
   createdAt?: Date | string; // 👈 bas yeh
 }
 
+interface EditLeadDto {
+  leadId: Types.ObjectId | string;
+  name?: string;
+  company_name?: string;
+  phone_number?: string;
+  email?: string;
+  address?: string;
+  comment?: string;
+  reference?: string;
+  labels?: string[];
+  status?: string;
+  assigned_to?: string;
+  source?: string;
+  createdAt?: string | Date;
+}
+
 interface ImportOptions {
   status_id?: Types.ObjectId | null;
   source_id?: Types.ObjectId | null;
@@ -1172,6 +1188,103 @@ const _createLeadService = async (
   return lead;
 };
 
+const _editLeadService = async (
+  data: EditLeadDto,
+  userId: Types.ObjectId,
+  propId: Types.ObjectId,
+) => {
+  const now = new Date();
+
+  const existingUser = await User.findById(userId).select("name");
+  if (!existingUser) throw new Error("User not found");
+
+  const existingLead = await Lead.findById(data.leadId);
+  if (!existingLead) throw new Error("Lead not found");
+
+  // Build update payload — sirf jo fields aaye hain unhe update karo
+  const updatePayload: Record<string, any> = {};
+
+  if (data.name !== undefined) updatePayload.name = data.name;
+  if (data.company_name !== undefined)
+    updatePayload.company_name = data.company_name;
+  if (data.phone_number !== undefined)
+    updatePayload.phone_number = data.phone_number;
+  if (data.email !== undefined) updatePayload.email = data.email;
+  if (data.address !== undefined) updatePayload.address = data.address;
+  if (data.comment !== undefined) updatePayload.comment = data.comment;
+  if (data.reference !== undefined) updatePayload.reference = data.reference;
+  if (data.createdAt !== undefined)
+    updatePayload.createdAt = new Date(data.createdAt);
+
+  // Status validate karke set karo
+  if (data.status) {
+    const statusDoc = await Status.findById(data.status);
+    if (!statusDoc) throw new Error("Status not found");
+    updatePayload.status = statusDoc._id;
+  }
+
+  // Assigned to validate karke set karo
+  if (data.assigned_to) {
+    const assigneeUser = await User.findOne({
+      _id: new Types.ObjectId(data.assigned_to),
+      property_id: propId,
+    });
+    if (!assigneeUser)
+      throw new Error("Assigned user not found in this property");
+    updatePayload.assigned_to = assigneeUser._id;
+  }
+
+  // Source set karo
+  if (data.source) {
+    updatePayload["meta.source"] = new Types.ObjectId(data.source);
+  }
+
+  // Labels set karo
+  if (data.labels && data.labels.length > 0) {
+    updatePayload.labels = data.labels.map((id) => new Types.ObjectId(id));
+  }
+
+  // Lead update karo
+  const updatedLead = await Lead.findByIdAndUpdate(
+    data.leadId,
+    { $set: updatePayload },
+    { new: true },
+  )
+    .populate("status")
+    .populate("labels")
+    .populate("assigned_to", "name email");
+
+  if (!updatedLead) throw new Error("Lead update failed");
+
+  // Log entry
+  const leadLogEntry = {
+    title: "Lead updated",
+    description: `${existingUser.name} updated this lead's details.`,
+    status: LeadLogStatus.ACTION,
+    meta: { leadId: data.leadId, userId },
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  await Lead.findByIdAndUpdate(data.leadId, {
+    $push: { logs: leadLogEntry },
+  });
+
+  await Property.findByIdAndUpdate(propId, {
+    $push: {
+      logs: {
+        title: "Lead updated",
+        description: `Lead (${updatedLead.name}) updated by ${existingUser.name}.`,
+        status: LogStatus.INFO,
+        meta: { leadId: data.leadId, userId },
+        createdAt: now,
+        updatedAt: now,
+      },
+    },
+  });
+
+  return updatedLead;
+};
 const _getMissedFollowUpsService = async (
   propId: Types.ObjectId,
   userId?: Types.ObjectId,
@@ -3033,4 +3146,5 @@ export {
   _editFollowUp,
   _getTodaysFollowupsForSuperadmin,
   _createLeadViaLabel,
+  _editLeadService,
 };

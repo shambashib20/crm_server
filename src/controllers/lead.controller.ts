@@ -28,9 +28,14 @@ import {
   _validateLeadOwnership,
   _validateLeadOwnershipByRayId,
   _createLeadViaLabel,
+  _editLeadService,
 } from "../services/lead.service";
 import multer from "multer";
-import { _getConvertedLeadsPerAgentPerSourceService, _getLeadsTrendByTelecallerService, _getTelecallerStatsService } from "../services/master.service";
+import {
+  _getConvertedLeadsPerAgentPerSourceService,
+  _getLeadsTrendByTelecallerService,
+  _getTelecallerStatsService,
+} from "../services/master.service";
 
 interface UpdateLabelRequest {
   leadId: Types.ObjectId | string;
@@ -59,8 +64,8 @@ const FetchLeadDetails = async (req: any, res: any) => {
           .json(
             new SuccessResponse(
               "Access denied: You can only view leads assigned to you.",
-              403
-            )
+              403,
+            ),
           );
       }
     }
@@ -68,7 +73,7 @@ const FetchLeadDetails = async (req: any, res: any) => {
     return res
       .status(200)
       .json(
-        new SuccessResponse("Lead details fetched successfully", 200, result)
+        new SuccessResponse("Lead details fetched successfully", 200, result),
       );
   } catch (error: any) {
     return res.status(500).json(new SuccessResponse(error.message, 500));
@@ -90,7 +95,7 @@ const NewFollowUp = async (req: any, res: any) => {
       req.body.nextFollowUp,
       req.body.comment,
       req.body.attachmentUrl,
-      req.body.audioAttachmentUrl
+      req.body.audioAttachmentUrl,
     );
 
     if (!result) {
@@ -120,7 +125,7 @@ const EditFollowUp = async (req: any, res: any) => {
       req.body.nextFollowUp,
       req.body.comment,
       req.body.attachmentUrl,
-      req.body.audioAttachmentUrl
+      req.body.audioAttachmentUrl,
     );
 
     return res
@@ -150,7 +155,7 @@ const UpdateLabelForLead = async (req: any, res: any) => {
       new Types.ObjectId(leadId),
       new Types.ObjectId(propId),
       new Types.ObjectId(userId),
-      labelIds.map((id: any) => new Types.ObjectId(id))
+      labelIds.map((id: any) => new Types.ObjectId(id)),
     );
 
     return res
@@ -180,13 +185,13 @@ const UpdateStatusForLead = async (req: any, res: any) => {
       new Types.ObjectId(leadId),
       new Types.ObjectId(propId),
       new Types.ObjectId(userId),
-      new Types.ObjectId(statusId)
+      new Types.ObjectId(statusId),
     );
 
     return res
       .status(200)
       .json(
-        new SuccessResponse("Status updated for the lead successfully", 201)
+        new SuccessResponse("Status updated for the lead successfully", 201),
       );
   } catch (error: any) {
     return res.status(500).json(new SuccessResponse(error.message, 500));
@@ -222,7 +227,7 @@ const HomePageLeads = async (req: any, res: any) => {
       : [new Types.ObjectId(req.user._id)];
 
     const assignedByUserIds = assignedBy.map(
-      (id: string) => new Types.ObjectId(id)
+      (id: string) => new Types.ObjectId(id),
     );
 
     const leads = await _homePageLeadService(
@@ -237,12 +242,12 @@ const HomePageLeads = async (req: any, res: any) => {
       end_date,
       parseInt(page),
       parseInt(limit),
-      userPropId
+      userPropId,
     );
     return res
       .status(200)
       .json(
-        new SuccessResponse("Filtered leads fetched successfully", 200, leads)
+        new SuccessResponse("Filtered leads fetched successfully", 200, leads),
       );
   } catch (error: any) {
     return res.status(500).json(new SuccessResponse(error.message, 500));
@@ -276,7 +281,7 @@ const CreateLeadController = async (req: any, res: any) => {
     ];
 
     const statusCode = clientErrorMessages.some((msg) =>
-      error.message?.includes(msg)
+      error.message?.includes(msg),
     )
       ? 400
       : 500;
@@ -303,7 +308,7 @@ const CreateLeadByUserController = async (req: any, res: any) => {
     const lead = await _createLeadService(
       { ...leadPayload, property_id: propId },
       ip,
-      userId
+      userId,
     );
 
     return res
@@ -324,7 +329,55 @@ const CreateLeadByUserController = async (req: any, res: any) => {
     ];
 
     const statusCode = clientErrorMessages.some((msg) =>
-      error.message?.includes(msg)
+      error.message?.includes(msg),
+    )
+      ? 400
+      : 500;
+
+    return res.status(statusCode).json({
+      message: error.message || "Something went wrong",
+      status: statusCode === 400 ? "BAD_REQUEST" : "SERVER_ERROR",
+      data: null,
+    });
+  }
+};
+
+const EditLeadController = async (req: any, res: any) => {
+  try {
+    const userId = new Types.ObjectId(req.user._id);
+    const propId = req.user.property_id;
+    const userRole: string = req.user?.role?.name ?? "";
+
+    const { leadId } = req.body;
+
+    if (!leadId) {
+      return res
+        .status(400)
+        .json(new SuccessResponse("leadId is required", 400));
+    }
+
+    await _validateLeadOwnership(leadId, userId.toString(), userRole);
+
+    const result = await _editLeadService(
+      req.body,
+      userId,
+      new Types.ObjectId(propId),
+    );
+
+    return res
+      .status(200)
+      .json(new SuccessResponse("Lead updated successfully", 200, result));
+  } catch (error: any) {
+    const clientErrorMessages = [
+      "Lead not found",
+      "User not found",
+      "Status not found",
+      "Assigned user not found in this property",
+      "Access denied",
+    ];
+
+    const statusCode = clientErrorMessages.some((msg) =>
+      error.message?.includes(msg),
     )
       ? 400
       : 500;
@@ -345,7 +398,10 @@ const GetMissedFollowUpsController = async (req: any, res: any) => {
 
     // Non-Superadmin users only see missed follow-ups for their own leads
     const filterUserId = isSuperadmin ? undefined : req.user._id;
-    const missedFollowUps = await _getMissedFollowUpsService(propId, filterUserId);
+    const missedFollowUps = await _getMissedFollowUpsService(
+      propId,
+      filterUserId,
+    );
 
     return res
       .status(200)
@@ -353,8 +409,8 @@ const GetMissedFollowUpsController = async (req: any, res: any) => {
         new SuccessResponse(
           "Missed follow-ups fetched successfully",
           200,
-          missedFollowUps
-        )
+          missedFollowUps,
+        ),
       );
   } catch (error: any) {
     return res.status(500).json(new SuccessResponse(error.message, 500));
@@ -373,8 +429,8 @@ const GetTodaysLeadsGrouped = async (req: any, res: any) => {
         new SuccessResponse(
           "Today's leads grouped by source fetched successfully",
           200,
-          todaysLeads
-        )
+          todaysLeads,
+        ),
       );
   } catch (error: any) {
     return res.status(500).json(new SuccessResponse(error.message, 500));
@@ -398,7 +454,7 @@ const UpdateAssignmentForLead = async (req: any, res: any) => {
       new Types.ObjectId(leadId),
       new Types.ObjectId(propId),
       new Types.ObjectId(userId),
-      new Types.ObjectId(chatAgentId)
+      new Types.ObjectId(chatAgentId),
     );
 
     return res
@@ -438,7 +494,7 @@ const LeadsPerStatus = async (req: any, res: any) => {
     const result = await _getLeadStatusStatsService(
       new Types.ObjectId(agentId),
       startDate as string,
-      endDate as string
+      endDate as string,
     );
 
     return res
@@ -456,13 +512,13 @@ const LeadsPerSource = async (req: any, res: any) => {
     const result = await _getLeadSourceStatsService(
       new Types.ObjectId(agentId),
       startDate as string,
-      endDate as string
+      endDate as string,
     );
 
     return res
       .status(200)
       .json(
-        new SuccessResponse("Donut chart data fetched for Source", 200, result)
+        new SuccessResponse("Donut chart data fetched for Source", 200, result),
       );
   } catch (err: any) {
     return res.status(500).json(new SuccessResponse(err.message, 500));
@@ -477,7 +533,7 @@ const ArchiveSessionLeads = async (req: any, res: any) => {
     return res
       .status(200)
       .json(
-        new SuccessResponse("Leads archived for this session!", 200, result)
+        new SuccessResponse("Leads archived for this session!", 200, result),
       );
   } catch (err: any) {
     return res.status(500).json(new SuccessResponse(err.message, 500));
@@ -517,7 +573,7 @@ const ImportLeadsController = async (req: any, res: any) => {
           ? label_ids.map((id: string) => new Types.ObjectId(id))
           : [new Types.ObjectId(label_ids)],
         assigned_to: assigned_to ? new Types.ObjectId(assigned_to) : null,
-      }
+      },
     );
 
     return res.status(201).json(
@@ -527,7 +583,7 @@ const ImportLeadsController = async (req: any, res: any) => {
         failed: importResult.failed,
         errors: importResult.errors,
         leads: importResult.leads,
-      })
+      }),
     );
   } catch (error: any) {
     console.error("Error importing leads:", error);
@@ -559,11 +615,11 @@ const ExportLeadsController = async (req: any, res: any) => {
     const excelBuffer = await _exportLeadsFromDBToExcel();
     res.setHeader(
       "Content-Disposition",
-      "attachment; filename=leads_export.xlsx"
+      "attachment; filename=leads_export.xlsx",
     );
     res.setHeader(
       "Content-Type",
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     );
 
     return res.status(200).send(excelBuffer);
@@ -578,8 +634,6 @@ const ExportLeadsController = async (req: any, res: any) => {
 
 const CreateExternalLeadsController = async (req: any, res: any) => {
   try {
-
-
     const {
       customer_name,
       company_name,
@@ -594,12 +648,7 @@ const CreateExternalLeadsController = async (req: any, res: any) => {
     if (!customer_name || !phone_number || !property_id) {
       return res
         .status(400)
-        .json(
-          new SuccessResponse(
-            "some fields are missing!",
-            400
-          )
-        );
+        .json(new SuccessResponse("some fields are missing!", 400));
     }
 
     const leadData = {
@@ -618,7 +667,7 @@ const CreateExternalLeadsController = async (req: any, res: any) => {
     return res
       .status(201)
       .json(
-        new SuccessResponse("Lead created successfully via API", 201, newLead)
+        new SuccessResponse("Lead created successfully via API", 201, newLead),
       );
   } catch (err: any) {
     return res
@@ -649,7 +698,7 @@ const FetchArchivedPaginatedLeads = async (req: any, res: any) => {
     const result = await _fetchPaginatedArchivedLeads(
       propertyId,
       parseInt(page),
-      parseInt(limit)
+      parseInt(limit),
     );
 
     return res
@@ -670,13 +719,12 @@ const FetchTodaysFollowups = async (req: any, res: any) => {
     return res
       .status(200)
       .json(
-        new SuccessResponse("Today's pending follow-ups fetched", 200, leads)
+        new SuccessResponse("Today's pending follow-ups fetched", 200, leads),
       );
   } catch (err: any) {
     return res.status(500).json(new SuccessResponse(err.message, 500));
   }
 };
-
 
 const FetchTodaysFollowupsSuperadmin = async (req: any, res: any) => {
   try {
@@ -687,7 +735,11 @@ const FetchTodaysFollowupsSuperadmin = async (req: any, res: any) => {
     return res
       .status(200)
       .json(
-        new SuccessResponse("Today's pending follow-ups fetched for superadmin", 200, leads)
+        new SuccessResponse(
+          "Today's pending follow-ups fetched for superadmin",
+          200,
+          leads,
+        ),
       );
   } catch (err: any) {
     return res.status(500).json(new SuccessResponse(err.message, 500));
@@ -696,9 +748,7 @@ const FetchTodaysFollowupsSuperadmin = async (req: any, res: any) => {
 
 const GetLeadsBySourceAndChatAgentController = async (req: any, res: any) => {
   try {
-
     const propId = req.user.property_id;
-
 
     const result = await _getLeadsBySourceAndAgentService(propId);
     return res
@@ -707,8 +757,8 @@ const GetLeadsBySourceAndChatAgentController = async (req: any, res: any) => {
         new SuccessResponse(
           "Leads by Source and Telecaller fetched",
           200,
-          result
-        )
+          result,
+        ),
       );
   } catch (error: any) {
     return res.status(500).json(new SuccessResponse(error.message, 500));
@@ -717,7 +767,6 @@ const GetLeadsBySourceAndChatAgentController = async (req: any, res: any) => {
 
 const GetLeadsByLabelAndChatAgentController = async (req: any, res: any) => {
   try {
-
     const propId = req.user.property_id;
 
     const result = await _getLeadsByLabelAndAgentService(propId);
@@ -727,8 +776,8 @@ const GetLeadsByLabelAndChatAgentController = async (req: any, res: any) => {
         new SuccessResponse(
           "Leads by Label and Telecaller fetched",
           200,
-          result
-        )
+          result,
+        ),
       );
   } catch (error: any) {
     return res.status(500).json(new SuccessResponse(error.message, 500));
@@ -737,7 +786,6 @@ const GetLeadsByLabelAndChatAgentController = async (req: any, res: any) => {
 
 const GetLeadsByStatusAndChatAgentController = async (req: any, res: any) => {
   try {
-
     const propId = req.user.property_id;
 
     const result = await _getLeadsByStatusAndAgentService(propId);
@@ -747,8 +795,8 @@ const GetLeadsByStatusAndChatAgentController = async (req: any, res: any) => {
         new SuccessResponse(
           "Leads by Status and Chat Agent fetched",
           200,
-          result
-        )
+          result,
+        ),
       );
   } catch (error: any) {
     return res.status(500).json(new SuccessResponse(error.message, 500));
@@ -765,8 +813,8 @@ const GetLeadsTrendByTelecallerController = async (req: any, res: any) => {
         .json(
           new SuccessResponse(
             "agentId, labelId and statusId are required fields!",
-            400
-          )
+            400,
+          ),
         );
     }
     const result = await _getLeadsTrendByTelecallerService(
@@ -775,7 +823,7 @@ const GetLeadsTrendByTelecallerController = async (req: any, res: any) => {
       new Types.ObjectId(statusId),
       new Types.ObjectId(propId),
       startDate,
-      endDate
+      endDate,
     );
     return res
       .status(200)
@@ -783,14 +831,13 @@ const GetLeadsTrendByTelecallerController = async (req: any, res: any) => {
         new SuccessResponse(
           "Leads trend data fetched successfully",
           200,
-          result
-        )
+          result,
+        ),
       );
   } catch (error: any) {
     return res.status(500).json(new SuccessResponse(error.message, 500));
   }
 };
-
 
 const GetTelecallerStatisticsController = async (req: any, res: any) => {
   try {
@@ -803,15 +850,15 @@ const GetTelecallerStatisticsController = async (req: any, res: any) => {
         .json(
           new SuccessResponse(
             "agentId, labelId and statusId are required fields!",
-            400
-          )
+            400,
+          ),
         );
     }
     const result = await _getTelecallerStatsService(
       new Types.ObjectId(agentId),
       new Types.ObjectId(propId),
       startDate,
-      endDate
+      endDate,
     );
     return res
       .status(200)
@@ -819,22 +866,17 @@ const GetTelecallerStatisticsController = async (req: any, res: any) => {
         new SuccessResponse(
           "Leads trend data fetched successfully",
           200,
-          result
-        )
+          result,
+        ),
       );
   } catch (error: any) {
     return res.status(500).json(new SuccessResponse(error.message, 500));
   }
 };
 
-
-
-
 const GetStatisticsBySourceController = async (req: any, res: any) => {
   try {
-
     const propId = req.user.property_id;
-
 
     const result = await _getConvertedLeadsPerAgentPerSourceService(
       new Types.ObjectId(propId),
@@ -845,8 +887,8 @@ const GetStatisticsBySourceController = async (req: any, res: any) => {
         new SuccessResponse(
           "Leads trend data fetched successfully",
           200,
-          result
-        )
+          result,
+        ),
       );
   } catch (error: any) {
     return res.status(500).json(new SuccessResponse(error.message, 500));
@@ -894,7 +936,7 @@ const CreateLeadViaLabelController = async (req: any, res: any) => {
       },
       property,
       ip,
-      req.apiKey?.value
+      req.apiKey?.value,
     );
 
     return res
@@ -937,4 +979,5 @@ export {
   GetStatisticsBySourceController,
   FetchTodaysFollowupsSuperadmin,
   CreateLeadViaLabelController,
+  EditLeadController,
 };

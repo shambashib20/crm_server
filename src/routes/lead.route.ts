@@ -27,6 +27,7 @@ import {
   UpdateLabelForLead,
   UpdateStatusForLead,
   UploadExcelMiddleware,
+  EditLeadController,
 } from "../controllers/lead.controller";
 
 import express from "express";
@@ -41,7 +42,8 @@ import { createRateLimiter } from "../middlewares/rate_limiter.middleware";
 const externalLeadRateLimiter = createRateLimiter({
   windowMs: 60 * 1000,
   maxRequests: 10,
-  message: "Rate limit exceeded. You can create at most 10 leads per minute per API key.",
+  message:
+    "Rate limit exceeded. You can create at most 10 leads per minute per API key.",
 });
 
 const leadRouter = express.Router();
@@ -49,14 +51,14 @@ const leadRouter = express.Router();
 leadRouter.get(
   "/overdue-followups",
   AuthMiddleware,
-  FetchMissedFollowupsForADay
+  FetchMissedFollowupsForADay,
 );
 
 leadRouter.post(
   "/create",
   // AuthMiddleware,
   // PermissionMiddleware("manage_leads"),
-  CreateLeadController
+  CreateLeadController,
 );
 
 // Authenticated lead creation — Telecallers / Admins creating leads manually
@@ -64,99 +66,105 @@ leadRouter.post(
   "/create-by-user",
   AuthMiddleware,
   PermissionMiddleware("manage_leads"),
-  CreateLeadByUserController
+  CreateLeadByUserController,
+);
+
+leadRouter.patch(
+  "/edit",
+  AuthMiddleware,
+  PermissionMiddleware("manage_leads"),
+  EditLeadController,
 );
 
 leadRouter.get(
   "/info",
   AuthMiddleware,
   PermissionMiddleware("view_leads"),
-  FetchLeadDetails
+  FetchLeadDetails,
 );
 
 leadRouter.post(
   "/follow-up",
   AuthMiddleware,
   PermissionMiddleware("manage_leads"),
-  NewFollowUp
+  NewFollowUp,
 );
 
 leadRouter.patch(
   "/update/follow-up",
   AuthMiddleware,
   PermissionMiddleware("manage_leads"),
-  EditFollowUp
+  EditFollowUp,
 );
 
 leadRouter.get(
   "/missed-follow-ups",
   AuthMiddleware,
   PermissionMiddleware("manage_leads"),
-  GetMissedFollowUpsController
+  GetMissedFollowUpsController,
 );
 
 leadRouter.patch(
   "/update",
   AuthMiddleware,
   PermissionMiddleware("manage_leads"),
-  UpdateLabelForLead
+  UpdateLabelForLead,
 );
 
 leadRouter.patch(
   "/update-status",
   AuthMiddleware,
   PermissionMiddleware("manage_leads"),
-  UpdateStatusForLead
+  UpdateStatusForLead,
 );
 
 leadRouter.patch(
   "/update-chat-agent",
   AuthMiddleware,
   PermissionMiddleware("assign_leads"),
-  UpdateAssignmentForLead
+  UpdateAssignmentForLead,
 );
 
 leadRouter.patch(
   "/delete-lead",
   AuthMiddleware,
   PermissionMiddleware("manage_leads"),
-  DeleteOrArchiveForLead
+  DeleteOrArchiveForLead,
 );
 
 leadRouter.get(
   "/leads-per-status",
   AuthMiddleware,
   PermissionMiddleware("manage_leads"),
-  LeadsPerStatus
+  LeadsPerStatus,
 );
 
 leadRouter.get(
   "/leads-per-source",
   AuthMiddleware,
   PermissionMiddleware("manage_leads"),
-  LeadsPerSource
+  LeadsPerSource,
 );
 
 leadRouter.get(
   "/archive-leads",
   AuthMiddleware,
   PermissionMiddleware("manage_leads"),
-  ArchiveSessionLeads
+  ArchiveSessionLeads,
 );
-
 
 leadRouter.post(
   "/import-leads",
   AuthMiddleware,
   UploadExcelMiddleware,
   // PermissionMiddleware("manage_leads"),
-  ImportLeadsController
+  ImportLeadsController,
 );
 leadRouter.get(
   "/export-leads",
   AuthMiddleware,
   PermissionMiddleware("manage_leads"),
-  ExportLeadsController
+  ExportLeadsController,
 );
 
 leadRouter.post("/create/external", CreateExternalLeadsController);
@@ -166,66 +174,63 @@ leadRouter.post(
   "/create/via-label",
   BasicAuthMiddleware,
   externalLeadRateLimiter,
-  CreateLeadViaLabelController
+  CreateLeadViaLabelController,
 );
 
 leadRouter.post(
   "/archived-leads",
   AuthMiddleware,
   PermissionMiddleware("manage_leads"),
-  FetchArchivedPaginatedLeads
+  FetchArchivedPaginatedLeads,
 );
 
 leadRouter.get(
   "/todays-followups",
   AuthMiddleware,
   PermissionMiddleware("manage_leads"),
-  FetchTodaysFollowups
+  FetchTodaysFollowups,
 );
 
 leadRouter.get(
   "/todays-followups/superadmin",
   AuthMiddleware,
   PermissionMiddleware("manage_leads"),
-  FetchTodaysFollowupsSuperadmin
+  FetchTodaysFollowupsSuperadmin,
 );
 
 leadRouter.get(
   "/statistics-by-source-agent",
   AuthMiddleware,
-  GetLeadsBySourceAndChatAgentController
+  GetLeadsBySourceAndChatAgentController,
 );
 
 leadRouter.get(
   "/statistics-by-label-agent",
   AuthMiddleware,
-  GetLeadsByLabelAndChatAgentController
+  GetLeadsByLabelAndChatAgentController,
 );
 
 leadRouter.get(
   "/statistics-by-status-agent",
   AuthMiddleware,
-  GetLeadsByStatusAndChatAgentController
+  GetLeadsByStatusAndChatAgentController,
 );
 
 leadRouter.post(
   "/statistics-by-telecaller-label-status",
   AuthMiddleware,
-  GetLeadsTrendByTelecallerController
+  GetLeadsTrendByTelecallerController,
 );
-
 
 leadRouter.post(
   "/telecaller-statistics",
   AuthMiddleware,
-  GetTelecallerStatisticsController
-)
-
-
+  GetTelecallerStatisticsController,
+);
 
 leadRouter.get(
   "/statistics-by-source",
   AuthMiddleware,
-  GetStatisticsBySourceController
-)
+  GetStatisticsBySourceController,
+);
 export default leadRouter;
