@@ -88,6 +88,29 @@ setInterval(() => {
     console.warn(`⚠️ HIGH MEMORY USAGE: ${mem}%`);
   }
 }, 30 * 1000);
+app.get("/health", async (req: any, res: any) => {
+  try {
+    const dbStatus = await getDbStatus();
+    const isDbOk = dbStatus.toLowerCase().includes("connected and responsive");
+
+    return res.status(isDbOk ? 200 : 503).json({
+      status: isDbOk ? "ok" : "degraded",
+      server: "running",
+      mongodb: dbStatus,
+      uptime: process.uptime().toFixed(2) + "s",
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err: any) {
+    return res.status(503).json({
+      status: "error",
+      server: "running",
+      mongodb: "unreachable",
+      error: err.message,
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
 app.get("/payment-webhook/monitor", async (req: any, res: any) => {
   try {
     await checkRazorpayWebhookStatus();
